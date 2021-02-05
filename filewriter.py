@@ -2,10 +2,12 @@ import os
 import sys
 import h5py
 import json
+import shutil
 import subprocess
 from datetime import datetime
 
-from common import FS, CLOCK, CHAN_BW, chan_to_freq, timetag_to_tuple
+from common import FS, CLOCK, CHAN_BW, chan_to_freq, timetag_to_datetime, tag_to_tuple
+
 
 class FileWriterBase(object):
     def __init__(self, filename, start_time, stop_time):
@@ -161,3 +163,26 @@ class HDF5Writer(FileWriterBase):
         for i in range(data.shape[-1]):
             self._pols[i][self._counter:self._counter+size,:] = data[...,i]
         self._counter += size
+
+
+class MeasurementSetWriter(FileWriterBase):
+    def start(self, antennas):
+        self.tempdir = '/dev/shm/%s-%i' % (type(self).__name__, os.getpid())
+        if not os.path.exists(self.tempdir):
+            os.mkdir(self.tempdir)
+            
+        self.antennas = antennas
+        
+    def write(self, time_tag, data):
+        dt = timetag_to_datetime(time_tag)
+        
+        tempname = os.path.join(self.tempdir, dt.strftime('%Y%m%d_%H%M%S'))
+        
+        # TODO
+        # TODO
+        # TODO
+        # TODO
+        
+        filename = "%s_%s.tar.hz" % (self.filename, dt.strftime('%Y%m%d_%H%M%S'))
+        subprocess.check_call(['tar', 'czvf', filename, tempname], cwd=self.tempdir)
+        shutil.rmtree(tempname)
