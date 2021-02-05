@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from datetime import datetime
 
-from common import FS, CLOCK, CHAN_BW, chan_to_freq, timetag_to_datetime, tag_to_tuple
+from common import FS, CLOCK, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple
 
 
 class FileWriterBase(object):
