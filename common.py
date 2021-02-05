@@ -3,12 +3,14 @@ import sys
 import signal
 import logging
 import threading
+from datetime import datetime, timedelta
 
 
 FS               = 196.0e6
 CLOCK            = 196.0e6
 NCHAN            = 4096
 CHAN_BW          = CLOCK / (2*NCHAN)
+OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
 
 
 def chan_to_freq(chan):
@@ -27,15 +29,56 @@ def freq_to_chan(freq):
     return int(freq / CHAN_BW + 0.5)
 
 
+def datetime_to_timetag(dt):
+    """
+    Convert a datetime instance into a time tag (ticks of a FS clock since the
+    unix epoch).
+    """
+    
+    us = dt.microsecond
+    dt = dt.replace(microsecond=0)
+    sec = (dt - OVRO_EPOCH).total_seconds()
+    time_tag = int(sec*FS) + int(us*FS)
+    return time_tag
+
+
+def timetag_to_datetime(time_tag):
+    """
+    Convert a time tag (ticks of a FS clock since the unix epoch) into a datetime
+    instance.
+    """
+    
+    s = time_tag // int(FS)
+    us = int(round((time_tag % int(FS)) / FS * 1e6))
+    if us == 1000000:
+        s += 1
+        us = 0
+    dt = datetime.utcfromtimestamp(s) + timedelta(microsecond=us)
+    return dt
+
+
+def timetag_to_tuple(time_tag):
+    """
+    Convert a time tag (ticks of a FS clock since the unix epoch) into a two-
+    element tuple of (integer seconds since the unix epoch, fraction of a second).
+    """
+    
+    s = time_tag // int(FS)
+    f = (time_tag % int(FS)) / FS
+    return (s, f)
+
+
 """
-This module is used to fork the current process into a daemon.
+This function is used to fork the current process into a daemon.
 Almost none of this is necessary (or advisable) if your daemon
 is being started by inetd. In that case, stdin, stdout and stderr are
 all set up for you to refer to the network connection, and the fork()s
 and session manipulation should not be done (to avoid confusing inetd).
 Only the chdir() and umask() steps remain as useful.
+
 From:
 http://code.activestate.com/recipes/66012-fork-a-daemon-process-on-unix/
+
 References:
 UNIX Programming FAQ
     1.7 How do I get my program to act like a daemon?
@@ -99,7 +142,7 @@ def _handle_signal(signum, frame, threads=None, event=None):
                             not v.startswith('SIG_'))
     log.warning("Received signal %i %s", signum, SIGNAL_NAMES[signum])
     try:
-        threads.shutdown()
+        threads[0].shutdown()
     except (TypeError, IndexError):
         pass
     try:
@@ -109,7 +152,7 @@ def _handle_signal(signum, frame, threads=None, event=None):
 
 
 def setup_signal_handling(threads, signals=[signal.SIGHUP,
-           	                            signal.SIGINT,
+                                            signal.SIGINT,
                                             signal.SIGQUIT,
                                             signal.SIGTERM,
                                             signal.SIGTSTP]):
