@@ -15,12 +15,22 @@ class FileWriterBase(object):
         self.start_time = start_time
         self.stop_time = stop_time
         
+        self._started = False
         self._interface = None
         
     @property
     def is_active(self):
         now = datetime.utcnow()
         return ((now >= self.start_time) and (now <= self.stop_time))
+        
+    @property
+    def is_started(self):
+        return self._started
+        
+    @property
+    def is_expired(self):
+        now = datetime.utcnow()
+        return now > self.stop_time
         
     @property
     def size(self):
@@ -153,6 +163,7 @@ class HDF5Writer(FileWriterBase):
         self._time_step = navg * (int(FS) / int(CHAN_BW))
         self._pols = data_products
         self._counter = 0
+        self._started = True
         
     def write(self, time_tag, data):
         if not self.is_active:
@@ -171,7 +182,9 @@ class MeasurementSetWriter(FileWriterBase):
         if not os.path.exists(self.tempdir):
             os.mkdir(self.tempdir)
             
-        self.antennas = antennas
+        # Save
+        self._antennas = antennas
+        self._started = True
         
     def write(self, time_tag, data):
         dt = timetag_to_datetime(time_tag)
