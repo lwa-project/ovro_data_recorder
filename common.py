@@ -8,6 +8,22 @@ NCHAN            = 4096
 CHAN_BW          = CLOCK / (2*NCHAN)
 
 
+def chan_to_freq(chan):
+    """
+    Convert a channel number to a frequency in Hz.
+    """
+    
+    return CHAN_BW*(chan + 0.5)
+
+
+def freq_to_chan(freq):
+    """
+    Convert a frequency in Hz to a channel number.
+    """
+    
+    return int(freq / CHAN_BW + 0.5)
+
+
 """
 This module is used to fork the current process into a daemon.
 Almost none of this is necessary (or advisable) if your daemon
@@ -70,4 +86,3 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(si.fileno(), sys.stdin.fileno())
     os.dup2(so.fileno(), sys.stdout.fileno())
     os.dup2(se.fileno(), sys.stderr.fileno())
-
