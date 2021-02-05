@@ -1,5 +1,8 @@
 import os
 import sys
+import signal
+import logging
+import threading
 
 
 FS               = 196.0e6
@@ -86,3 +89,33 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(si.fileno(), sys.stdin.fileno())
     os.dup2(so.fileno(), sys.stdout.fileno())
     os.dup2(se.fileno(), sys.stderr.fileno())
+
+
+def _handle_signal(signum, frame, threads=None, event=None):
+    log = logging.getLogger(__name__)
+    SIGNAL_NAMES = dict((k, v) for v, k in \
+                            reversed(sorted(signal.__dict__.items()))
+                            if v.startswith('SIG') and \
+                            not v.startswith('SIG_'))
+    log.warning("Received signal %i %s", signum, SIGNAL_NAMES[signum])
+    try:
+        threads.shutdown()
+    except (TypeError, IndexError):
+        pass
+    try:
+        event.set()
+    except TypeError:
+        pass
+
+
+def setup_signal_handling(threads, signals=[signal.SIGHUP,
+           	                            signal.SIGINT,
+                                            signal.SIGQUIT,
+                                            signal.SIGTERM,
+                                            signal.SIGTSTP]):
+    shutdown_event = threading.Event()
+    def handler(signum, frame):
+        _handle_signal(signum, frame, threads=threads, event=shutdown_event)
+    for sig in signals:
+        signal.signal(sig, handler)
+    return shutdown_event
