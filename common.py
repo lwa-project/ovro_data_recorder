@@ -49,9 +49,23 @@ def timetag_to_datetime(time_tag):
     """
     
     s = time_tag // int(FS)
-    us = int((time_tag % int(FS)) / FS)
+    us = int(round((time_tag % int(FS)) / FS * 1e6))
+    if us == 1000000:
+        s += 1
+        us = 0
     dt = datetime.utcfromtimestamp(s) + timedelta(microsecond=us)
     return dt
+
+
+def timetag_to_tuple(time_tag):
+    """
+    Convert a time tag (ticks of a FS clock since the unix epoch) into a two-
+    element tuple of (integer seconds since the unix epoch, fraction of a second).
+    """
+    
+    s = time_tag // int(FS)
+    f = (time_tag % int(FS)) / FS
+    return (s, f)
 
 
 """
