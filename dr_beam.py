@@ -3,24 +3,353 @@
 import os
 import sys
 import h5py
+import json
 import time
 import numpy
 import logging
 import argparse
+import threading
+from functools import reduce
 
 from common import *
 
+from bifrost.address import Address
+from bifrost.udp_socket import UDPSocket
+from bifrost.packet_capture import PacketCaptureCallback, UDPCapture
+from bifrost.ring import Ring
+import bifrost.affinity as cpu_affinity
+import bifrost.ndarray as BFArray
+from bifrost.ndarray import copy_array
+from bifrost.libbifrost import bf
+from bifrost.proclog import ProcLog
+from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
+from bifrost import asarray as BFAsArray
+
 
 class CaptureOp(object):
-    pass
+    def __init__(self, log, sock, oring, nserver, beam0=1, ntime_gulp=250,
+                 slot_ntime=25000, shutdown_event=None, core=None):
+        self.log     = log
+        self.sock    = sock
+        self.oring   = oring
+        self.nserver = nserver
+        self.beam0   = beam0
+        self.ntime_gulp   = ntime_gulp
+        self.slot_ntime   = slot_ntime
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        self.core    = core
+        
+    def shutdown(self):
+        self.shutdown_event.set()
+        
+    def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
+        #print "++++++++++++++++ seq0     =", seq0
+        #print "                 time_tag =", time_tag
+        hdr = {'time_tag': time_tag,
+               'seq0':     seq0, 
+               'chan0':    chan0,
+               'cfreq0':   chan0*(196e6/8192),
+               'bw':       nchan*(196e6/8192),
+               'navg':     navg,
+               'nbeam':    nbeam,
+               'npol':     4,
+               'pols':     'XX,YY,CR,CI',
+               'complex':  False,
+               'nbit':     32}
+        #print("******** HDR:", hdr)
+        hdr_str = json.dumps(hdr)
+        # TODO: Can't pad with NULL because returned as C-string
+        #hdr_str = json.dumps(hdr).ljust(4096, '\0')
+        #hdr_str = json.dumps(hdr).ljust(4096, ' ')
+        header_buf = ctypes.create_string_buffer(hdr_str)
+        hdr_ptr[0]      = ctypes.cast(header_buf, ctypes.c_void_p)
+        hdr_size_ptr[0] = len(hdr_str)
+        return 0
+        
+    def main(self):
+        seq_callback.set_pbeam(self.seq_callback)
+        with UDPCapture("pbeam", self.sock, self.oring, self.nserver, self.beam0, 9000, 
+                        self.ntime_gulp, self.slot_ntime,
+                        sequence_callback=seq_callback, core=self.core) as capture:
+            while not self.shutdown_event.is_set():
+                status = capture.recv()
+                if status in (1,4,5,6):
+                    break
+        del capture
+
+
+class DummyOp(object):
+    def __init__(self, log, sock, oring, nserver, beam0=1, ntime_gulp=250,
+                 slot_ntime=25000, shutdown_event=None, core=None):
+        self.log     = log
+        self.sock    = sock
+        self.oring   = oring
+        self.nserver = nserver
+        self.beam0   = beam0
+        self.ntime_gulp   = ntime_gulp
+        self.slot_ntime   = slot_ntime
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        self.core    = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def shutdown(self):
+        self.shutdown_event.set()
+        
+    def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
+        #print "++++++++++++++++ seq0     =", seq0
+        #print "                 time_tag =", time_tag
+        hdr = {'time_tag': time_tag,
+               'seq0':     seq0, 
+               'chan0':    chan0,
+               'cfreq0':   chan0*(196e6/8192),
+               'bw':       nchan*(196e6/8192),
+               'navg':     navg,
+               'nbeam':    nbeam,
+               'npol':     4,
+               'pols':     'XX,YY,CR,CI',
+               'complex':  False,
+               'nbit':     32}
+        #print("******** HDR:", hdr)
+        hdr_str = json.dumps(hdr)
+        # TODO: Can't pad with NULL because returned as C-string
+        #hdr_str = json.dumps(hdr).ljust(4096, '\0')
+        #hdr_str = json.dumps(hdr).ljust(4096, ' ')
+        header_buf = ctypes.create_string_buffer(hdr_str)
+        hdr_ptr[0]      = ctypes.cast(header_buf, ctypes.c_void_p)
+        hdr_size_ptr[0] = len(hdr_str)
+        return 0
+        
+    def main(self):
+        navg = 24
+        nbeam = 1
+        chan0 = 1234
+        nchan = 16*189
+        npol = 4
+        
+        ohdr = {'time_tag': int(time.time())*FS,
+                'seq0':     0, 
+                'chan0':    chan0,
+                'cfreq0':   chan0*(196e6/8192),
+                'bw':       nchan*(196e6/8192),
+                'navg':     navg,
+                'nbeam':    nbeam,
+                'nchan':    nchan,
+                'npol':     npol,
+                'complex':  False,
+                'nbit':     32}
+        ohdr_str = json.dumps(ohdr)
+        
+        ogulp_size = self.ntime_gulp*nbeam*nchan*npol*4      # float32
+        oshape = (self.ntime_gulp,nbeam,nchan,npol)
+        self.oring.resize(ogulp_size)
+        
+        prev_time = time.time()
+        with oring.begin_sequence(time_tag=ohdr['time_tag'], header=ohdr_str) as oseq:
+            while not self.shutdown_event.is_set():
+                with oseq.reserve(ogulp_size) as ospan:
+                    curr_time = time.time()
+                    reserve_time = curr_time - prev_time
+                    prev_time = curr_time
+                    
+                    odata = ospan.data_view(numpy.float32).reshape(oshape)
+                    odata[...] = numpy.random(*oshape)
+                    
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': -1, 
+                                          'reserve_time': reserve_time, 
+                                          'process_time': process_time,})
 
 
 class ProcessingOp(object):
-    pass
+    def __init__(self, log, iring, oring, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.oring      = oring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+        self.func = lambda x: x
+        self.reduction = (1,)*4
+        
+    def update_processing(self, config):
+        pass
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("Processing: Start of new sequence: %s", str(ihdr))
+                
+                time_tag = ihdr['time_tag']
+                navg     = ihdr['navg']
+                nbeam    = ihdr['nbeam']
+                nchan    = ihdr['nchan']
+                npol     = ihdr['npol']
+                pols     = ihdr['pols']
+                base_time_tag = iseq.time_tag
+                
+                igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+                ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                
+                ohdr = ihdr.copy()
+                
+                prev_time = time.time()
+                iseq_spans = iseq.read(igulp_size)
+                while not self.iring.writing_ended():
+                    reset_sequence = False
+                    
+                    ohdr['timetag'] = base_time_tag
+                    ohdr['navg']  = navg * self.reduction[0]
+                    ohdr['nbeam'] = nbeam // self.reduction[1]
+                    ohdr['nchan'] = nchan // self.reduction[2]
+                    ohdr['npol']  = npol // self.reduction[3]
+                    # TODO
+                    # ohdr['pols']  = ???
+                    ohdr_str = json.dumps(ohdr)
+                    
+                    ogulp_size = igulp_size / reduce(lambda x,y: x*y, self.reduction, 1)
+                    oshape = tuple([s/r for zip(ishape, self.reduction)])
+                    
+                    with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
+                        for ispan in iseq_spans:
+                            if ispan.size < igulp_size:
+                                continue # Ignore final gulp
+                            curr_time = time.time()
+                            acquire_time = curr_time - prev_time
+                            prev_time = curr_time
+                            
+                            with oseq.reserve(ogulp_size) as ospan:
+                                curr_time = time.time()
+                                reserve_time = curr_time - prev_time
+                                prev_time = curr_time
+                                
+                                idata = ispan.data_view(numpy.float32).reshape(ishape)
+                                odata = ospan.data_view(numpy.float32).reshape(oshape)
+                                
+                                odata = self.func(idata)
+                                
+                            base_time_tag += navg * int(FS) / int(CHAN_BW)
+                            
+                            ## Check for an update to the configuration
+                            if self.update_processing(None):
+                                reset_sequence = True
+                                break
+                                
+                            curr_time = time.time()
+                            process_time = curr_time - prev_time
+                            prev_time = curr_time
+                            self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                      'reserve_time': reserve_time, 
+                                                      'process_time': process_time,})
+                            
+                            # Reset to move on to the next input sequence?
+                            if reset_sequence:
+                                break
+                                
+                    # Reset to move on to the next input sequence?
+                    if not reset_sequence:
+                        break
 
-
+                
 class WriterOp(object):
-    pass
+    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def update_writing(self, config):
+        pass
+        
+    def write(self, data):
+        pass
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("Writer: Start of new sequence: %s", str(ihdr))
+                
+                time_tag = ihdr['time_tag']
+                navg     = ihdr['navg']
+                nbeam    = ihdr['nbeam']
+                nchan    = ihdr['nchan']
+                npol     = ihdr['npol']
+                pols     = ihdr['pols']
+                
+                igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+                ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                
+                prev_time = time.time()
+                iseq_spans = iseq.read(igulp_size)
+                while not self.iring.writing_ended():
+                    for ispan in iseq_spans:
+                        if ispan.size < igulp_size:
+                            continue # Ignore final gulp
+                        curr_time = time.time()
+                        acquire_time = curr_time - prev_time
+                        prev_time = curr_time
+                        
+                        idata = ispan.data_view(numpy.float32).reshape(ishape)
+                        self.write(idata)
+                            
+                        curr_time = time.time()
+                        process_time = curr_time - prev_time
+                        prev_time = curr_time
+                        self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                  'reserve_time': -1, 
+                                                  'process_time': process_time,})
 
 
 def main(argv):
@@ -53,8 +382,37 @@ def main(argv):
     logFormat.converter = time.gmtime
     logHandler = logging.StreamHandler(sys.stdout)
     
+    # Setup the socket, if needed
+    isock = None
+    if self.offline is None:
+        iaddr = Address(args.address, args.port)
+        isock = UDPSocket()
+        isock.bind(iaddr)
+        
+    # Setup the rings
+    capture_ring = Ring(name="capture")
+    process_ring = Ring(name="process")
+    write_ring   = Ring(name="write")
+    
     # Setup the blocks
     ops = []
+    if args.offline:
+        ops.append(DummyOp(log, isock, capture_ring, 16,
+                           ntime_gulp=250, slot_ntime=25000, core=0))
+    else:
+        ops.append(CaptureOp(log, isock, capture_ring, 16,
+                             ntime_gulp=250, slot_ntime=25000, core=0))
+    ops.append(ProcessingOp(log, capture_ring, process_ring,
+                            ntime_gulp=250, core=1))
+    ops.append(WriterOp(log, process_ring,
+                        ntime_gulp=250, core=2))
+    
+    # Setup the threads
+    threads = [threading.Thread(target=op.main) for op in ops]
+    
+    # Setup signal handling
+    shutdown_event = setup_signal_handling(ops)
+    ops[0].shutdown_event = shutdown_event
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))
