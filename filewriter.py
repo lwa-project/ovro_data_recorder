@@ -18,6 +18,12 @@ class FileWriterBase(object):
         self._started = False
         self._interface = None
         
+    def __repr__(self):
+        return "<%s filename='%s', start_time='%s', stop_time='%s'>" % (type(self.__name__),
+                                                                        self.filename,
+                                                                        self.start_time,
+                                                                        self.stop_time)
+        
     @property
     def is_active(self):
         now = datetime.utcnow()
@@ -74,7 +80,7 @@ class TarredFileWriterBase(FileWriterBase):
 
 
 class HDF5Writer(FileWriterBase):
-    def start(self, beam, chan0, navg, nchan, npol, pols, **kwds):
+    def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, **kwds):
         f = h5py.File(self.filename)
         
         # File structure
@@ -126,7 +132,7 @@ class HDF5Writer(FileWriterBase):
         obs.attrs['tInt_Units'] = 's'
         obs.attrs['LFFT'] = NCHAN
         obs.attrs['nChan'] = nchan
-        obs.attrs['RBW'] = CHAN_BW
+        obs.attrs['RBW'] = chan_bw
         obs.attrs['RBW_Units'] = 'Hz'
         
         # Data structures

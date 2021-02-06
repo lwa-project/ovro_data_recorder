@@ -9,6 +9,16 @@ class OperationsQueue(object):
     def __init__(self):
         self._queue = deque([])
         
+    def __repr__(self):
+        return "<%s at %x>" % (type(self).__name__, id(self))
+        
+    def __len__(self):
+        return len(self._queue)
+        
+    @property
+    def empty(self):
+        return len(self) == 0
+        
     def append(self, fileop):
         if not isinstance(fileop, FileWriterBase):
             raise TypeError("Expected a sub-class of FileWriterBase")
