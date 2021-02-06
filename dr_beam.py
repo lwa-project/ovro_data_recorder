@@ -10,6 +10,7 @@ import logging
 import argparse
 import threading
 from functools import reduce
+from datetime import datetime, timedelta
 
 from common import *
 from reductions import *
@@ -30,6 +31,9 @@ from bifrost import asarray as BFAsArray
 
 
 QUEUE = OperationsQueue()
+QUEUE.append(HDF5Writer('test.hdf5',
+                        datetime.utcnow()+timedelta(seconds=15),
+                        datetime.utcnow()+timedelta(seconds=30)))
 
 
 class CaptureOp(object):
@@ -177,7 +181,7 @@ class ProcessingOp(object):
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
-        self.op = FullLinear()
+        self.op = XXYYCRCI()
         
     def update_processing(self, op):
         status = False
@@ -251,7 +255,7 @@ class ProcessingOp(object):
                             base_time_tag += navg * (int(FS) / int(CHAN_BW))
                             
                             ## Check for an update to the configuration
-                            if self.update_processing(FullLinear()):
+                            if self.update_processing(XXYYCRCI()):
                                 reset_sequence = True
                                 break
                                 
@@ -289,6 +293,8 @@ class WriterOp(object):
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
     def main(self):
+        global QUEUE
+        
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
@@ -332,6 +338,8 @@ class WriterOp(object):
                             QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                             was_active = True
                         QUEUE.active.write(time_tag, idata)
+                        if QUEUE.active.is_expired:
+                            QUEUE.active.stop()
                     elif was_active:
                         # Clean the queue
                         was_active = False
