@@ -19,7 +19,7 @@ class FileWriterBase(object):
         self._interface = None
         
     def __repr__(self):
-        return "<%s filename='%s', start_time='%s', stop_time='%s'>" % (type(self.__name__),
+        return "<%s filename='%s', start_time='%s', stop_time='%s'>" % (type(self).__name__,
                                                                         self.filename,
                                                                         self.start_time,
                                                                         self.stop_time)
