@@ -1,3 +1,8 @@
+# Data files
+*.hdf5
+*.ms
+*.tar.gz
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

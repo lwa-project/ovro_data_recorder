@@ -134,8 +134,9 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(se.fileno(), sys.stderr.fileno())
 
 
-def _handle_signal(signum, frame, threads=None, event=None):
-    log = logging.getLogger(__name__)
+def _handle_signal(signum, frame, log=None, threads=None, event=None):
+    if log is None:
+        log = logging.getLogger(__name__)
     SIGNAL_NAMES = dict((k, v) for v, k in \
                             reversed(sorted(signal.__dict__.items()))
                             if v.startswith('SIG') and \
@@ -151,14 +152,26 @@ def _handle_signal(signum, frame, threads=None, event=None):
         pass
 
 
-def setup_signal_handling(threads, signals=[signal.SIGHUP,
-                                            signal.SIGINT,
-                                            signal.SIGQUIT,
-                                            signal.SIGTERM,
-                                            signal.SIGTSTP]):
+def setup_signal_handling(threads, log=None, signals=[signal.SIGHUP,
+                                                      signal.SIGINT,
+                                                      signal.SIGQUIT,
+                                                      signal.SIGTERM,
+                                                      signal.SIGTSTP]):
     shutdown_event = threading.Event()
     def handler(signum, frame):
-        _handle_signal(signum, frame, threads=threads, event=shutdown_event)
+        _handle_signal(signum, frame, log=log, threads=threads, event=shutdown_event)
     for sig in signals:
         signal.signal(sig, handler)
     return shutdown_event
+
+
+def synchronize_time(server='ntp.ubuntu.com'):
+    success = False
+    try:
+        subprocess.check_call(['ntpdate', server],
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
+        success = True
+    except subprocess.CalledProcessError:
+        pass
+    return sucess

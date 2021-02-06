@@ -2,11 +2,12 @@ import os
 import sys
 import h5py
 import json
+import numpy
 import shutil
 import subprocess
 from datetime import datetime
 
-from common import FS, CLOCK, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple
+from common import FS, CLOCK, NCHAN, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple
 
 
 class FileWriterBase(object):
@@ -15,12 +16,28 @@ class FileWriterBase(object):
         self.start_time = start_time
         self.stop_time = stop_time
         
+        self._started = False
         self._interface = None
+        
+    def __repr__(self):
+        return "<%s filename='%s', start_time='%s', stop_time='%s'>" % (type(self).__name__,
+                                                                        self.filename,
+                                                                        self.start_time,
+                                                                        self.stop_time)
         
     @property
     def is_active(self):
         now = datetime.utcnow()
         return ((now >= self.start_time) and (now <= self.stop_time))
+        
+    @property
+    def is_started(self):
+        return self._started
+        
+    @property
+    def is_expired(self):
+        now = datetime.utcnow()
+        return now > self.stop_time
         
     @property
     def size(self):
@@ -64,7 +81,7 @@ class TarredFileWriterBase(FileWriterBase):
 
 
 class HDF5Writer(FileWriterBase):
-    def start(self, beam, chan0, navg, nchan, npol, pols, **kwds):
+    def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, **kwds):
         f = h5py.File(self.filename)
         
         # File structure
@@ -116,7 +133,7 @@ class HDF5Writer(FileWriterBase):
         obs.attrs['tInt_Units'] = 's'
         obs.attrs['LFFT'] = NCHAN
         obs.attrs['nChan'] = nchan
-        obs.attrs['RBW'] = CHAN_BW
+        obs.attrs['RBW'] = chan_bw
         obs.attrs['RBW_Units'] = 'Hz'
         
         # Data structures
@@ -132,11 +149,11 @@ class HDF5Writer(FileWriterBase):
         if grp is None:
             grp = obs.create_group('Tuning1')
             
-        frequency = numpy.arange(nchan)*CHAN_BW + chan_to_freq(chan0)    
+        frequency = numpy.arange(nchan)*chan_bw+ chan_to_freq(chan0)
         grp['freq'] = frequency.astype(numpy.float64)
         grp['freq'].attrs['Units'] = 'Hz'
         
-        if isinstance(pols, str):
+        if not isinstance(pols, (tuple, list)):
             pols = [p.strip().rstrip() for p in pols.split(',')]
         data_products = {}
         for i,p in enumerate(pols):
@@ -153,15 +170,16 @@ class HDF5Writer(FileWriterBase):
         self._time_step = navg * (int(FS) / int(CHAN_BW))
         self._pols = data_products
         self._counter = 0
+        self._started = True
         
     def write(self, time_tag, data):
         if not self.is_active:
             return False
             
-        size = data.shape[0]
+        size = min([self._time.size-self._counter, data.shape[0]])
         self._time[self._counter:self._counter+size] = [timetag_to_tuple(time_tag+i*self._time_step) for i in range(size)]
         for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[...,i]
+            self._pols[i][self._counter:self._counter+size,:] = data[:size,0,:,i]
         self._counter += size
 
 
@@ -171,7 +189,9 @@ class MeasurementSetWriter(FileWriterBase):
         if not os.path.exists(self.tempdir):
             os.mkdir(self.tempdir)
             
-        self.antennas = antennas
+        # Save
+        self._antennas = antennas
+        self._started = True
         
     def write(self, time_tag, data):
         dt = timetag_to_datetime(time_tag)
