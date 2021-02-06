@@ -9,7 +9,7 @@ class OperationsQueue(object):
         self._queue = []
         
     def __repr__(self):
-        return "<%s at %x>" % (type(self).__name__, id(self))
+        return "<%s at 0x%x>" % (type(self).__name__, id(self))
         
     def __len__(self):
         return len(self._queue)
