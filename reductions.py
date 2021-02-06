@@ -36,10 +36,10 @@ class ReductionOperation(object):
         return odata
 
 
-FullLinear = ReductionOperation
+XXYYCRCI = ReductionOperation
 
 
-class XXandYY(ReductionOperation):
+class XXYY(ReductionOperation):
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
@@ -51,7 +51,7 @@ class XXandYY(ReductionOperation):
         return odata[...,[0,1]]
 
 
-class CRandCI(ReductionOperation):
+class CRCI(ReductionOperation):
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
@@ -63,7 +63,7 @@ class CRandCI(ReductionOperation):
         return odata[...,[2,3]]
 
 
-class FullStokes(ReductionOperation):
+class IQUV(ReductionOperation):
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
@@ -82,7 +82,7 @@ class FullStokes(ReductionOperation):
         return odata
 
 
-class IandV(ReductionOperation):
+class IV(ReductionOperation):
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
