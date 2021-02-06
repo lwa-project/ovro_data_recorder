@@ -334,7 +334,7 @@ class WriterOp(object):
                     
                     if QUEUE.active is not None:
                         # Write the data
-                        if not QUEUE.active.started:
+                        if not QUEUE.active.is_started:
                             QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                             was_active = True
                         QUEUE.active.write(time_tag, idata)
