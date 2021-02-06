@@ -1,13 +1,12 @@
 from bisect import bisect
 from datetime import datetime
-from collections import deque
 
 from filewriter import FileWriterBase
 
 
 class OperationsQueue(object):
     def __init__(self):
-        self._queue = deque([])
+        self._queue = []
         
     def __repr__(self):
         return "<%s at %x>" % (type(self).__name__, id(self))
@@ -38,7 +37,7 @@ class OperationsQueue(object):
             del self._queue[self._queue.index(expiredop)]
             
         # Put it in the right place
-        idx = bisect([queueop.start_time for queueop in self._queue])
+        idx = bisect([queueop.start_time for queueop in self._queue], fileop.start_time)
         self._queue.insert(idx, fileop)
         
     def clean(self):
@@ -54,6 +53,6 @@ class OperationsQueue(object):
         activeop = None
         for queueop in self._queue:
             if queueop.is_active:
-                activeop = queuop
+                activeop = queueop
                 break
         return activeop

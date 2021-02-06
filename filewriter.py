@@ -2,11 +2,12 @@ import os
 import sys
 import h5py
 import json
+import numpy
 import shutil
 import subprocess
 from datetime import datetime
 
-from common import FS, CLOCK, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple
+from common import FS, CLOCK, NCHAN, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple
 
 
 class FileWriterBase(object):
@@ -148,11 +149,11 @@ class HDF5Writer(FileWriterBase):
         if grp is None:
             grp = obs.create_group('Tuning1')
             
-        frequency = numpy.arange(nchan)*CHAN_BW + chan_to_freq(chan0)    
+        frequency = numpy.arange(nchan)*chan_bw+ chan_to_freq(chan0)
         grp['freq'] = frequency.astype(numpy.float64)
         grp['freq'].attrs['Units'] = 'Hz'
         
-        if isinstance(pols, str):
+        if not isinstance(pols, (tuple, list)):
             pols = [p.strip().rstrip() for p in pols.split(',')]
         data_products = {}
         for i,p in enumerate(pols):
@@ -178,7 +179,7 @@ class HDF5Writer(FileWriterBase):
         size = data.shape[0]
         self._time[self._counter:self._counter+size] = [timetag_to_tuple(time_tag+i*self._time_step) for i in range(size)]
         for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[...,i]
+            self._pols[i][self._counter:self._counter+size,:] = data[:,0,:,i]
         self._counter += size
 
 
