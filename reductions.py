@@ -12,7 +12,7 @@ class ReductionOperation(object):
     def __repr__(self):
         return "<%s time_avg=%i, chan_avg=%i, pols='%s'>" % (type(self).__name__,
                                                              self.time_avg,
-                                                             self.chan_avg
+                                                             self.chan_avg,
                                                              self.pols)
         
     def __eq__(self, other):
@@ -27,8 +27,8 @@ class ReductionOperation(object):
             odata = idata.reshape(-1,self.time_avg,idata.shape[1],idata.shape[2],idata.shape[3])
             odata = numpy.mean(odata, axis=1)
         if self.chan_avg:
-            odata = odata.reshape(odata.shape[0],odata.shape[1],-1,self.cavg,odata.shape[3])
-            odata = odata.mean(odata, axis=2)
+            odata = odata.reshape(odata.shape[0],odata.shape[1],-1,self.chan_avg,odata.shape[3])
+            odata = numpy.mean(odata, axis=2)
         return odata
         
     def __call__(self, idata):
