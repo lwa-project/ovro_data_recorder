@@ -176,10 +176,10 @@ class HDF5Writer(FileWriterBase):
         if not self.is_active:
             return False
             
-        size = data.shape[0]
+        size = min([self._time.size-self._counter, data.shape[0]])
         self._time[self._counter:self._counter+size] = [timetag_to_tuple(time_tag+i*self._time_step) for i in range(size)]
         for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[:,0,:,i]
+            self._pols[i][self._counter:self._counter+size,:] = data[:size,0,:,i]
         self._counter += size
 
 
