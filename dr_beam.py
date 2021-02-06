@@ -306,6 +306,7 @@ class WriterOp(object):
             nbeam    = ihdr['nbeam']
             chan0    = ihdr['chan0']
             nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
             npol     = ihdr['npol']
             pols     = ihdr['pols']
             
@@ -328,7 +329,7 @@ class WriterOp(object):
                     if QUEUE.active is not None:
                         # Write the data
                         if not QUEUE.active.started:
-                            QUEUE.active.start(1, chan0, navg, npol, pols)
+                            QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                             was_active = True
                         QUEUE.active.write(time_tag, idata)
                     elif was_active:
