@@ -12,6 +12,9 @@ import threading
 from functools import reduce
 
 from common import *
+from reductions import *
+from filewriter import HDF5Writer
+from operations import OperationsQueue
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -24,6 +27,9 @@ from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
+
+
+QUEUE = OperationsQueue()
 
 
 class CaptureOp(object):
@@ -50,8 +56,8 @@ class CaptureOp(object):
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
-               'cfreq0':   chan0*(196e6/8192),
-               'bw':       nchan*(196e6/8192),
+               'cfreq0':   chan0*CHAN_BW,
+               'bw':       nchan*CHAN_BW,
                'navg':     navg,
                'nbeam':    nbeam,
                'npol':     4,
@@ -171,11 +177,14 @@ class ProcessingOp(object):
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
-        self.func = lambda x: x
-        self.reduction = (1,)*4
+        self.op = FullLinear()
         
-    def update_processing(self, config):
-        pass
+    def update_processing(self, op):
+        status = False
+        if op != self.op:
+            self.op = op
+            status = True
+        return status
         
     def main(self):
         if self.core is not None:
@@ -210,17 +219,15 @@ class ProcessingOp(object):
                     reset_sequence = False
                     
                     ohdr['timetag'] = base_time_tag
-                    ohdr['navg']  = navg * self.reduction[0]
-                    ohdr['nbeam'] = nbeam // self.reduction[1]
-                    ohdr['nchan'] = nchan // self.reduction[2]
-                    ohdr['npol']  = npol // self.reduction[3]
-                    # TODO
-                    # ohdr['pols']  = ???
+                    ohdr['navg']  = navg * self.op.reductions[0]
+                    ohdr['nbeam'] = nbeam // self.op.reductions[1]
+                    ohdr['nchan'] = nchan // self.op.reductions[2]
+                    ohdr['npol']  = npol // self.op.reductions[3]
+                    ohdr['pols']  = self.op.pols
                     ohdr_str = json.dumps(ohdr)
                     
-                    ogulp_size = igulp_size / reduce(lambda x,y: x*y, self.reduction, 1)
-                    oshape = tuple([s//r for s,r in zip(ishape, self.reduction)]
-)
+                    ogulp_size = igulp_size // reduce(lambda x,y: x*y, self.op.reductions, 1)
+                    oshape = tuple([s//r for s,r in zip(ishape, self.op.reductions)])
                     self.oring.resize(ogulp_size)
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
@@ -239,12 +246,12 @@ class ProcessingOp(object):
                                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                                 odata = ospan.data_view(numpy.float32).reshape(oshape)
                                 
-                                odata = self.func(idata)
+                                odata = self.op(idata)
                                 
                             base_time_tag += navg * (int(FS) / int(CHAN_BW))
                             
                             ## Check for an update to the configuration
-                            if self.update_processing(None):
+                            if self.update_processing(FullLinear()):
                                 reset_sequence = True
                                 break
                                 
@@ -281,12 +288,6 @@ class WriterOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
-    def update_writing(self, config):
-        pass
-        
-    def write(self, data):
-        pass
-        
     def main(self):
         if self.core is not None:
             cpu_affinity.set_core(self.core)
@@ -303,6 +304,7 @@ class WriterOp(object):
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbeam    = ihdr['nbeam']
+            chan0    = ihdr['chan0']
             nchan    = ihdr['nchan']
             npol     = ihdr['npol']
             pols     = ihdr['pols']
@@ -310,6 +312,7 @@ class WriterOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             
+            was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             while not self.iring.writing_ended():
@@ -321,8 +324,20 @@ class WriterOp(object):
                     prev_time = curr_time
                    
                     idata = ispan.data_view(numpy.float32).reshape(ishape)
-                    self.write(idata)
+                    
+                    if QUEUE.active is not None:
+                        # Write the data
+                        if not QUEUE.active.started:
+                            QUEUE.active.start(1, chan0, navg, npol, pols)
+                            was_active = True
+                        QUEUE.active.write(time_tag, idata)
+                    elif was_active:
+                        # Clean the queue
+                        was_active = False
+                        QUEUE.clean()
                         
+                    time_tag += navg * (int(FS) / int(CHAN_BW))
+                    
                     curr_time = time.time()
                     process_time = curr_time - prev_time
                     prev_time = curr_time
