@@ -1,24 +1,40 @@
 from bisect import bisect
 from datetime import datetime
+from textwrap import fill as tw_fill
 
 from filewriter import FileWriterBase
 
 
 class OperationsQueue(object):
+    """
+    Class to queue file writing operations.
+    """
+    
     def __init__(self):
         self._queue = []
         
     def __repr__(self):
-        return "<%s at 0x%x>" % (type(self).__name__, id(self))
+        output = "<%s at 0x%x>" % (type(self).__name__, id(self))
+        return tw_fill(output, subsequent_indent='    ')
         
     def __len__(self):
         return len(self._queue)
         
     @property
     def empty(self):
+        """
+        Whether or not there are any operations in the queue.
+        """
+        
         return len(self) == 0
         
     def append(self, fileop):
+        """
+        Add a new sub-class of FileWriterBase to the queue.  In the process,
+        check for conflicts with existing queue entries and purge the queue of
+        anything that has expired.
+        """
+        
         if not isinstance(fileop, FileWriterBase):
             raise TypeError("Expected a sub-class of FileWriterBase")
             
@@ -41,6 +57,10 @@ class OperationsQueue(object):
         self._queue.insert(idx, fileop)
         
     def clean(self):
+        """
+        Purge the queue of anything that has expired.
+        """
+        
         to_remove = []
         for queueop in self._queue:
             if queueop.is_expired:
@@ -50,6 +70,10 @@ class OperationsQueue(object):
             
     @property
     def active(self):
+        """
+        The active file writer operation or None if there is not one.
+        """
+        
         activeop = None
         for queueop in self._queue:
             if queueop.is_active:

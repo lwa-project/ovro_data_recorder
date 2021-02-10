@@ -5,6 +5,8 @@ import logging
 import threading
 from datetime import datetime, timedelta
 
+from astropy.time import Time as AstroTime
+
 
 FS               = 196.0e6
 CLOCK            = 196.0e6
@@ -66,6 +68,16 @@ def timetag_to_tuple(time_tag):
     s = time_tag // int(FS)
     f = (time_tag % int(FS)) / FS
     return (s, f)
+
+
+def timetag_to_astropy(time_tag):
+    """
+    Convert a time tag (ticks of a FS clock since the unix epoch) into an AstroPy
+    Time instance.
+    """
+    
+    s, f = timetag_to_tuple(time_tag)
+    return AstroTime(s, f, format='unix', scale='utc')
 
 
 """
