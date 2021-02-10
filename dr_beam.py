@@ -257,13 +257,13 @@ class ProcessingOp(object):
                             base_time_tag += navg * (int(FS) / int(CHAN_BW))
                             
                             ## Check for an update to the configuration
-                            if if QUEUE.active is not None:
+                            if QUEUE.active is not None:
                                 new_op = QUEUE.active.reduction
-                                if op is None:
+                                if new_op is None:
                                     new_op = self.op
                             else:
                                 new_op = XXYYCRCI()
-                            if self.update_processing(new_op)
+                            if self.update_processing(new_op):
                                 reset_sequence = True
                                 break
                                 
