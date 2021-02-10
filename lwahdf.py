@@ -87,9 +87,9 @@ def set_frequencies(f, frequency):
     obs.attrs['RBW'] = frequency[1] - frequency[0]
     obs.attrs['RBW_Units'] = 'Hz'
     
-    tun = obs.get('/Tuning1', None)
+    tun = obs.get('Tuning1', None)
     tun['freq'] = frequency.astype(numpy.float64)
-    grp['freq'].attrs['Units'] = 'Hz'
+    tun['freq'].attrs['Units'] = 'Hz'
 
 
 def set_time(f, tint, count, format='unix', scale='utc'):
@@ -117,12 +117,12 @@ def set_polarization_products(f, pols, count):
     """
     
     obs = f.get('/Observation1', None)
-    tun = obs.get('/Tuning1', None)
+    tun = obs.get('Tuning1', None)
     nchan = tun['freq'].size
     
     data_products = {}
     for i,p in enumerate(pols):
-        d = grp.create_dataset(p, (count, nchan), 'f4')
+        d = tun.create_dataset(p, (count, nchan), 'f4')
         d.attrs['axis0'] = 'time'
         d.attrs['axis1'] = 'frequency'
         data_products[i] = d
