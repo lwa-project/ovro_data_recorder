@@ -93,3 +93,7 @@ def parse_config(filename):
                 station.append(ant)
                 
     return station
+
+
+# A ready-made Station instance, filled with Antennas
+ovro = parse_config(CONFIG_FILENAME)
