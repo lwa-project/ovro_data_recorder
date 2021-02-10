@@ -23,8 +23,8 @@ def create_ms(filename, station, tint, freq, overwrite=False):
     Create an empty measurement set with the right structure and tables.
     """
     
-    # Check for a pre-exiting file
-    if os.path.exits(filename):
+    # Check for a pre-existing file
+    if os.path.exists(filename):
         if not overwrite:
             raise RuntimeError("File '%s' already exists" % filename)
         else:
