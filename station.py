@@ -62,12 +62,20 @@ class Station(object):
         self.antennas.append(ant)
         
     @property
+    def astropy(self):
+        """
+        Return an AstroPy EarthLocation instance describing the array.
+        """
+        
+        return  EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
+        
+    @property
     def ecef(self):
         """
         Return the Earth centered, Earth fixed location of the array in meters.
         """
         
-        e = EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
+        e = self.astropy
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
 
 
@@ -98,12 +106,20 @@ class Antenna(object):
         return cls(name, lat, lon, elev)
         
     @property
+    def astropy(self):
+        """
+        Return an AstroPy EarthLocation instance describing the antenna.
+        """
+        
+        return  EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
+        
+    @property
     def ecef(self):
         """
         Return the Earth centered, Earth fixed location of the antenna in meters.
         """
         
-        e = EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
+        e = self.astropy
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
         
     
