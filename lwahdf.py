@@ -14,8 +14,8 @@ def create_hdf5(filename, beam, overwrite=False):
     h5py.File instance.
     """
     
-    # Check for a pre-exiting file
-    if os.path.exits(filename):
+    # Check for a pre-existing file
+    if os.path.exists(filename):
         if not overwrite:
             raise RuntimeError("File '%s' already exists" % filename)
         else:
@@ -83,8 +83,8 @@ def set_frequencies(f, frequency):
     """
     
     obs = f.get('/Observation1', None)
-    obs.attrs['nChan'] = freq.size
-    obs.attr['RBW'] = freq[1] - freq[0]
+    obs.attrs['nChan'] = frequency.size
+    obs.attr['RBW'] = frequency[1] - frequency[0]
     obs.attr['RBW_Units'] = 'Hz'
     
     tun = obs.get('/Tuning1', None)
