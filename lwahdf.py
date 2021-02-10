@@ -84,8 +84,8 @@ def set_frequencies(f, frequency):
     
     obs = f.get('/Observation1', None)
     obs.attrs['nChan'] = frequency.size
-    obs.attr['RBW'] = frequency[1] - frequency[0]
-    obs.attr['RBW_Units'] = 'Hz'
+    obs.attrs['RBW'] = frequency[1] - frequency[0]
+    obs.attrs['RBW_Units'] = 'Hz'
     
     tun = obs.get('/Tuning1', None)
     tun['freq'] = frequency.astype(numpy.float64)
