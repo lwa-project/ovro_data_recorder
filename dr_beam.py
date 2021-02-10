@@ -191,6 +191,8 @@ class ProcessingOp(object):
         return status
         
     def main(self):
+        global QUEUE
+        
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
@@ -255,7 +257,13 @@ class ProcessingOp(object):
                             base_time_tag += navg * (int(FS) / int(CHAN_BW))
                             
                             ## Check for an update to the configuration
-                            if self.update_processing(XXYYCRCI()):
+                            if if QUEUE.active is not None:
+                                new_op = QUEUE.active.reduction
+                                if op is None:
+                                    new_op = self.op
+                            else:
+                                new_op = XXYYCRCI()
+                            if self.update_processing(new_op)
                                 reset_sequence = True
                                 break
                                 
