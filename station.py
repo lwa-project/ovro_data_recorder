@@ -1,5 +1,10 @@
 import os
 import sys
+import weakref
+
+from astropy.coordinates import EarthLocation
+import astropy.units as u
+
 
 CONFIG_FILENAME = os.path.join(os.path.dirname(__file__), 'ovro.txt')
 
@@ -36,11 +41,15 @@ class Station(object):
             
     @classmethod
     def from_line(cls, line):
-        name, lat, lng, x, y, active = line.split(None, 5)
+        """
+        Create a new Station instance from a line in an antenna positions file.
+        """
+        
+        name, lat, lon, x, y, active = line.split(None, 5)
         lat = float(lat)
-        lng = float(lng)
+        lon = float(lon)
         elev = 1222.0        # Is this right?
-        return cls(name, lat, lng, elev)
+        return cls(name, lat, lon, elev)
         
     def append(self, ant):
         """
@@ -49,7 +58,17 @@ class Station(object):
         
         if not isinstance(ant, Antenna):
             raise TypeError("Expected an antenna")
+        ant.parent = weakref.proxy(self)
         self.antennas.append(ant)
+        
+    @property
+    def ecef(self):
+        """
+        Return the Earth centered, Earth fixed location of the array in meters.
+        """
+        
+        e = EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
+        return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
 
 
 class Antenna(object):
@@ -57,21 +76,35 @@ class Antenna(object):
     Class to represent an antenna in the OVRO-LWA.
     """
     
-    def __init__(self, id, x, y, z):
+    def __init__(self, id, lat, lon, elev):
         if isinstance(id, str):
             id = smart_int(id)
         self.id = id
-        self.x = x
-        self.y = y
-        self.z = z
+        self.lat = lat
+        self.lon = lon
+        self.elev = elev
+        self.parent = None
         
     @classmethod
     def from_line(cls, line):
-        name, lat, lng, x, y, active = line.split(None, 5)
-        x = float(x)
-        y = float(y)
-        z = 1.5     # They are about that tall
-        return cls(name, x, y, z)
+        """
+        Create a new Antenna instance from a line in an antenna positions file.
+        """
+        
+        name, lat, lon, x, y, active = line.split(None, 5)
+        lat = float(lat)
+        lon = float(lon)
+        elev = 1222.0        # Is this right?
+        return cls(name, lat, lon, elev)
+        
+    @property
+    def ecef(self):
+        """
+        Return the Earth centered, Earth fixed location of the antenna in meters.
+        """
+        
+        e = EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
+        return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
         
     
 def parse_config(filename):
