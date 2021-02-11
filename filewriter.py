@@ -171,7 +171,7 @@ class HDF5Writer(FileWriterBase):
         set_frequencies(self._interface, numpy.arange(nchan)*chan_bw + chan_to_freq(chan0))
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * (int(FS) / int(CHAN_BW))
-        self._pols = set_data_products(self._interface, pols, chunks)
+        self._pols = set_polarization_products(self._interface, pols, chunks)
         self._counter = 0
         self._started = True
         
