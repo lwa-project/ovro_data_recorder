@@ -55,7 +55,7 @@ def timetag_to_datetime(time_tag):
     if us == 1000000:
         s += 1
         us = 0
-    dt = datetime.utcfromtimestamp(s) + timedelta(microsecond=us)
+    dt = datetime.utcfromtimestamp(s) + timedelta(microseconds=us)
     return dt
 
 
