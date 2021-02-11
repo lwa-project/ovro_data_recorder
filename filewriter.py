@@ -3,6 +3,7 @@ import sys
 import h5py
 import json
 import numpy
+import atexit
 import shutil
 import subprocess
 from datetime import datetime
@@ -12,6 +13,7 @@ from casacore.tables import table, tableutil
 
 from common import FS, CLOCK, NCHAN, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple, timetag_to_astropy
 from lwahdf import *
+from lwams import *
 
 # Temporary file directory
 TEMP_BASEDIR = "/dev/shm"
@@ -23,7 +25,7 @@ class FileWriterBase(object):
     """
     
     def __init__(self, filename, start_time, stop_time, reduction=None):
-        self.filename = filename
+        self.filename = os.path.abspath(filename)
         self.start_time = start_time
         self.stop_time = stop_time
         self.reduction = None
@@ -146,7 +148,9 @@ class TarredFileWriterBase(FileWriterBase):
     """
     
     def post_stop_task(self):
-        subprocess.check_output(['tar', 'czvf', self.filename+'.tar.gz', self.filename])
+        with open('/dev/null', 'wb') as dn:
+            subprocess.check_output(['tar', 'czf', self.filename+'.tar.gz', self.filename],
+                                     stderr=dn)
 
 
 class HDF5Writer(FileWriterBase):
@@ -171,7 +175,7 @@ class HDF5Writer(FileWriterBase):
         set_frequencies(self._interface, numpy.arange(nchan)*chan_bw + chan_to_freq(chan0))
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * (int(FS) / int(CHAN_BW))
-        self._pols = set_polarization_products(self._interface, pols, chunks)
+        self._pols = set_data_products(self._interface, pols, chunks)
         self._counter = 0
         self._started = True
         
@@ -202,29 +206,39 @@ class MeasurementSetWriter(FileWriterBase):
     call to write leads to a new measurement set.
     """
     
+    def __init__(self, filename, start_time, stop_time):
+        FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
+        
+        # Setup
+        self._tempdir = os.path.join(TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
+        if not os.path.exists(self._tempdir):
+            os.mkdir(self._tempdir)
+            
+        # Cleanup
+        atexit.register(shutil.rmtree, self._tempdir)
+        
     def start(self, station, chan0, navg, nchan, chan_bw, npol, pols):
         """
         Set the metadata for the measurement sets and create the template.
         """
         
-        self._tempdir = os.path.join(TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
-        if not os.path.exists(self._tempdir):
-            os.mkdir(self._tempdir)
-            
         # Setup
-        tint = avg / CHAN_BW
+        tint = navg / CHAN_BW
         time_step = navg * (int(FS) / int(CHAN_BW))
         freq = numpy.arange(nchan)*chan_bw + chan_to_freq(chan0)
-        
+        if not isinstance(pols, (tuple, list)):
+            pols = [p.strip().rstrip() for p in pols.split(',')]
+            
         # Create the template
-        self._template = create_ms(os.path.join(self._tempdir, 'template'), station, freq, tint)
+        self._template = os.path.join(self._tempdir, 'template')
+        create_ms(self._template, station, tint, freq, pols)
         
         # Save
         self._station = station
         self._tint = tint
         self._time_step = time_step
         self._nant = len(self._station.antennas)
-        freq = freq
+        self._freq = freq
         self._nchan = nchan
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
@@ -233,30 +247,35 @@ class MeasurementSetWriter(FileWriterBase):
         
     def write(self, time_tag, data):
         dt = timetag_to_datetime(time_tag)
-        ap = timetag_to_astropy(time_tag)
-        ct = timetag_to_astropy(time_tag + self._time_step // 2)
-        ed = timetag_to_astropy(time_tag + self._time_step)
+        tstart = timetag_to_astropy(time_tag)
+        tstop  = timetag_to_astropy(time_tag + self._time_step // 2)
+        tcent  = timetag_to_astropy(time_tag + self._time_step)
         
         # Make a copy of the template
-        tempname = os.path.join(self._tempdir, dt.strftime('%Y%m%d_%H%M%S'))
-        subprocess.check_call(['cp', '-r', self._template, tempname])
-        
+        tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, dt.strftime('%Y%m%d_%H%M%S'))
+        tempname = os.path.join(self._tempdir, tagname)
+        with open('/dev/null', 'wb') as dn:
+            subprocess.check_call(['cp', '-r', self._template, tempname],
+                                  stderr=dn)
+            
         # Find the point overhead
-        zen = [ct.sidereal_time('mean', self._station.astropy).to_value('rad'),
-               self._station.lat*numpy.pi/180]
+        zen = [ct.sidereal_time('mean', self._station.lon).to_value('rad'),
+               self._station.lat]
         
         # Update the time
-        update_time(tempname, ap, ct, ed)
+        update_time(tempname, tstart, tcent, tstop)
         
         # Update the pointing direction
         update_pointing(tempname, *zen)
         
         # Fill in the main table
-        update_data(tempname, data.transpose(0,2,1))
+        update_data(tempname, data[0,...])
         
         # Save it to its final location
-        filename = "%s_%s.tar.gz" % (self.filename, dt.strftime('%Y%m%d_%H%M%S'))
-        subprocess.check_call(['tar', 'czvf', filename, tempname], cwd=self._tempdir)
+        filename = "%s_%s.tar.gz" % (self.filename, tagname)
+        with open('/dev/null', 'wb') as dn:
+            subprocess.check_call(['tar', 'czf', filename, tempname],
+                                  stderr=dn, cwd=self._tempdir)
         shutil.rmtree(tempname)
         
     def stop(self):
@@ -266,7 +285,7 @@ class MeasurementSetWriter(FileWriterBase):
         
         shutil.rmtree(self._template)
         try:
-            os.rmdir(self.tempdir)
+            os.rmdir(self._tempdir)
         except OSError:
             pass
             
