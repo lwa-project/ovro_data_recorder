@@ -117,11 +117,12 @@ class DummyOp(object):
           
     def main(self):
         with self.oring.begin_writing() as oring:
-            navg = int(10.0 / (CHAN_BW / CLOCK))
+            navg = 240000
+            tint  navg / CHAN_BW
             nsrc  = self.nbl
             nbl   = self.nbl
             chan0 = 1234
-            nchan = 189
+            nchan = 184
             npol = 4
             
             ohdr = {'time_tag': int(int(time.time())*FS),
@@ -152,8 +153,12 @@ class DummyOp(object):
                         
                         odata = ospan.data_view(numpy.complex64).reshape(oshape)
                         odata[...] = numpy.random.randn(*oshape)
-                        time.sleep(9)
                         
+                        curr_time = time.time()
+                        while curr_time - prev_time < tint:
+                            time.sleep(0.1)
+                            curr_time = time.time()
+                            
                     curr_time = time.time()
                     process_time = curr_time - prev_time
                     prev_time = curr_time
@@ -396,9 +401,9 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
                              ntime_gulp=1, slot_ntime=6, core=0))
-    ops.append(ProcessingOp(log, capture_ring, process_ring,
-                            ntime_gulp=1, core=1))
-    ops.append(WriterOp(log, process_ring,
+    #ops.append(ProcessingOp(log, capture_ring, process_ring,
+    #                        ntime_gulp=1, core=1))
+    ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=1, core=2))
     
     # Setup the threads
