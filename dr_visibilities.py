@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from common import *
 from station import ovro
 from reductions import *
-from filewriter import HDF5Writer
+from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
 
 from bifrost.address import Address
@@ -34,7 +34,7 @@ from bifrost import asarray as BFAsArray
 QUEUE = OperationsQueue()
 QUEUE.append(MeasurementSetWriter('test.ms',
                                   datetime.utcnow()+timedelta(seconds=15),
-                                  datetime.utcnow()+timedelta(seconds=30)))
+                                  datetime.utcnow()+timedelta(seconds=300)))
 
 
 class CaptureOp(object):
@@ -119,8 +119,9 @@ class DummyOp(object):
         with self.oring.begin_writing() as oring:
             navg = int(10.0 / (CHAN_BW / CLOCK))
             nsrc  = self.nbl
+            nbl   = self.nbl
             chan0 = 1234
-            nchan = 16*189
+            nchan = 189
             npol = 4
             
             ohdr = {'time_tag': int(int(time.time())*FS),
@@ -131,14 +132,13 @@ class DummyOp(object):
                     'bw':       nchan*CHAN_BW,
                     'navg':     navg,
                     'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
-                    'npol':     2,
-                    'nbl':      nsrc,
+                    'npol':     npol,
+                    'nbl':      nbl,
                     'complex':  True,
                     'nbit':     32}
-            print "******** CFREQ:", hdr['cfreq']
             ohdr_str = json.dumps(ohdr)
             
-            ogulp_size = self.ntime_gulp*nbl*nchan*npol*6      # complex64
+            ogulp_size = self.ntime_gulp*nbl*nchan*npol*8      # complex64
             oshape = (self.ntime_gulp,nbl,nchan,npol)
             self.oring.resize(ogulp_size)
             
@@ -152,6 +152,7 @@ class DummyOp(object):
                         
                         odata = ospan.data_view(numpy.complex64).reshape(oshape)
                         odata[...] = numpy.random.randn(*oshape)
+                        time.sleep(9)
                         
                     curr_time = time.time()
                     process_time = curr_time - prev_time
@@ -204,8 +205,8 @@ class ProcessingOp(object):
                 npol     = ihdr['npol']
                 base_time_tag = iseq.time_tag
                 
-                igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
-                ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
+                ishape = (self.ntime_gulp,nbl,nchan,npol)
                 
                 ohdr = ihdr.copy()
                 
@@ -234,8 +235,8 @@ class ProcessingOp(object):
                                 reserve_time = curr_time - prev_time
                                 prev_time = curr_time
                                 
-                                idata = ispan.data_view(numpy.float32).reshape(ishape)
-                                odata = ospan.data_view(numpy.float32).reshape(oshape)
+                                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                                odata = ospan.data_view(numpy.complex64).reshape(oshape)
                                 
                                 odata[...] = idata
                                 
@@ -301,10 +302,10 @@ class WriterOp(object):
             nchan    = ihdr['nchan']
             chan_bw  = ihdr['bw'] / nchan
             npol     = ihdr['npol']
-            pols     = 'XX,XY,YX,YY'
+            pols     = ['XX','XY','YX','YY']
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
-            ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
             
             was_active = False
             prev_time = time.time()
