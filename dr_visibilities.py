@@ -117,8 +117,8 @@ class DummyOp(object):
           
     def main(self):
         with self.oring.begin_writing() as oring:
-            navg = 240000
-            tint  navg / CHAN_BW
+            navg  = 240000
+            tint  = navg / CHAN_BW
             nsrc  = self.nbl
             nbl   = self.nbl
             chan0 = 1234
