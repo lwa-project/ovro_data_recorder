@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy
 import weakref
 
 from astropy.coordinates import EarthLocation
@@ -46,8 +47,8 @@ class Station(object):
         """
         
         name, lat, lon, x, y, active = line.split(None, 5)
-        lat = float(lat)
-        lon = float(lon)
+        lat = float(lat) * numpy.pi/180
+        lon = float(lon) * numpy.pi/180
         elev = 1222.0        # Is this right?
         return cls(name, lat, lon, elev)
         
@@ -62,20 +63,12 @@ class Station(object):
         self.antennas.append(ant)
         
     @property
-    def astropy(self):
-        """
-        Return an AstroPy EarthLocation instance describing the array.
-        """
-        
-        return  EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
-        
-    @property
     def ecef(self):
         """
         Return the Earth centered, Earth fixed location of the array in meters.
         """
         
-        e = self.astropy
+        e =  EarthLocation(lat=self.lat*u.rad, lon=self.lon*u.rad, height=self.elev*u.m)
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
 
 
@@ -100,18 +93,10 @@ class Antenna(object):
         """
         
         name, lat, lon, x, y, active = line.split(None, 5)
-        lat = float(lat)
-        lon = float(lon)
+        lat = float(lat) * numpy.pi/180
+        lon = float(lon) * numpy.pi/180
         elev = 1222.0        # Is this right?
         return cls(name, lat, lon, elev)
-        
-    @property
-    def astropy(self):
-        """
-        Return an AstroPy EarthLocation instance describing the antenna.
-        """
-        
-        return  EarthLocation(lat=self.lat*u.deg, lon=self.lon*u.deg, height=self.elev*u.m)
         
     @property
     def ecef(self):
@@ -119,7 +104,7 @@ class Antenna(object):
         Return the Earth centered, Earth fixed location of the antenna in meters.
         """
         
-        e = self.astropy
+        e = EarthLocation(lat=self.lat*u.rad, lon=self.lon*u.rad, height=self.elev*u.m)
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
         
     
