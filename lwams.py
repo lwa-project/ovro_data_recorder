@@ -3,7 +3,7 @@ import sys
 import numpy
 import shutil
 
-from casacore import table, tableutil
+from casacore.tables import table, tableutil
 
 
 # Measurement set stokes name -> number
@@ -18,12 +18,73 @@ NUMERIC_STOKES = { 1:'I',   2:'Q',   3:'U',   4:'V',
                    9:'XX', 10:'XY', 11:'YX', 12:'YY'}
 
 
-def create_ms(filename, station, tint, freq, overwrite=False):
+class _MSConfig(object):
+    """
+    Class to wrap configuation information needed to fill in/update a measurement
+    set.
+    """
+    
+    def __init__(self, station, tint, freq, pols):
+        self.station = station
+        self.tint = tint
+        self.freq = freq
+        self.pols = pols
+        
+    @property
+    def nant(self):
+        """
+        Antenna count
+        """
+        
+        return len(self.station.antennas)
+        
+    @property
+    def nbl(self):
+        """
+        Baseline count, including autocorrelations
+        """
+        
+        return self.nant*(self.nant + 1) // 2
+        
+    @property
+    def nchan(self):
+        """
+        Channel count
+        """
+        
+        return self.freq.size
+        
+    @property
+    def freq0(self):
+        """
+        First frequency channel
+        """
+        
+        return self.freq[0]
+        
+    @property
+    def chan_bw(self):
+        """
+        Channel bandwidth
+        """
+        
+        return self.freq[1] - self.freq[0]
+        
+    @property
+    def npol(self):
+        """
+        Polarization count
+        """
+        
+        return len(self.pols)
+
+
+def create_ms(filename, station, tint, freq, pols, overwrite=False):
     """
     Create an empty measurement set with the right structure and tables.
     """
     
-    # Check for a pre-existing file
+    # Check for a pre-exiting file
     if os.path.exists(filename):
         if not overwrite:
             raise RuntimeError("File '%s' already exists" % filename)
@@ -31,18 +92,14 @@ def create_ms(filename, station, tint, freq, overwrite=False):
             shutil.rmtree(filename)
             
     # Setup
-    nant = len(station.antennas)
-    nchan = freq.size
-    pols = [STOKES_CODES[p] for p in pols]
-    npol = len(pols)
-    nbl = nant*(nant + 1) // 2
+    config = _MSConfig(station, tint, freq, pols)
     
     # Write some tables
-    _write_main_table(filename, station, nant, nbl, freq, nchan, pols, npol)
-    _write_antenna_table(filename, station, nant, nbl, freq, nchan, pols, npol)
-    _write_polarization_table(filename, station, nant, nbl, freq, nchan, pols, npol)
-    _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, npol)
-    _write_misc_required_tables(filename, station, nant, nbl, freq, nchan, pols, npol)
+    _write_main_table(filename, config)
+    _write_antenna_table(filename, config)
+    _write_polarization_table(filename, config)
+    _write_observation_table(filename, config)
+    _write_misc_required_tables(filename, config)
 
 
 def update_time(filename, start_time, centroid_time, stop_time):
@@ -51,33 +108,34 @@ def update_time(filename, start_time, centroid_time, stop_time):
     """
     
     # Main table
-    tb = table(filename, ack=False)
-    tb.putcol('TIME', [start_time.mjd,]*self._nbl, 0, self._nbl)
-    tb.putcol('TIME_CENTROID',[centroid_time.mjd,]*self._nbl, 0, self._nbl)
+    tb = table(filename, readonly=False, ack=False)
+    tb.putcol('TIME', [start_time.mjd,]*(tb.nrows()), 0, tb.nrows())
+    tb.putcol('TIME_CENTROID', [centroid_time.mjd,]*(tb.nrows()), 0, tb.nrows())
     tb.flush()
     tb.close()
     
     # Feed table
-    tb = table(os.path.join(filename, "FEED"), ack=False)
-    tb.putcol('TIME', [start_time.mjd,], 0, 1)
+    tb = table(os.path.join(filename, "FEED"), readonly=False, ack=False)
+    tb.putcell('TIME', 0, start_time.mjd)
     tb.flush()
     tb.close()
     
     # Observation table
-    tb = table(os.path.join(filename, "OBSERVATION"), ack=False)
-    tb.putcol('TIME_RANGE', [[start_time.mjd,stop_time.mjd],]*self._nbl, 0, 1)
+    tb = table(os.path.join(filename, "OBSERVATION"), readonly=False, ack=False)
+    tb.putcell('TIME_RANGE', 0, [start_time.mjd,stop_time.mjd])
+    tb.putcell('RELASE_DATE', 0, start_time.mjd)
     tb.flush()
     tb.close()
     
     # Source table
-    tb = table(os.path.join(filename, "SOURCE"), ack=False)
-    tb.putcol('TIME', start_time.mjd, 0, 1)
+    tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
+    tb.putcell('TIME', 0, start_time.mjd)
     tb.flush()
     tb.close()
     
     # Field table
-    tb = table(os.path.join(filename, "FIELD"), ack=False)
-    tb.putcol('TIME', start_time.mjd, 0, 1)
+    tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
+    tb.putcell('TIME', 0, start_time.mjd)
     tb.flush()
     tb.close()
 
@@ -89,16 +147,16 @@ def update_pointing(filename, ra, dec):
     """
     
     # Source table
-    tb = table(os.path.join(filename, "SOURCE"), ack=False)
-    tb.putcol('DIRECTION', (ra, dec), 0, 1)
+    tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
+    tb.putcell('DIRECTION', 0, (ra, dec))
     tb.flush()
     tb.close()
     
     # Field table
-    tb = table(os.path.join(filename, "FIELD"), ack=False)
-    tb.putcol('DELAY_DIR', (ra, dec), 0, 1)
-    tb.putcol('PHASE_DIR', (ra, dec), 0, 1)
-    tb.putcol('REFERENCE_DIR', (ra, dec), 0, 1)
+    tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
+    tb.putcell('DELAY_DIR', 0, numpy.array([[ra, dec],]))
+    tb.putcell('PHASE_DIR', 0, numpy.array([(ra, dec),]))
+    tb.putcell('REFERENCE_DIR', 0, numpy.array([(ra, dec),]))
     tb.flush()
     tb.close()
 
@@ -109,14 +167,26 @@ def update_data(filename, visibilities):
     """
     
     # Main table
-    tb = table(filename, ack=False)
+    tb = table(filename, readonly=False, ack=False)
     tb.putcol('DATA', visibilities, 0, visibilities.shape[0])
     tb.flush()
     tb.close()
+
+
+def _write_main_table(filename, config):
+    """
+    Write the main data table.
+    """
     
-
-
-def _write_main_table(filename, station, nant, nbl, freq, nchan, pols, npol):
+    station = config.station
+    nant = config.nant
+    nbl = config.nbl
+    tint = config.tint
+    freq = config.freq
+    nchan = config.nchan
+    pols = config.pols
+    npol = config.npol
+    
     col1  = tableutil.makearrcoldesc('UVW', 0.0, 1, 
                                      comment='Vector with uvw coordinates (in meters)', 
                                      keywords={'QuantumUnits':['m','m','m'], 
@@ -178,9 +248,9 @@ def _write_main_table(filename, station, nant, nbl, freq, nchan, pols, npol):
                                      comment='The data column')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9, 
-                                    col10, col11, col12, col13, col14, col15, col16, 
-                                    col17, col18, col19, col20, col21, col22])
-    tb = table("%s" % filename, desc, nrow=0, ack=False)
+                                  col10, col11, col12, col13, col14, col15, col16, 
+                                  col17, col18, col19, col20, col21, col22])
+    tb = table("%s" % filename, desc, nrow=nbl, ack=False)
     
     
     fg = numpy.zeros((nbl,npol,nchan), dtype=numpy.bool)
@@ -194,15 +264,15 @@ def _write_main_table(filename, station, nant, nbl, freq, nchan, pols, npol):
     
     k = 0
     for i in range(nant):
-        l1 = station.antennas[i]
+        l1 = station.antennas[i].ecef
         for j in range(i, nant):
-            l2 = station.antennas[j]
+            l2 = station.antennas[j].ecef
             
             uv[k,:] = (l1[0]-l2[0], l1[1]-l2[1], l1[2]-l2[2])
             a1[k] = i
             a2[k] = j
             
-    tb.putcol('UVW', uvwList, 0, nbl)
+    tb.putcol('UVW', uv, 0, nbl)
     tb.putcol('FLAG', fg.transpose(0,2,1), 0, nbl)
     tb.putcol('FLAG_CATEGORY', fc.transpose(0,3,2,1), 0, nbl)
     tb.putcol('WEIGHT', wg, 0, nbl)
@@ -247,10 +317,19 @@ def _write_main_table(filename, station, nant, nbl, freq, nchan, pols, npol):
     tb.flush()
     tb.close()
     
-def _write_antenna_table(filename, station, nant, nbl, freq, nchan, pols, npol):
+def _write_antenna_table(filename, config):
     """
     Write the antenna table.
     """
+    
+    station = config.station
+    nant = config.nant
+    nbl = config.nbl
+    tint = config.tint
+    freq = config.freq
+    nchan = config.nchan
+    pols = config.pols
+    npol = config.npol
     
     col1 = tableutil.makearrcoldesc('OFFSET', 0.0, 1, 
                                     comment='Axes offset of mount to FEED REFERENCE point', 
@@ -277,14 +356,14 @@ def _write_antenna_table(filename, station, nant, nbl, freq, nchan, pols, npol):
                                     comment='Station (antenna pad) name')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8])
-    tb = table("%s/ANTENNA" % template, desc, nrow=nant, ack=False)
+    tb = table("%s/ANTENNA" % filename, desc, nrow=nant, ack=False)
     
     tb.putcol('OFFSET', numpy.zeros((nant,3)), 0, nant)
     tb.putcol('TYPE', ['GROUND-BASED,']*nant, 0, nant)
     tb.putcol('DISH_DIAMETER', [2.0,]*nant, 0, nant)
     tb.putcol('FLAG_ROW', [False,]*nant, 0, nant)
     tb.putcol('MOUNT', ['ALT-AZ',]*nant, 0, nant)
-    tb.putcol('NAME', [ant.get_name() for ant in self.array[0]['ants']], 0, nant)
+    tb.putcol('NAME', ['LWA%03i' % ant.id for ant in station.antennas], 0, nant)
     tb.putcol('STATION', [station.name,]*nant, 0, nant)
     
     for i,ant in enumerate(station.antennas):
@@ -300,10 +379,19 @@ def _write_antenna_table(filename, station, nant, nbl, freq, nchan, pols, npol):
     tb.flush()
     tb.close()
     
-def _write_polarization_table(filename, station, nant, nbl, freq, nchan, pols, npol):
+def _write_polarization_table(filename, config):
     """
     Write the polarization table.
     """
+    
+    station = config.station
+    nant = config.nant
+    nbl = config.nbl
+    tint = config.tint
+    freq = config.freq
+    nchan = config.nchan
+    pols = config.pols
+    npol = config.npol
     
     # Polarization
     
@@ -328,7 +416,7 @@ def _write_polarization_table(filename, station, nant, nbl, freq, nchan, pols, n
                                     comment='Number of correlation products')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4])
-    tb = table("%s/POLARIZATION" % template, desc, nrow=1, ack=False)
+    tb = table("%s/POLARIZATION" % filename, desc, nrow=1, ack=False)
     
     tb.putcell('CORR_TYPE', 0, pols)
     tb.putcell('CORR_PRODUCT', 0, prds.T)
@@ -378,8 +466,8 @@ def _write_polarization_table(filename, station, nant, nbl, freq, nchan, pols, n
                                                })
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, 
-                                    col9, col10, col11, col12])
-    tb = table("%s/FEED" % template, desc, nrow=nant, ack=False)
+                                  col9, col10, col11, col12])
+    tb = table("%s/FEED" % filename, desc, nrow=nant, ack=False)
     
     presp = numpy.zeros((nant,2,2), dtype=numpy.complex64)
     if pols[0] > 8:
@@ -417,10 +505,19 @@ def _write_polarization_table(filename, station, nant, nbl, freq, nchan, pols, n
     tb.flush()
     tb.close()
     
-def _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, npol):
+def _write_observation_table(filename, config):
     """
     Write the observation table.
     """
+    
+    station = config.station
+    nant = config.nant
+    nbl = config.nbl
+    tint = config.tint
+    freq = config.freq
+    nchan = config.nchan
+    pols = config.pols
+    npol = config.npol
     
     # Observation
     
@@ -435,22 +532,22 @@ def _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, np
                                     comment='Observing schedule')
     col4 = tableutil.makescacoldesc('FLAG_ROW', False, 
                                     comment='Row flag')
-    col5 = tableutil.makescacoldesc('OBSERVER', self.observer, 
+    col5 = tableutil.makescacoldesc('OBSERVER', station.name, 
                                     comment='Name of observer(s)')
-    col6 = tableutil.makescacoldesc('PROJECT', self.project, 
+    col6 = tableutil.makescacoldesc('PROJECT', station.name, 
                                     comment='Project identification string')
     col7 = tableutil.makescacoldesc('RELEASE_DATE', 0.0, 
                                     comment='Release date when data becomes public', 
                                     keywords={'QuantumUnits':['s',], 
                                               'MEASINFO':{'type':'epoch', 'Ref':'UTC'}
                                               })
-    col8 = tableutil.makescacoldesc('SCHEDULE_TYPE', self.mode, 
+    col8 = tableutil.makescacoldesc('SCHEDULE_TYPE', 'all-sky', 
                                     comment='Observing schedule type')
     col9 = tableutil.makescacoldesc('TELESCOPE_NAME', station.name, 
                                     comment='Telescope Name (e.g. WSRT, VLBA)')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
-    tb = table("%s/OBSERVATION" % template, desc, nrow=1, ack=False)
+    tb = table("%s/OBSERVATION" % filename, desc, nrow=1, ack=False)
     
     tb.putcell('TIME_RANGE', 0, [0.0, 0.0])
     tb.putcell('LOG', 0, 'Not provided')
@@ -459,7 +556,7 @@ def _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, np
     tb.putcell('OBSERVER', 0, station.name)
     tb.putcell('PROJECT', 0, station.name)
     tb.putcell('RELEASE_DATE', 0, 0.0)
-    tb.putcell('SCHEDULE_TYPE', 0, type(self).__name__)
+    tb.putcell('SCHEDULE_TYPE', 0, 'all-sky')
     tb.putcell('TELESCOPE_NAME', 0, station.name)
     
     tb.flush()
@@ -512,16 +609,16 @@ def _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, np
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9, 
                                   col10, col11, col12, col13])
-    tb = table("%s/SOURCE" % template, desc, nrow=1, ack=False)
+    tb = table("%s/SOURCE" % filename, desc, nrow=1, ack=False)
     
     tb.putcell('DIRECTION', 0, [0.0, 0.0])
     tb.putcell('PROPER_MOTION', 0, [0.0, 0.0])
     tb.putcell('CALIBRATION_GROUP', 0, 0)
     tb.putcell('CODE', 0, 'none')
-    tb.putcell('INTERVAL', tint, 0.0)
+    tb.putcell('INTERVAL', 0, tint)
     tb.putcell('NAME', 0, 'zenith')
     tb.putcell('NUM_LINES', 0, 0)
-    tb.putcell('SOURCE_ID', 0, i)
+    tb.putcell('SOURCE_ID', 0, 0)
     tb.putcell('SPECTRAL_WINDOW_ID', 0, -1)
     tb.putcell('TIME', 0, 0.0)
     #tb.putcell('TRANSITION', 0, [])
@@ -565,7 +662,7 @@ def _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, np
                                               })
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
-    tb = table("%s/FIELD" % template, desc, nrow=1, ack=False)
+    tb = table("%s/FIELD" % filename, desc, nrow=1, ack=False)
     
     tb.putcell('DELAY_DIR', 0, numpy.array([[0.0, 0.0],]))
     tb.putcell('PHASE_DIR', 0, numpy.array([[0.0, 0.0],]))
@@ -580,10 +677,20 @@ def _write_observation_table(filename, station, nant, nbl, freq, nchan, pols, np
     tb.flush()
     tb.close()
     
-def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols, npol):
+def _write_spectralwindow_table(filename, config):
     """
     Write the spectral window table.
     """
+    
+    station = config.station
+    nant = config.nant
+    nbl = config.nbl
+    tint = config.tint
+    freq = config.freq
+    nchan = config.nchan
+    chan_bw = config.chan_bw
+    pols = config.pols
+    npol = config.npol
     
     # Spectral Window
     
@@ -633,15 +740,15 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
                                      keywords={'QuantumUnits':['Hz',]})
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9, 
-                                    col10, col11, col12, col13, col14])
-    tb = table("%s/SPECTRAL_WINDOW" % template, desc, nrow=1, ack=False)
+                                  col10, col11, col12, col13, col14])
+    tb = table("%s/SPECTRAL_WINDOW" % filename, desc, nrow=1, ack=False)
     
     tb.putcell('MEAS_FREQ_REF', 0, 0)
     tb.putcell('CHAN_FREQ', 0, freq)
     tb.putcell('REF_FREQUENCY', 0, freq[0])
-    tb.putcell('CHAN_WIDTH', 0, [freq[1]-freq[0],]*nchan)
-    tb.putcell('EFFECTIVE_BW', 0, [freq[1]-freq[0],]*nchan)
-    tb.putcell('RESOLUTION', 0, [freq[1]-freq[0],]*nchan)
+    tb.putcell('CHAN_WIDTH', 0, [chan_bw,]*nchan)
+    tb.putcell('EFFECTIVE_BW', 0, [chan_bw,]*nchan)
+    tb.putcell('RESOLUTION', 0, [chan_bw,]*nchan)
     tb.putcell('FLAG_ROW', 0, False)
     tb.putcell('FREQ_GROUP', 0, 1)
     tb.putcell('FREQ_GROUP_NAME', 0, 'group%i' % 1)
@@ -649,10 +756,21 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
     tb.putcell('NAME', 0, "IF %i, %i channels" % (1, nchan))
     tb.putcell('NET_SIDEBAND', 0, 0)
     tb.putcell('NUM_CHAN', 0, nchan)
-    tb.putcell('TOTAL_BANDWIDTH', 0, nchan*(freq[1]-freq[0]))
+    tb.putcell('TOTAL_BANDWIDTH', 0, nchan*chan_bw)
     
     tb.flush()
     tb.close()
+   
+
+def _write_misc_required_tables(filename, config): 
+    station = config.station
+    nant = config.nant
+    nbl = config.nbl
+    tint = config.tint
+    freq = config.freq
+    nchan = config.nchan
+    pols = config.pols
+    npol = config.npol
     
     # Flag command
     
@@ -678,7 +796,7 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
                                     comment='Flagging command')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8])
-    tb = table("%s/FLAG_CMD" % template, desc, nrow=0, ack=False)
+    tb = table("%s/FLAG_CMD" % filename, desc, nrow=0, ack=False)
     
     tb.flush()
     tb.close()
@@ -708,7 +826,7 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
                                     comment='Application parameters')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
-    tb = table("%s/HISTORY" % template, desc, nrow=0, ack=False)
+    tb = table("%s/HISTORY" % filename, desc, nrow=0, ack=False)
     
     tb.flush()
     tb.close()
@@ -748,7 +866,7 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
                                     comment='Tracking flag - True if on position')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
-    tb = table("%s/POINTING" % template, desc, nrow=0, ack=False)
+    tb = table("%s/POINTING" % filename, desc, nrow=0, ack=False)
     
     tb.flush()
     tb.close()
@@ -767,7 +885,7 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
                                     comment='flag')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5])
-    tb = table("%s/PROCESSOR" % template, desc, nrow=0, ack=False)
+    tb = table("%s/PROCESSOR" % filename, desc, nrow=0, ack=False)
     
     tb.flush()
     tb.close()
@@ -792,7 +910,7 @@ def _write_spectralwindow_table(filename, station, nant, nbl, freq, nchan, pols,
                                     comment='Row flag')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7])
-    tb = table("%s/STATE" % template, desc, nrow=0, ack=False)
+    tb = table("%s/STATE" % filename, desc, nrow=0, ack=False)
     
     tb.flush()
     tb.close()
