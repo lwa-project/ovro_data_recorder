@@ -51,6 +51,7 @@ class OperationsQueue(object):
             if queueop.is_expired:
                 to_remove.append(queueop)
         for expiredop in to_remove:
+            self._last = expiredop
             del self._queue[self._queue.index(expiredop)]
             
         # Put it in the right place
