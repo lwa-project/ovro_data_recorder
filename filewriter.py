@@ -259,7 +259,7 @@ class MeasurementSetWriter(FileWriterBase):
                                   stderr=dn)
             
         # Find the point overhead
-        zen = [ct.sidereal_time('mean', self._station.lon).to_value('rad'),
+        zen = [tcent.sidereal_time('mean', self._station.lon).to_value('rad'),
                self._station.lat]
         
         # Update the time
