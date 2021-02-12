@@ -121,7 +121,7 @@ class DummyOp(object):
             navg = 24
             nbeam = 1
             chan0 = 1234
-            nchan = 16*189
+            nchan = 16*184
             npol = 4
             
             ohdr = {'time_tag': int(int(time.time())*FS),
@@ -252,7 +252,7 @@ class ProcessingOp(object):
                                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                                 odata = ospan.data_view(numpy.float32).reshape(oshape)
                                 
-                                odata = self.op(idata)
+                                odata[...] = self.op(idata)
                                 
                             base_time_tag += navg * (int(FS) / int(CHAN_BW))
                             
