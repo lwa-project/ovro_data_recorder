@@ -1,4 +1,5 @@
 import numpy
+from textwrap import fill as tw_fill
 
 
 class ReductionOperation(object):
@@ -10,10 +11,11 @@ class ReductionOperation(object):
         self.reductions = (self.time_avg,1,self.chan_avg,1)
         
     def __repr__(self):
-        return "<%s time_avg=%i, chan_avg=%i, pols='%s'>" % (type(self).__name__,
-                                                             self.time_avg,
-                                                             self.chan_avg,
-                                                             self.pols)
+        output = "<%s time_avg=%i, chan_avg=%i, pols='%s'>" % (type(self).__name__,
+                                                               self.time_avg,
+                                                               self.chan_avg,
+                                                               self.pols)
+        return tw_fill(output, subsequent_indent='    ')
         
     def __eq__(self, other):
         return (self.reductions == other.reductions) and (self.pols == other.pols)
