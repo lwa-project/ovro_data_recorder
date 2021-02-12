@@ -323,6 +323,8 @@ class WriterOp(object):
             chan_bw  = ihdr['bw'] / nchan
             npol     = ihdr['npol']
             pols     = ihdr['pols']
+            pols     = pols.replace('CR', 'XY_real')
+            pols     = pols.replace('CI', 'XY_imag')
             
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
