@@ -33,7 +33,8 @@ from bifrost import asarray as BFAsArray
 QUEUE = OperationsQueue()
 QUEUE.append(HDF5Writer('test.hdf5',
                         datetime.utcnow()+timedelta(seconds=15),
-                        datetime.utcnow()+timedelta(seconds=30)))
+                        datetime.utcnow()+timedelta(seconds=30),
+                        reduction=XXYYCRCI(10)))
 
 
 class CaptureOp(object):
@@ -316,63 +317,62 @@ class WriterOp(object):
                                   'core0': cpu_affinity.get_core(),})
         
         for iseq in self.iring.read(guarantee=self.guarantee):
-            while not self.iring.writing_ended():
-                ihdr = json.loads(iseq.header.tostring())
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Writer: Start of new sequence: %s", str(ihdr))
+            
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbeam    = ihdr['nbeam']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            pols     = ihdr['pols']
+            pols     = pols.replace('CR', 'XY_real')
+            pols     = pols.replace('CI', 'XY_imag')
+            
+            igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+            ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            
+            was_active = False
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
                 
-                self.sequence_proclog.update(ihdr)
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
-                self.log.info("Writer: Start of new sequence: %s", str(ihdr))
-                
-                time_tag = ihdr['time_tag']
-                navg     = ihdr['navg']
-                nbeam    = ihdr['nbeam']
-                chan0    = ihdr['chan0']
-                nchan    = ihdr['nchan']
-                chan_bw  = ihdr['bw'] / nchan
-                npol     = ihdr['npol']
-                pols     = ihdr['pols']
-                pols     = pols.replace('CR', 'XY_real')
-                pols     = pols.replace('CI', 'XY_imag')
-                
-                igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
-                ishape = (self.ntime_gulp,nbeam,nchan,npol)
-                
-                was_active = False
-                prev_time = time.time()
-                iseq_spans = iseq.read(igulp_size)
-                for ispan in iseq_spans:
-                    if ispan.size < igulp_size:
-                        continue # Ignore final gulp
-                    curr_time = time.time()
-                    acquire_time = curr_time - prev_time
-                    prev_time = curr_time
-                   
-                    idata = ispan.data_view(numpy.float32).reshape(ishape)
+                if QUEUE.active is not None:
+                    # Write the data
+                    if not QUEUE.active.is_started:
+                        self.log.info("Started operation - %s", QUEUE.active)
+                        QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
+                        was_active = True
+                    QUEUE.active.write(time_tag, idata)
+                elif was_active:
+                    # Clean the queue
+                    was_active = False
+                    QUEUE.clean()
                     
-                    if QUEUE.active is not None:
-                        # Write the data
-                        if not QUEUE.active.is_started:
-                            self.log.info("Started operation - %s", QUEUE.active)
-                            QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
-                            was_active = True
-                        QUEUE.active.write(time_tag, idata)
-                    elif was_active:
-                        # Clean the queue
-                        was_active = False
-                        QUEUE.clean()
-                        
-                        # Close it out
-                        self.log.info("Ended operation - %s", QUEUE.previous)
-                        QUEUE.previous.stop()
-                        
-                    time_tag += navg * (int(FS) / int(CHAN_BW))
+                    # Close it out
+                    self.log.info("Ended operation - %s", QUEUE.previous)
+                    QUEUE.previous.stop()
                     
-                    curr_time = time.time()
-                    process_time = curr_time - prev_time
-                    prev_time = curr_time
-                    self.perf_proclog.update({'acquire_time': acquire_time, 
-                                              'reserve_time': -1, 
-                                              'process_time': process_time,})
+                time_tag += navg * (int(FS) / int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
 
 
 def main(argv):
