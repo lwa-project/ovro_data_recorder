@@ -4,8 +4,8 @@ from textwrap import fill as tw_fill
 
 class ReductionOperation(object):
     def __init__(self, time_avg=1, chan_avg=1):
-        self.time_avg = 1
-        self.chan_avg = 1
+        self.time_avg = time_avg
+        self.chan_avg = chan_avg
         
         self.pols = 'XX,YY,CR,CI'
         self.reductions = (self.time_avg,1,self.chan_avg,1)
