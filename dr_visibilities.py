@@ -119,6 +119,7 @@ class DummyOp(object):
         with self.oring.begin_writing() as oring:
             navg  = 240000
             tint  = navg / CHAN_BW
+            tgulp = tint * self.ntime_gulp
             nsrc  = self.nbl
             nbl   = self.nbl
             chan0 = 1234
@@ -155,7 +156,7 @@ class DummyOp(object):
                         odata[...] = numpy.random.randn(*oshape)
                         
                         curr_time = time.time()
-                        while curr_time - prev_time < tint:
+                        while curr_time - prev_time < tgulp:
                             time.sleep(0.1)
                             curr_time = time.time()
                             
