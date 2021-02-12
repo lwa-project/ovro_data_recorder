@@ -223,7 +223,6 @@ class ProcessingOp(object):
                 
                 igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
                 ishape = (self.ntime_gulp,nbeam,nchan,npol)
-                self.iring.resize(igulp_size, igulp_size*int(2*numpy.ceil(1024.0/navg)))
                 
                 ohdr = ihdr.copy()
                 
@@ -425,14 +424,14 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, 16,
-                           ntime_gulp=250, slot_ntime=25000, core=0))
+                           ntime_gulp=240, slot_ntime=24000, core=0))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
-                             ntime_gulp=250, slot_ntime=25000, core=0))
+                             ntime_gulp=240, slot_ntime=24000, core=0))
     ops.append(ProcessingOp(log, capture_ring, process_ring,
-                            ntime_gulp=250, core=1))
+                            ntime_gulp=240, core=1))
     ops.append(WriterOp(log, process_ring,
-                        ntime_gulp=250, core=2))
+                        ntime_gulp=240, core=2))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
