@@ -32,7 +32,7 @@ from bifrost import asarray as BFAsArray
 
 
 QUEUE = OperationsQueue()
-QUEUE.append(MeasurementSetWriter('test.ms',
+QUEUE.append(MeasurementSetWriter('test_ms',
                                   datetime.utcnow()+timedelta(seconds=15),
                                   datetime.utcnow()+timedelta(seconds=300)))
 
@@ -311,6 +311,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
             ishape = (self.ntime_gulp,nbl,nchan,npol)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             was_active = False
             prev_time = time.time()
