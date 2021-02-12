@@ -26,7 +26,7 @@ class FileWriterBase(object):
         self.filename = filename
         self.start_time = start_time
         self.stop_time = stop_time
-        self.reduction = None
+        self.reduction = reduction
         
         self._started = False
         self._interface = None
