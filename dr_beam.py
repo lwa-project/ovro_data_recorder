@@ -223,6 +223,7 @@ class ProcessingOp(object):
                 
                 igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
                 ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                self.iring.resize(igulp_size, igulp_size*int(2*numpy.ceil(1024.0/navg)))
                 
                 ohdr = ihdr.copy()
                 
