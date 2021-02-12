@@ -357,7 +357,7 @@ class WriterOp(object):
                             QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                             was_active = True
                         QUEUE.active.write(time_tag, idata)
-                        if QUEUE.active.is_expired:
+                        if QUEUE.active is None or QUEUE.active.is_expired:
                             self.log.info("Ended operation - %s", QUEUE.active)
                             QUEUE.active.stop()
                     elif was_active:
