@@ -119,6 +119,8 @@ class DummyOp(object):
     def main(self):
         with self.oring.begin_writing() as oring:
             navg = 24
+            tint = navg / CHAN_BW
+            tgulp = tint * self.ntime_gulp
             nbeam = 1
             chan0 = 1234
             nchan = 16*184
@@ -153,6 +155,11 @@ class DummyOp(object):
                         odata = ospan.data_view(numpy.float32).reshape(oshape)
                         odata[...] = numpy.random.randn(*oshape)
                         
+                        curr_time = time.time()
+                        while curr_time - prev_time < tgulp:
+                            time.sleep(0.01)
+                            curr_time = time.time()
+                            
                     curr_time = time.time()
                     process_time = curr_time - prev_time
                     prev_time = curr_time
