@@ -123,7 +123,7 @@ def update_time(filename, start_time, centroid_time, stop_time):
     # Observation table
     tb = table(os.path.join(filename, "OBSERVATION"), readonly=False, ack=False)
     tb.putcell('TIME_RANGE', 0, [start_time.mjd,stop_time.mjd])
-    tb.putcell('RELASE_DATE', 0, start_time.mjd)
+    tb.putcell('RELEASE_DATE', 0, start_time.mjd)
     tb.flush()
     tb.close()
     
@@ -395,10 +395,10 @@ def _write_polarization_table(filename, config):
     
     # Polarization
     
-    stks = numpy.array(pols)
+    stks = numpy.array([STOKES_CODES[p] for p in pols])
     prds = numpy.zeros((2,npol), dtype=numpy.int32)
-    for i,stk in enumerate(pols):
-        stks[i] = stk
+    for i in range(stks.size):
+        stk = stks[i]
         if stk > 4:
             prds[0,i] = ((stk-1) % 4) / 2
             prds[1,i] = ((stk-1) % 4) % 2
@@ -418,7 +418,7 @@ def _write_polarization_table(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4])
     tb = table("%s/POLARIZATION" % filename, desc, nrow=1, ack=False)
     
-    tb.putcell('CORR_TYPE', 0, pols)
+    tb.putcell('CORR_TYPE', 0, stks)
     tb.putcell('CORR_PRODUCT', 0, prds.T)
     tb.putcell('FLAG_ROW', 0, False)
     tb.putcell('NUM_CORR', 0, npol)
