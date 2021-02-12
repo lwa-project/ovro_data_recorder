@@ -5,7 +5,7 @@ import json
 import numpy
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
 from casacore.tables import table, tableutil
@@ -40,7 +40,7 @@ class FileWriterBase(object):
         return tw_fill(output, subsequent_indent='    ')
         
     @property
-    def is_pending:
+    def is_pending(self):
         """
         Whether or not the file should be considered pending, i.e., the current
         time is within one second before its scheduled window starts.
