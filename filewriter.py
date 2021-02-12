@@ -272,9 +272,9 @@ class MeasurementSetWriter(FileWriterBase):
         update_data(tempname, data[0,...])
         
         # Save it to its final location
-        filename = "%s_%s.tar.gz" % (self.filename, tagname)
+        filename = "%s_%s.tar" % (self.filename, tagname)
         with open('/dev/null', 'wb') as dn:
-            subprocess.check_call(['tar', 'czf', filename, tempname],
+            subprocess.check_call(['tar', 'cf', filename, tempname],
                                   stderr=dn, cwd=self._tempdir)
         shutil.rmtree(tempname)
         
