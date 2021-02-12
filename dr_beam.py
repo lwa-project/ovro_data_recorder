@@ -424,7 +424,7 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, 16,
-                           ntime_gulp=100, slot_ntime=1000, core=0))
+                           ntime_gulp=1000, slot_ntime=1000, core=0))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=100, slot_ntime=1000, core=0))
