@@ -271,6 +271,7 @@ class ProcessingOp(object):
                             else:
                                 new_op = XXYYCRCI()
                             if self.update_processing(new_op):
+                                self.log.info("Changed reduction - %s", new_op)
                                 reset_sequence = True
                                 break
                                 
@@ -352,10 +353,12 @@ class WriterOp(object):
                     if QUEUE.active is not None:
                         # Write the data
                         if not QUEUE.active.is_started:
+                            self.log.info("Started operation - %s", QUEUE.active)
                             QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                             was_active = True
                         QUEUE.active.write(time_tag, idata)
                         if QUEUE.active.is_expired:
+                            self.log.info("Ended operation - %s", QUEUE.active)
                             QUEUE.active.stop()
                     elif was_active:
                         # Clean the queue
