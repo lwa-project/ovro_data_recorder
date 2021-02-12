@@ -40,6 +40,16 @@ class FileWriterBase(object):
         return tw_fill(output, subsequent_indent='    ')
         
     @property
+    def is_pending:
+        """
+        Whether or not the file should be considered pending, i.e., the current
+        time is within one second before its scheduled window starts.
+        """
+        
+        nowish = datetime.utcnow() + timedelta(seconds=1)
+        return nowish >= self.start_time
+    
+    @property
     def is_active(self):
         """
         Whether or not the file should be considered active, i.e., the current

@@ -265,8 +265,8 @@ class ProcessingOp(object):
                             base_time_tag += navg * (int(FS) / int(CHAN_BW))
                             
                             ## Check for an update to the configuration
-                            if QUEUE.active is not None:
-                                new_op = QUEUE.active.reduction
+                            if QUEUE.pending is not None:
+                                new_op = QUEUE.pending.reduction
                                 if new_op is None:
                                     new_op = self.op
                             else:

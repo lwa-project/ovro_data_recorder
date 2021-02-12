@@ -72,6 +72,19 @@ class OperationsQueue(object):
             del self._queue[self._queue.index(expiredop)]
             
     @property
+    def pending(self):
+        """
+        The pending file writer operation or None if there is not one.
+        """
+        
+        pendingop = None
+        for queueop in self._queue:
+            if queueop.is_pending:
+                pendingop = queueop
+                break
+        return pendingop
+        
+    @property
     def active(self):
         """
         The active file writer operation or None if there is not one.
