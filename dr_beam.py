@@ -273,7 +273,6 @@ class ProcessingOp(object):
                             if self.update_processing(new_op):
                                 self.log.info("Changed reduction - %s", new_op)
                                 reset_sequence = True
-                                break
                                 
                             curr_time = time.time()
                             process_time = curr_time - prev_time
@@ -317,30 +316,30 @@ class WriterOp(object):
                                   'core0': cpu_affinity.get_core(),})
         
         for iseq in self.iring.read(guarantee=self.guarantee):
-            ihdr = json.loads(iseq.header.tostring())
-            
-            self.sequence_proclog.update(ihdr)
-            
-            self.log.info("Writer: Start of new sequence: %s", str(ihdr))
-            
-            time_tag = ihdr['time_tag']
-            navg     = ihdr['navg']
-            nbeam    = ihdr['nbeam']
-            chan0    = ihdr['chan0']
-            nchan    = ihdr['nchan']
-            chan_bw  = ihdr['bw'] / nchan
-            npol     = ihdr['npol']
-            pols     = ihdr['pols']
-            pols     = pols.replace('CR', 'XY_real')
-            pols     = pols.replace('CI', 'XY_imag')
-            
-            igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
-            ishape = (self.ntime_gulp,nbeam,nchan,npol)
-            
-            was_active = False
-            prev_time = time.time()
-            iseq_spans = iseq.read(igulp_size)
             while not self.iring.writing_ended():
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("Writer: Start of new sequence: %s", str(ihdr))
+                
+                time_tag = ihdr['time_tag']
+                navg     = ihdr['navg']
+                nbeam    = ihdr['nbeam']
+                chan0    = ihdr['chan0']
+                nchan    = ihdr['nchan']
+                chan_bw  = ihdr['bw'] / nchan
+                npol     = ihdr['npol']
+                pols     = ihdr['pols']
+                pols     = pols.replace('CR', 'XY_real')
+                pols     = pols.replace('CI', 'XY_imag')
+                
+                igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+                ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                
+                was_active = False
+                prev_time = time.time()
+                iseq_spans = iseq.read(igulp_size)
                 for ispan in iseq_spans:
                     if ispan.size < igulp_size:
                         continue # Ignore final gulp
