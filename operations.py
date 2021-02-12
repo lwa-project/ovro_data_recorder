@@ -12,6 +12,7 @@ class OperationsQueue(object):
     
     def __init__(self):
         self._queue = []
+        self._last = None
         
     def __repr__(self):
         output = "<%s at 0x%x>" % (type(self).__name__, id(self))
@@ -66,6 +67,7 @@ class OperationsQueue(object):
             if queueop.is_expired:
                 to_remove.append(queueop)
         for expiredop in to_remove:
+            self._last = expiredop
             del self._queue[self._queue.index(expiredop)]
             
     @property
@@ -80,3 +82,11 @@ class OperationsQueue(object):
                 activeop = queueop
                 break
         return activeop
+        
+    @property
+    def previous(self):
+        """
+        The last file writer operation or None if there is not one.
+        """
+        
+        return self._last
