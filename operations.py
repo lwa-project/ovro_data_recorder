@@ -57,7 +57,7 @@ class OperationsQueue(object):
         
         if not isinstance(fileop, FileWriterBase):
             raise TypeError("Expected a sub-class of FileWriterBase")
-        if fileop.start_time < datetime.datetime.utcnow() - timedelta(seconds=2):
+        if fileop.start_time < datetime.utcnow() - timedelta(seconds=2):
             raise TypeError("Insufficient advanced notice %s" % (datetime.utcnow()-fileop.start_time,))
             
         # Conflict checking and cleaning

@@ -43,8 +43,7 @@ class FileWriterBase(object):
     def utcnow(self):
         now = datetime.utcnow()
         if self._queue is not None:
-            lag = self._queue.lag
-        now = now - lag
+            now = now - self._queue.lag
         return now
         
     @property
