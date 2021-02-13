@@ -251,7 +251,6 @@ class ProcessingOp(object):
                             ### Check for an update to the configuration
                             #if self.update_processing(new_op):
                             #    reset_sequence = True
-                            #    break
                                 
                             curr_time = time.time()
                             process_time = curr_time - prev_time
@@ -317,37 +316,36 @@ class WriterOp(object):
             was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
-            while not self.iring.writing_ended():
-                for ispan in iseq_spans:
-                    if ispan.size < igulp_size:
-                        continue # Ignore final gulp
-                    curr_time = time.time()
-                    acquire_time = curr_time - prev_time
-                    prev_time = curr_time
-                   
-                    idata = ispan.data_view(numpy.complex64).reshape(ishape)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+               
+                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                
+                if QUEUE.active is not None:
+                    # Write the data
+                    if not QUEUE.active.is_started:
+                        QUEUE.active.start(ovro, chan0, navg, nchan, chan_bw, npol, pols)
+                        was_active = True
+                    QUEUE.active.write(time_tag, idata)
+                    if QUEUE.active.is_expired:
+                        QUEUE.active.stop()
+                elif was_active:
+                    # Clean the queue
+                    was_active = False
+                    QUEUE.clean()
                     
-                    if QUEUE.active is not None:
-                        # Write the data
-                        if not QUEUE.active.is_started:
-                            QUEUE.active.start(ovro, chan0, navg, nchan, chan_bw, npol, pols)
-                            was_active = True
-                        QUEUE.active.write(time_tag, idata)
-                        if QUEUE.active.is_expired:
-                            QUEUE.active.stop()
-                    elif was_active:
-                        # Clean the queue
-                        was_active = False
-                        QUEUE.clean()
-                        
-                    time_tag += navg * (int(FS) / int(CHAN_BW))
-                    
-                    curr_time = time.time()
-                    process_time = curr_time - prev_time
-                    prev_time = curr_time
-                    self.perf_proclog.update({'acquire_time': acquire_time, 
-                                              'reserve_time': -1, 
-                                              'process_time': process_time,})
+                time_tag += navg * (int(FS) / int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
 
 
 def main(argv):
