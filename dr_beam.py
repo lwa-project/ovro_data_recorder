@@ -337,6 +337,9 @@ class WriterOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             
+            QUEUE.update_lag(timetag_to_datetime(time_tag))
+            self.log.info("Current pipeline lag is %s", QUEUE.lag)
+            
             was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)

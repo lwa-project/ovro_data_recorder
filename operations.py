@@ -1,5 +1,6 @@
+import weakref
 from bisect import bisect
-from datetime import datetime
+from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
 from filewriter import FileWriterBase
@@ -14,12 +15,30 @@ class OperationsQueue(object):
         self._queue = []
         self._last = None
         
+        self._lag = timedelta()
+        
     def __repr__(self):
         output = "<%s at 0x%x>" % (type(self).__name__, id(self))
         return tw_fill(output, subsequent_indent='    ')
         
     def __len__(self):
         return len(self._queue)
+        
+    def update_lag(self, latest_dt):
+        """
+        Given a datetime instance that represents the last time processes by
+        the pipeline, update the internal lag.
+        """
+        
+        self._lag = datetime.utcnow() - latest_dt
+        
+    @property
+    def lag(self):
+        """
+        The current pipeline lag as a timedelta instance.
+        """
+        
+        return self._lag
         
     @property
     def empty(self):
@@ -38,6 +57,8 @@ class OperationsQueue(object):
         
         if not isinstance(fileop, FileWriterBase):
             raise TypeError("Expected a sub-class of FileWriterBase")
+        if fileop.start_time < datetime.datetime.utcnow() - timedelta(seconds=2):
+            raise TypeError("Insufficient advanced notice %s" % (datetime.utcnow()-fileop.start_time,))
             
         # Conflict checking and cleaning
         to_remove = []
@@ -54,6 +75,9 @@ class OperationsQueue(object):
             self._last = expiredop
             del self._queue[self._queue.index(expiredop)]
             
+        # Link it with the queue
+        fileop._queue = weakref.proxy(self)
+        
         # Put it in the right place
         idx = bisect([queueop.start_time for queueop in self._queue], fileop.start_time)
         self._queue.insert(idx, fileop)

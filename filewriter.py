@@ -28,6 +28,7 @@ class FileWriterBase(object):
         self.stop_time = stop_time
         self.reduction = reduction
         
+        self._queue = None
         self._started = False
         self._interface = None
         
@@ -39,6 +40,13 @@ class FileWriterBase(object):
                                                                                         self.reduction)
         return tw_fill(output, subsequent_indent='    ')
         
+    def utcnow(self):
+        now = datetime.utcnow()
+        if self._queue is not None:
+            lag = self._queue.lag
+        now = now - lag
+        return now
+        
     @property
     def is_pending(self):
         """
@@ -46,7 +54,7 @@ class FileWriterBase(object):
         time is within one second before its scheduled window starts.
         """
         
-        nowish = datetime.utcnow() + timedelta(seconds=1)
+        nowish = self.utcnow() + timedelta(seconds=1)
         return nowish >= self.start_time
     
     @property
@@ -56,7 +64,7 @@ class FileWriterBase(object):
         time is within its scheduled window.
         """
         
-        now = datetime.utcnow()
+        now = self.utcnow()
         return ((now >= self.start_time) and (now <= self.stop_time))
         
     @property
@@ -74,7 +82,7 @@ class FileWriterBase(object):
         file's stop time.
         """
         
-        now = datetime.utcnow()
+        now = self.utcnow()
         return now > self.stop_time
         
     @property
