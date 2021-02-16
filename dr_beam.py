@@ -169,128 +169,6 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
-class ProcessingOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, guarantee=True, core=None):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.ntime_gulp = ntime_gulp
-        self.guarantee  = guarantee
-        self.core       = core
-        
-        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
-        self.in_proclog   = ProcLog(type(self).__name__+"/in")
-        self.out_proclog  = ProcLog(type(self).__name__+"/out")
-        self.size_proclog = ProcLog(type(self).__name__+"/size")
-        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
-        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
-        
-        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
-        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
-        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
-        
-        self.op = XXYYCRCI()
-        
-    def update_processing(self, op):
-        status = False
-        if op != self.op:
-            self.op = op
-            status = True
-        return status
-        
-    def main(self):
-        global QUEUE
-        
-        if self.core is not None:
-            cpu_affinity.set_core(self.core)
-        self.bind_proclog.update({'ncore': 1, 
-                                  'core0': cpu_affinity.get_core(),})
-        
-        with self.oring.begin_writing() as oring:
-            for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
-                
-                self.sequence_proclog.update(ihdr)
-                
-                self.log.info("Processing: Start of new sequence: %s", str(ihdr))
-                
-                time_tag = ihdr['time_tag']
-                navg     = ihdr['navg']
-                nbeam    = ihdr['nbeam']
-                nchan    = ihdr['nchan']
-                npol     = ihdr['npol']
-                pols     = ihdr['pols']
-                base_time_tag = iseq.time_tag
-                
-                igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
-                ishape = (self.ntime_gulp,nbeam,nchan,npol)
-                
-                ohdr = ihdr.copy()
-                
-                prev_time = time.time()
-                iseq_spans = iseq.read(igulp_size)
-                while not self.iring.writing_ended():
-                    reset_sequence = False
-                    
-                    ohdr['timetag'] = base_time_tag
-                    ohdr['navg']  = navg * self.op.reductions[0]
-                    ohdr['nbeam'] = nbeam // self.op.reductions[1]
-                    ohdr['nchan'] = nchan // self.op.reductions[2]
-                    ohdr['npol']  = npol // self.op.reductions[3]
-                    ohdr['pols']  = self.op.pols
-                    ohdr_str = json.dumps(ohdr)
-                    
-                    ogulp_size = igulp_size // reduce(lambda x,y: x*y, self.op.reductions, 1)
-                    oshape = tuple([s//r for s,r in zip(ishape, self.op.reductions)])
-                    self.oring.resize(ogulp_size)
-                    
-                    with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
-                        for ispan in iseq_spans:
-                            if ispan.size < igulp_size:
-                                continue # Ignore final gulp
-                            curr_time = time.time()
-                            acquire_time = curr_time - prev_time
-                            prev_time = curr_time
-                            
-                            with oseq.reserve(ogulp_size) as ospan:
-                                curr_time = time.time()
-                                reserve_time = curr_time - prev_time
-                                prev_time = curr_time
-                                
-                                idata = ispan.data_view(numpy.float32).reshape(ishape)
-                                odata = ospan.data_view(numpy.float32).reshape(oshape)
-                                
-                                odata[...] = self.op(idata)
-                                
-                            base_time_tag += navg * (int(FS) / int(CHAN_BW))
-                            
-                            ## Check for an update to the configuration
-                            if QUEUE.pending is not None:
-                                new_op = QUEUE.pending.reduction
-                                if new_op is None:
-                                    new_op = self.op
-                            else:
-                                new_op = XXYYCRCI()
-                            if self.update_processing(new_op):
-                                self.log.info("Changed reduction - %s", new_op)
-                                reset_sequence = True
-                                
-                            curr_time = time.time()
-                            process_time = curr_time - prev_time
-                            prev_time = curr_time
-                            self.perf_proclog.update({'acquire_time': acquire_time, 
-                                                      'reserve_time': reserve_time, 
-                                                      'process_time': process_time,})
-                            
-                            # Reset to move on to the next input sequence?
-                            if reset_sequence:
-                                break
-                                
-                    # Reset to move on to the next input sequence?
-                    if not reset_sequence:
-                        break
-
-                
 class WriterOp(object):
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
@@ -356,9 +234,16 @@ class WriterOp(object):
                     # Write the data
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
+                        QUEUE.active.start(1,
+                                           chan0,
+                                           navg//QUEUE.active.reduction.reductions[0],
+                                           nchan//QUEUE.active.reduction.reductions[2],
+                                           chan_bw.QUEUE.active.reduction.reductions[2],
+                                           npol//QUEUE.active.reduction.reductions[3],
+                                           QUEUE.active.reduction.reductions.pols)
                         was_active = True
-                    QUEUE.active.write(time_tag, idata)
+                    odata = QUEUE.active.reduction(idata)
+                    QUEUE.active.write(time_tag, odata)
                 elif was_active:
                     # Clean the queue
                     was_active = False
@@ -431,9 +316,7 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=100, slot_ntime=1000, core=0))
-    ops.append(ProcessingOp(log, capture_ring, process_ring,
-                            ntime_gulp=1000, core=1))
-    ops.append(WriterOp(log, process_ring,
+    ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=1000, core=2))
     
     # Setup the threads
