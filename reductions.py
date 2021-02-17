@@ -35,7 +35,7 @@ class ReductionOperation(object):
         
     def __call__(self, idata):
         odata = self._average(idata)
-        return odata
+        return odata.astype(idata.dtype)
 
 
 XXYYCRCI = ReductionOperation
@@ -50,7 +50,7 @@ class XXYY(ReductionOperation):
         
     def __call__(self, idata):
         odata = self._average(idata)
-        return odata[...,[0,1]]
+        return odata[...,[0,1]].astype(idata.dtype)
 
 
 class CRCI(ReductionOperation):
@@ -62,7 +62,7 @@ class CRCI(ReductionOperation):
         
     def __call__(self, idata):
         odata = self._average(idata)
-        return odata[...,[2,3]]
+        return odata[...,[2,3]].astype(idata.dtype)
 
 
 class IQUV(ReductionOperation):
@@ -81,7 +81,7 @@ class IQUV(ReductionOperation):
         odata[...,1] = Q
         odata[...,2] *= 2
         odata[...,3] *= 2
-        return odata
+        return odata.astype(idata.dtype)
 
 
 class IV(ReductionOperation):
@@ -96,4 +96,4 @@ class IV(ReductionOperation):
         # TODO: check
         odata[...,0] += odata[...,1]
         odata[...,1] = 2*odata[...,3]
-        return odata[...,[0,1]]
+        return odata[...,[0,1]].astype(idata.dtype)
