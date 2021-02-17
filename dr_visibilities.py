@@ -238,7 +238,7 @@ class WriterOp(object):
                     was_active = False
                     QUEUE.clean()
                     
-                time_tag += navg * (int(FS) / int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
