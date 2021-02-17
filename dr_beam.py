@@ -234,16 +234,9 @@ class WriterOp(object):
                     # Write the data
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(1,
-                                           chan0,
-                                           navg*QUEUE.active.reduction.reductions[0],
-                                           nchan//QUEUE.active.reduction.reductions[2],
-                                           chan_bw*QUEUE.active.reduction.reductions[2],
-                                           npol//QUEUE.active.reduction.reductions[3],
-                                           QUEUE.active.reduction.pols)
+                        QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    odata = QUEUE.active.reduction(idata)
-                    QUEUE.active.write(time_tag, odata)
+                    QUEUE.active.write(time_tag, idata)
                 elif was_active:
                     # Clean the queue
                     was_active = False
