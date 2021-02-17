@@ -34,7 +34,7 @@ QUEUE = OperationsQueue()
 QUEUE.append(HDF5Writer('test.hdf5',
                         datetime.utcnow()+timedelta(seconds=15),
                         datetime.utcnow()+timedelta(seconds=30),
-                        reduction=XXYYCRCI(10)))
+                        reduction=XXYYCRCI(1, 4)))
 
 
 class CaptureOp(object):
@@ -215,8 +215,8 @@ class WriterOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             
-            #QUEUE.update_lag(timetag_to_datetime(time_tag))
-            #self.log.info("Current pipeline lag is %s", QUEUE.lag)
+            QUEUE.update_lag(timetag_to_datetime(time_tag))
+            self.log.info("Current pipeline lag is %s", QUEUE.lag)
             
             was_active = False
             prev_time = time.time()
@@ -236,11 +236,11 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", QUEUE.active)
                         QUEUE.active.start(1,
                                            chan0,
-                                           navg//QUEUE.active.reduction.reductions[0],
+                                           navg*QUEUE.active.reduction.reductions[0],
                                            nchan//QUEUE.active.reduction.reductions[2],
-                                           chan_bw.QUEUE.active.reduction.reductions[2],
+                                           chan_bw*QUEUE.active.reduction.reductions[2],
                                            npol//QUEUE.active.reduction.reductions[3],
-                                           QUEUE.active.reduction.reductions.pols)
+                                           QUEUE.active.reduction.pols)
                         was_active = True
                     odata = QUEUE.active.reduction(idata)
                     QUEUE.active.write(time_tag, odata)
@@ -253,7 +253,8 @@ class WriterOp(object):
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * (int(FS) / int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                print(time_tag)
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -318,7 +319,11 @@ def main(argv):
                              ntime_gulp=100, slot_ntime=1000, core=0))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=1000, core=2))
-    
+    try:
+        os.unlink(QUEUE._queue[0].filename)
+    except OSError:
+        pass
+        
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
     
