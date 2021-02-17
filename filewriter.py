@@ -194,7 +194,7 @@ class HDF5Writer(FileWriterBase):
             chan_bw = chan_bw * self.reduction.reductions[2]
             pols = self.reduction.pols
             
-            freq = freq.reshape(-1, self.reductions.reduction[2])
+            freq = freq.reshape(-1, self.reduction.reductions[2])
             freq = freq.mean(axis=1)
             
         # Expected integration count
