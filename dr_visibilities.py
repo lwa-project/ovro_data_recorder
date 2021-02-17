@@ -20,7 +20,7 @@ from operations import OperationsQueue
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
-from bifrost.packet_capture import PacketCaptureCallback, UDPCapture
+from bifrost.packet_capture import PacketCaptureCallback, UDPCapture, DiskReader
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
@@ -88,6 +88,59 @@ class CaptureOp(object):
                 if status in (1,4,5,6):
                     break
         del capture
+
+
+class ReaderOp(object):
+    def __init__(self, log, filename, oring, nbl, ntime_gulp=1,
+                 slot_ntime=6, shutdown_event=None, core=None):
+        self.log      = log
+        self.filename = filename
+        self.oring    = oring
+        self.nbl      = nbl
+        self.ntime_gulp   = ntime_gulp
+        self.slot_ntime   = slot_ntime
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        self.core    = core
+        
+    def shutdown(self):
+        self.shutdown_event.set()
+        
+    def seq_callback(self, seq0, time_tag, chan0, nchan, navg, nsrc, hdr_ptr, hdr_size_ptr):
+        print "++++++++++++++++ seq0     =", seq0
+        print "                 time_tag =", time_tag
+        hdr = {'time_tag': time_tag,
+               'seq0':     seq0, 
+               'chan0':    chan0,
+               'cfreq':    chan0*CHAN_BW,
+               'nchan':    nchan,
+               'bw':       nchan*CHAN_BW,
+               'navg':     navg,
+               'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
+               'npol':     2,
+               'nbl':      nsrc,
+               'complex':  True,
+               'nbit':     32}
+        print "******** CFREQ:", hdr['cfreq']
+        hdr_str = json.dumps(hdr)
+        # TODO: Can't pad with NULL because returned as C-string
+        #hdr_str = json.dumps(hdr).ljust(4096, '\0')
+        #hdr_str = json.dumps(hdr).ljust(4096, ' ')
+        header_buf = ctypes.create_string_buffer(hdr_str)
+        hdr_ptr[0]      = ctypes.cast(header_buf, ctypes.c_void_p)
+        hdr_size_ptr[0] = len(hdr_str)
+        
+    def main(self):
+        seq_callback.set_cor(self.seq_callback)
+        with open(self.filename, 'rb') as fh:
+            with DiskReader("cor_184", fh, self.oring, self.nbl, 0, 9000, 
+                            self.ntime_gulp, self.slot_ntime,
+                            sequence_callback=seq_callback, core=self.core) as capture:
+                while not self.shutdown_event.is_set():
+                    status = capture.recv()
+                    if status in (1,4,5,6):
+                        break
 
 
 class DummyOp(object):
@@ -258,6 +311,8 @@ def main(argv):
                         help='UDP port to receive data on')
     parser.add_argument('-o', '--offline', action='store_true',
                         help='run in offline using the specified file to read from')
+    parser.add_argument('--filename', type=str,
+                        help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='beam to receive data for')
     parser.add_argument('-g', '--gulp-size', type=int, default=1024,
@@ -296,8 +351,12 @@ def main(argv):
     # Setup the blocks
     ops = []
     if args.offline:
-        ops.append(DummyOp(log, isock, capture_ring, 352*353//2,
-                           ntime_gulp=1, slot_ntime=6, core=0))
+        if args.filename:
+            ops.append(ReaderOp(log, args.filename, capture_ring, 352*353//2,
+                                ntime_gulp=1, slot_ntime=6, core=0))
+        else:
+            ops.append(DummyOp(log, isock, capture_ring, 352*353//2,
+                               ntime_gulp=1, slot_ntime=6, core=0))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
                              ntime_gulp=1, slot_ntime=6, core=0))
