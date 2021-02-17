@@ -168,106 +168,6 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
-class ProcessingOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, guarantee=True, core=None):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.ntime_gulp = ntime_gulp
-        self.guarantee  = guarantee
-        self.core       = core
-        
-        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
-        self.in_proclog   = ProcLog(type(self).__name__+"/in")
-        self.out_proclog  = ProcLog(type(self).__name__+"/out")
-        self.size_proclog = ProcLog(type(self).__name__+"/size")
-        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
-        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
-        
-        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
-        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
-        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
-        
-    def main(self):
-        global QUEUE
-        
-        if self.core is not None:
-            cpu_affinity.set_core(self.core)
-        self.bind_proclog.update({'ncore': 1, 
-                                  'core0': cpu_affinity.get_core(),})
-        
-        with self.oring.begin_writing() as oring:
-            for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
-                
-                self.sequence_proclog.update(ihdr)
-                
-                self.log.info("Processing: Start of new sequence: %s", str(ihdr))
-                
-                time_tag = ihdr['time_tag']
-                navg     = ihdr['navg']
-                nbl      = ihdr['nbl']
-                nchan    = ihdr['nchan']
-                npol     = ihdr['npol']
-                base_time_tag = iseq.time_tag
-                
-                igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
-                ishape = (self.ntime_gulp,nbl,nchan,npol)
-                
-                ohdr = ihdr.copy()
-                
-                prev_time = time.time()
-                iseq_spans = iseq.read(igulp_size)
-                while not self.iring.writing_ended():
-                    reset_sequence = False
-                    
-                    ohdr['timetag'] = base_time_tag
-                    ohdr_str = json.dumps(ohdr)
-                    
-                    ogulp_size = igulp_size 
-                    oshape = ishape
-                    self.oring.resize(ogulp_size)
-                    
-                    with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
-                        for ispan in iseq_spans:
-                            if ispan.size < igulp_size:
-                                continue # Ignore final gulp
-                            curr_time = time.time()
-                            acquire_time = curr_time - prev_time
-                            prev_time = curr_time
-                            
-                            with oseq.reserve(ogulp_size) as ospan:
-                                curr_time = time.time()
-                                reserve_time = curr_time - prev_time
-                                prev_time = curr_time
-                                
-                                idata = ispan.data_view(numpy.complex64).reshape(ishape)
-                                odata = ospan.data_view(numpy.complex64).reshape(oshape)
-                                
-                                odata[...] = idata
-                                
-                            base_time_tag += navg * (int(FS) / int(CHAN_BW))
-                            
-                            ### Check for an update to the configuration
-                            #if self.update_processing(new_op):
-                            #    reset_sequence = True
-                                
-                            curr_time = time.time()
-                            process_time = curr_time - prev_time
-                            prev_time = curr_time
-                            self.perf_proclog.update({'acquire_time': acquire_time, 
-                                                      'reserve_time': reserve_time, 
-                                                      'process_time': process_time,})
-                            
-                            # Reset to move on to the next input sequence?
-                            if reset_sequence:
-                                break
-                                
-                    # Reset to move on to the next input sequence?
-                    if not reset_sequence:
-                        break
-
-                
 class WriterOp(object):
     def __init__(self, log, iring, ntime_gulp=1, guarantee=True, core=None):
         self.log        = log
@@ -401,8 +301,6 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
                              ntime_gulp=1, slot_ntime=6, core=0))
-    #ops.append(ProcessingOp(log, capture_ring, process_ring,
-    #                        ntime_gulp=1, core=1))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=1, core=2))
     
