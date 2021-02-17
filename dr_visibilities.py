@@ -6,6 +6,7 @@ import h5py
 import json
 import time
 import numpy
+import ctypes
 import logging
 import argparse
 import threading
@@ -77,9 +78,12 @@ class CaptureOp(object):
         header_buf = ctypes.create_string_buffer(hdr_str)
         hdr_ptr[0]      = ctypes.cast(header_buf, ctypes.c_void_p)
         hdr_size_ptr[0] = len(hdr_str)
-        
+        return 0
+         
     def main(self):
+        seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
+        
         with UDPCapture("cor", self.sock, self.oring, self.nbl, 0, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
@@ -106,7 +110,7 @@ class ReaderOp(object):
         
     def shutdown(self):
         self.shutdown_event.set()
-        
+
     def seq_callback(self, seq0, time_tag, chan0, nchan, navg, nsrc, hdr_ptr, hdr_size_ptr):
         print "++++++++++++++++ seq0     =", seq0
         print "                 time_tag =", time_tag
@@ -130,11 +134,14 @@ class ReaderOp(object):
         header_buf = ctypes.create_string_buffer(hdr_str)
         hdr_ptr[0]      = ctypes.cast(header_buf, ctypes.c_void_p)
         hdr_size_ptr[0] = len(hdr_str)
+        return 0
         
     def main(self):
+        seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
+        
         with open(self.filename, 'rb') as fh:
-            with DiskReader("cor_184", fh, self.oring, self.nbl, 0, 9000, 
+            with DiskReader("cor_184", fh, self.oring, self.nbl, 0,  
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
                 while not self.shutdown_event.is_set():
