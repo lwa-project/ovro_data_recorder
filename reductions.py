@@ -30,7 +30,7 @@ class ReductionOperation(object):
             odata = numpy.mean(odata, axis=1)
         if self.chan_avg:
             odata = odata.reshape(odata.shape[0],odata.shape[1],-1,self.chan_avg,odata.shape[3])
-            odata = numpy.mean(odata, axis=2)
+            odata = numpy.mean(odata, axis=3)
         return odata
         
     def __call__(self, idata):
