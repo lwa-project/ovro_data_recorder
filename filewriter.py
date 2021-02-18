@@ -6,7 +6,7 @@ import numpy
 import atexit
 import shutil
 import subprocess
-from bisect import bisect
+from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
@@ -37,7 +37,7 @@ class FileWriterBase(object):
         self.reduction = reduction
         
         self._padded_start_time  = self.start_time - self._margin
-        self._padded_stop_tine = self.stop_time + self._margin
+        self._padded_stop_time = self.stop_time + self._margin
         
         self._queue = None
         self._started = False
@@ -197,16 +197,16 @@ class HDF5Writer(FileWriterBase):
             freq = freq.mean(axis=1)
             
         # Expected integration count
-        chunks = int((self.stop_time - self.start_time).total_seconds() / (navg / CHAN_BW))
+        chunks = int((self.stop_time - self.start_time).total_seconds() / (navg / CHAN_BW)) + 1
         
         # Create and fill
         self._interface = create_hdf5(self.filename, beam)
         set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * (int(FS) / int(CHAN_BW))
-        self._start_time_tag = datetime_to_timetag(self.start_time)
-        self._stop_time_tag = datetime_to_timetag(self.stop_time)
-        self._pols = set_data_products(self._interface, pols, chunks)
+        self._start_time_tag = timetag_to_tuple(datetime_to_timetag(self.start_time))
+        self._stop_time_tag = timetag_to_tuple(datetime_to_timetag(self.stop_time))
+        self._pols = set_polarization_products(self._interface, pols, chunks)
         self._counter = 0
         self._started = True
         
@@ -230,16 +230,16 @@ class HDF5Writer(FileWriterBase):
         # Data selection
         if time_tags[0] < self._start_time_tag:
             ## Lead in
-            offset = bisect(time_tags, self._start_time_tag)
+            offset = bisect_left(time_tags, self._start_time_tag)
             size = len(time_tags) - offset
             range_start = offset
             range_stop = len(time_tags)
         elif time_tags[-1] > self._stop_time_tag:
             ## Flush out
-            offset = bisect(time_tags, self._stop_time_tag)
-            size = len(time_tags) - offset
+            offset = bisect_right(time_tags, self._stop_time_tag)
+            size = offset
             range_start = 0
-            range_stop = len(time_tags) - offset
+            range_stop = offset
         else:
             ## Fully contained
             size = len(time_tags)
