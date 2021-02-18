@@ -46,7 +46,7 @@ def datetime_to_timetag(dt):
     unix epoch).
     """
     
-    us = dt.microsecond
+    us = dt.microsecond / 1e6
     dt = dt.replace(microsecond=0)
     sec = (dt - OVRO_EPOCH).total_seconds()
     time_tag = int(sec*FS) + int(us*FS)
