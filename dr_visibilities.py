@@ -12,6 +12,7 @@ import argparse
 import threading
 from functools import reduce
 from datetime import datetime, timedelta
+from logging.handlers import TimedRotatingFileHandler
 
 from common import *
 from station import ovro
@@ -308,6 +309,21 @@ class WriterOp(object):
                                           'process_time': process_time,})
 
 
+class LogFileHandler(TimedRotatingFileHandler):
+    def __init__(self, filename, rollover_callback=None):
+        days_per_file =  1
+        file_count    = 21
+        TimedRotatingFileHandler.__init__(self, filename, when='D',
+                                          interval=days_per_file,
+                                          backupCount=file_count)
+        self.filename = filename
+        self.rollover_callback = rollover_callback
+    def doRollover(self):
+        super(LogFileHandler, self).doRollover()
+        if self.rollover_callback is not None:
+            self.rollover_callback()
+
+
 def main(argv):
     parser = argparse.ArgumentParser(
                  description="Data recorder for power beams"
@@ -320,10 +336,12 @@ def main(argv):
                         help='run in offline using the specified file to read from')
     parser.add_argument('--filename', type=str,
                         help='filename containing packets to read from in offline mode')
-    parser.add_argument('-b', '--beam', type=int, default=1,
-                        help='beam to receive data for')
-    parser.add_argument('-g', '--gulp-size', type=int, default=1024,
+    parser.add_argument('-c', '--core', type=str, default='0,1',
+                        help='comma separated list of cores to bind to')
+    parser.add_argument('-g', '--gulp-size', type=int, default=1,
                         help='gulp size for ring buffers')
+    parser.add_argument('-l', '--logfile', type=str,
+                        help='file to write logging to')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
@@ -338,11 +356,23 @@ def main(argv):
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
     logFormat.converter = time.gmtime
-    logHandler = logging.StreamHandler(sys.stdout)
+    if args.logfile is None:
+        logHandler = logging.StreamHandler(sys.stdout)
+    else:
+        logHandler = LogFileHandler(args.logfile)
     logHandler.setFormatter(logFormat)
     log.addHandler(logHandler)
     log.setLevel(logging.DEBUG)
-     
+    
+    log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
+    log.info("Cmdline args:")
+    for arg in vars(args):
+        log.info("  %s: %s", arg, getattr(args, arg))
+        
+    # Setup the cores and GPUs to use
+    cores = [int(v, 10) for v in args.cores.split(',')]
+    log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
+    
     # Setup the socket, if needed
     isock = None
     if not args.offline:
@@ -359,15 +389,15 @@ def main(argv):
     if args.offline:
         if args.filename:
             ops.append(ReaderOp(log, args.filename, capture_ring, 352*353//2,
-                                ntime_gulp=1, slot_ntime=6, core=0))
+                                ntime_gulp=self.gulp_size, slot_ntime=6, core=cores.pop(0)))
         else:
             ops.append(DummyOp(log, isock, capture_ring, 352*353//2,
-                               ntime_gulp=1, slot_ntime=6, core=0))
+                               ntime_gulp=self.gulp_size, slot_ntime=6, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
-                             ntime_gulp=1, slot_ntime=6, core=0))
+                             ntime_gulp=self.gulp_size, slot_ntime=6, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=1, core=1))
+                        ntime_gulp=self.gulp_size, core=cores.pop(0)))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
