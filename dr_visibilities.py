@@ -389,15 +389,15 @@ def main(argv):
     if args.offline:
         if args.filename:
             ops.append(ReaderOp(log, args.filename, capture_ring, 352*353//2,
-                                ntime_gulp=self.gulp_size, slot_ntime=6, core=cores.pop(0)))
+                                ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
         else:
             ops.append(DummyOp(log, isock, capture_ring, 352*353//2,
-                               ntime_gulp=self.gulp_size, slot_ntime=6, core=cores.pop(0)))
+                               ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
-                             ntime_gulp=self.gulp_size, slot_ntime=6, core=cores.pop(0)))
+                             ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=self.gulp_size, core=cores.pop(0)))
+                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
