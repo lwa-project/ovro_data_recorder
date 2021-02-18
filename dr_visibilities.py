@@ -336,7 +336,7 @@ def main(argv):
                         help='run in offline using the specified file to read from')
     parser.add_argument('--filename', type=str,
                         help='filename containing packets to read from in offline mode')
-    parser.add_argument('-c', '--core', type=str, default='0,1',
+    parser.add_argument('-c', '--cores', type=str, default='0,1',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1,
                         help='gulp size for ring buffers')
