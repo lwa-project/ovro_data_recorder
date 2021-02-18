@@ -352,7 +352,6 @@ def main(argv):
         
     # Setup the rings
     capture_ring = Ring(name="capture")
-    process_ring = Ring(name="process")
     write_ring   = Ring(name="write")
     
     # Setup the blocks
@@ -368,7 +367,7 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
                              ntime_gulp=1, slot_ntime=6, core=0))
     ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=1, core=2))
+                        ntime_gulp=1, core=1))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
