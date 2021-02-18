@@ -36,7 +36,7 @@ QUEUE = OperationsQueue()
 QUEUE.append(HDF5Writer('test.hdf5',
                         datetime.utcnow()+timedelta(seconds=15),
                         datetime.utcnow()+timedelta(seconds=30),
-                        reduction=XXYYCRCI(1, 4)))
+                        reduction=XXYYCRCI(1, 1)))
 
 
 class CaptureOp(object):
@@ -276,9 +276,7 @@ class WriterOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             
-            QUEUE.update_lag(timetag_to_datetime(time_tag))
-            self.log.info("Current pipeline lag is %s", QUEUE.lag)
-            
+            first_gulp = True 
             was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
@@ -289,6 +287,11 @@ class WriterOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+		if first_gulp:
+                    QUEUE.update_lag(timetag_to_datetime(time_tag))
+                    self.log.info("Current pipeline lag is %s", QUEUE.lag)
+                    first_gulp = False
+                    
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
                 if QUEUE.active is not None:
