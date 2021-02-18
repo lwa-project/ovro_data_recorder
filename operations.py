@@ -59,17 +59,20 @@ class OperationsQueue(object):
         
         if not isinstance(fileop, FileWriterBase):
             raise TypeError("Expected a sub-class of FileWriterBase")
-        if fileop.start_time < datetime.utcnow() - timedelta(seconds=2):
+        if fileop._padded_start_time < datetime.utcnow() - timedelta(seconds=2):
             raise TypeError("Insufficient advanced notice %s" % (datetime.utcnow()-fileop.start_time,))
             
         # Conflict checking and cleaning
         to_remove = []
         for queueop in self._queue:
-            if (fileop.start_time >= queueop.start_time) and (fileop.start_time <= queueop.stop_time):
+            if ((fileop._padded_start_time >= queueop._padded_start_time) \
+                and (fileop._padded_start_time <= queueop._padded_stop_time)):
                 raise RuntimeError("Operation starts during a previously scheduled operation")
-            if (fileop.stop_time >= queueop.stop_time) and (fileop.stop_time <= queueop.stop_time):
+            if ((fileop._padded_stop_time >= queueop._padded_stop_time) \
+                and (fileop._padded_stop_time <= queueop._padded_stop_time)):
                 raise RuntimeError("Operation continues into a previously scheduled operation")
-            if (fileop.start_time <= queueop.start_time) and (fileop.stop_time >= queueop.stop_time):
+            if ((fileop._padded_start_time <= queueop._padded_start_time) \
+                and (fileop._padded_stop_time >= queueop._padded_stop_time)):
                 raise RuntimeError("Operation overlaps with a previously scheduled operation")
             if queueop.is_expired:
                 to_remove.append(queueop)
@@ -98,29 +101,17 @@ class OperationsQueue(object):
             del self._queue[self._queue.index(expiredop)]
             
     @property
-    def pending(self):
-        """
-        The pending file writer operation or None if there is not one.
-        """
-        
-        pendingop = None
-        for queueop in self._queue:
-            if queueop.is_pending:
-                pendingop = queueop
-                break
-        return pendingop
-        
-    @property
     def active(self):
         """
         The active file writer operation or None if there is not one.
         """
         
         activeop = None
-        for queueop in self._queue:
-            if queueop.is_active:
+        try:
+            if self._queue[0].is_active:
                 activeop = queueop
-                break
+        except IndexError:
+            pass
         return activeop
         
     @property

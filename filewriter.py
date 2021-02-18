@@ -6,10 +6,9 @@ import numpy
 import atexit
 import shutil
 import subprocess
+from bisect import bisect
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
-
-from casacore.tables import table, tableutil
 
 from common import *
 from lwahdf import *
@@ -28,11 +27,17 @@ class FileWriterBase(object):
     Class to represent a file to write data to for the specified time period.
     """
     
+    # +/- time margin for whether or not a file is active or finished.
+    _margin = timedelta(seconds=1)
+    
     def __init__(self, filename, start_time, stop_time, reduction=None):
         self.filename = os.path.abspath(filename)
         self.start_time = start_time
         self.stop_time = stop_time
         self.reduction = reduction
+        
+        self._padded_start_time  = self.start_time - self._margin
+        self._padded_stop_tine = self.stop_time + self._margin
         
         self._queue = None
         self._started = False
@@ -47,21 +52,17 @@ class FileWriterBase(object):
         return tw_fill(output, subsequent_indent='    ')
         
     def utcnow(self):
+        """
+        Pipeline-lag aware version of `datetime.datetime.utcnow` when the file
+        has been linked with an `operations.OperationQueue`.  Otherwise, it is
+        the same as `datetime.datetime.utcnow`.
+        """
+        
         now = datetime.utcnow()
         if self._queue is not None:
             now = now - self._queue.lag
         return now
         
-    @property
-    def is_pending(self):
-        """
-        Whether or not the file should be considered pending, i.e., the current
-        time is within one second before its scheduled window starts.
-        """
-        
-        nowish = self.utcnow() + timedelta(seconds=1)
-        return nowish >= self.start_time
-    
     @property
     def is_active(self):
         """
@@ -70,7 +71,7 @@ class FileWriterBase(object):
         """
         
         now = self.utcnow()
-        return ((now >= self.start_time) and (now <= self.stop_time))
+        return (now >= self._padded_start_time) and (now <= self._padded_stop_time)
         
     @property
     def is_started(self):
@@ -88,17 +89,7 @@ class FileWriterBase(object):
         """
         
         now = self.utcnow()
-        return now > self.stop_time
-        
-    @property
-    def is_post_pending(self):
-        """
-        Whether or not the file should be considered post-pending, i.e., the
-        current time is within one second after its scheduled window stops.
-        """
-        
-        nowish = self.utcnow() - timedelta(seconds=1)
-        return nowish <= self.stop_time
+        return now > self._padded_stop_time
         
     @property
     def size(self):
@@ -169,7 +160,7 @@ class FileWriterBase(object):
         
         if self.is_active:
             self.stop()
-        self.stop = datetime.utcnow()
+        self.stop = datetime.utcnow() - 2*self._margin
 
 
 class TarredFileWriterBase(FileWriterBase):
@@ -213,6 +204,8 @@ class HDF5Writer(FileWriterBase):
         set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * (int(FS) / int(CHAN_BW))
+        self._start_time_tag = datetime_to_timetag(self.start_time)
+        self._stop_time_tag = datetime_to_timetag(self.stop_time)
         self._pols = set_data_products(self._interface, pols, chunks)
         self._counter = 0
         self._started = True
@@ -231,13 +224,34 @@ class HDF5Writer(FileWriterBase):
         if self.reduction is not None:
             data = self.reduction(data)
             
-        # Find what integrations fit within the file's window
-        size = min([self._time.size-self._counter, data.shape[0]])
         # Timestamps
-        self._time[self._counter:self._counter+size] = [timetag_to_tuple(time_tag+i*self._time_step) for i in range(size)]
-        # The data
+        time_tags = [timetag_to_tuple(time_tag+i*self._time_step) for i in range(data.shape[0])]
+        
+        # Data selection
+        if time_tags[0] < self._start_time_tag:
+            ## Lead in
+            offset = bisect(time_tags, self._start_time_tag)
+            size = len(time_tags) - offset
+            range_start = offset
+            range_stop = len(time_tags)
+        elif time_tags[-1] > self._stop_time_tag:
+            ## Flush out
+            offset = bisect(time_tags, self._stop_time_tag)
+            size = len(time_tags) - offset
+            range_start = 0
+            range_stop = len(time_tags) - offset
+        else:
+            ## Fully contained
+            size = len(time_tags)
+            range_start = 0
+            range_stop = len(time_tags)
+            
+        # Write
+        ## Timestamps
+        self._time[self._counter:self._counter+size] = time_tags[range_start:range_stop]
+        ## Data
         for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[:size,0,:,i]
+            self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_stop,0,:,i]
         # Update the counter
         self._counter += size
 
