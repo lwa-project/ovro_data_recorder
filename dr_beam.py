@@ -360,7 +360,6 @@ def main(argv):
         
     # Setup the rings
     capture_ring = Ring(name="capture")
-    process_ring = Ring(name="process")
     write_ring   = Ring(name="write")
     
     # Setup the blocks
@@ -374,9 +373,9 @@ def main(argv):
                                ntime_gulp=1000, slot_ntime=1000, core=0))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
-                             ntime_gulp=100, slot_ntime=1000, core=0))
+                             ntime_gulp=1000, slot_ntime=1000, core=0))
     ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=1000, core=2))
+                        ntime_gulp=1000, core=1))
     try:
         os.unlink(QUEUE._queue[0].filename)
     except OSError:
