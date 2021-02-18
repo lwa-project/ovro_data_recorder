@@ -287,7 +287,7 @@ class WriterOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
-		if first_gulp:
+                if first_gulp:
                     QUEUE.update_lag(timetag_to_datetime(time_tag))
                     self.log.info("Current pipeline lag is %s", QUEUE.lag)
                     first_gulp = False

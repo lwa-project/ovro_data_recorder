@@ -274,6 +274,7 @@ class WriterOp(object):
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size)
             
+            first_gulp = True
             was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
@@ -283,7 +284,12 @@ class WriterOp(object):
                 curr_time = time.time()
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
-               
+                
+                if first_gulp:
+                    QUEUE.update_lag(timetag_to_datetime(time_tag))
+                    self.log.info("Current pipeline lag is %s", QUEUE.lag)
+                    first_gulp = False
+                    
                 idata = ispan.data_view(numpy.complex64).reshape(ishape)
                 
                 if QUEUE.active is not None:
