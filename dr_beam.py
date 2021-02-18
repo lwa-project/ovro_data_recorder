@@ -7,6 +7,7 @@ import json
 import time
 import numpy
 import ctypes
+import signal
 import logging
 import argparse
 import threading
