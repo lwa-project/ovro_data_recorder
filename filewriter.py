@@ -6,7 +6,7 @@ import numpy
 import atexit
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
 from casacore.tables import table, tableutil
@@ -28,8 +28,9 @@ class FileWriterBase(object):
         self.filename = os.path.abspath(filename)
         self.start_time = start_time
         self.stop_time = stop_time
-        self.reduction = None
+        self.reduction = reduction
         
+        self._queue = None
         self._started = False
         self._interface = None
         
@@ -41,6 +42,22 @@ class FileWriterBase(object):
                                                                                         self.reduction)
         return tw_fill(output, subsequent_indent='    ')
         
+    def utcnow(self):
+        now = datetime.utcnow()
+        if self._queue is not None:
+            now = now - self._queue.lag
+        return now
+        
+    @property
+    def is_pending(self):
+        """
+        Whether or not the file should be considered pending, i.e., the current
+        time is within one second before its scheduled window starts.
+        """
+        
+        nowish = self.utcnow() + timedelta(seconds=1)
+        return nowish >= self.start_time
+    
     @property
     def is_active(self):
         """
@@ -48,7 +65,7 @@ class FileWriterBase(object):
         time is within its scheduled window.
         """
         
-        now = datetime.utcnow()
+        now = self.utcnow()
         return ((now >= self.start_time) and (now <= self.stop_time))
         
     @property
@@ -66,8 +83,18 @@ class FileWriterBase(object):
         file's stop time.
         """
         
-        now = datetime.utcnow()
+        now = self.utcnow()
         return now > self.stop_time
+        
+    @property
+    def is_post_pending(self):
+        """
+        Whether or not the file should be considered post-pending, i.e., the
+        current time is within one second after its scheduled window stops.
+        """
+        
+        nowish = self.utcnow() - timedelta(seconds=1)
+        return nowish <= self.stop_time
         
     @property
     def size(self):
@@ -163,16 +190,23 @@ class HDF5Writer(FileWriterBase):
         Set the metadata in the HDF5 file and prepare it for writing.
         """
         
+        # Reduction adjustments
+        freq = numpy.arange(nchan)*chan_bw + chan_to_freq(chan0)
+        if self.reduction is not None:
+            navg = navg * self.reduction.reductions[0]
+            nchan = nchan // self.reduction.reductions[2]
+            chan_bw = chan_bw * self.reduction.reductions[2]
+            pols = self.reduction.pols
+            
+            freq = freq.reshape(-1, self.reduction.reductions[2])
+            freq = freq.mean(axis=1)
+            
         # Expected integration count
         chunks = int((self.stop_time - self.start_time).total_seconds() / (navg / CHAN_BW))
         
-        # Polarization products
-        if not isinstance(pols, (tuple, list)):
-            pols = [p.strip().rstrip() for p in pols.split(',')]
-            
         # Create and fill
         self._interface = create_hdf5(self.filename, beam)
-        set_frequencies(self._interface, numpy.arange(nchan)*chan_bw + chan_to_freq(chan0))
+        set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * (int(FS) / int(CHAN_BW))
         self._pols = set_data_products(self._interface, pols, chunks)
@@ -188,6 +222,10 @@ class HDF5Writer(FileWriterBase):
             return False
         elif not self.is_started:
             raise RuntimeError("File is active but has not be started")
+            
+        # Reduction
+        if self.reduction is not None:
+            data = self.reduction(data)
             
         # Find what integrations fit within the file's window
         size = min([self._time.size-self._counter, data.shape[0]])

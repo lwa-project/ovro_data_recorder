@@ -120,8 +120,15 @@ def set_polarization_products(f, pols, count):
     tun = obs.get('Tuning1', None)
     nchan = tun['freq'].size
     
+    # Make sure we have a list
+    if not isinstance(pols, (tuple, list)):
+        pols = [p.strip().rstrip() for p in pols.split(',')]
+        
     data_products = {}
     for i,p in enumerate(pols):
+        p = p.replace('CR', 'XY_real')
+        p = p.replace('CI', 'XY_imag')
+        
         d = tun.create_dataset(p, (count, nchan), 'f4')
         d.attrs['axis0'] = 'time'
         d.attrs['axis1'] = 'frequency'
