@@ -5,6 +5,9 @@ import shutil
 
 from casacore.tables import table, tableutil
 
+__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'create_ms', 'update_time',
+           'update_pointing', 'update_data']
+
 
 # Measurement set stokes name -> number
 STOKES_CODES = {'I': 1,  'Q': 2,  'U': 3,  'V': 4, 

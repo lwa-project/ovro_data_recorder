@@ -6,11 +6,13 @@ import weakref
 from astropy.coordinates import EarthLocation
 import astropy.units as u
 
+__all__ = ['OVRO_CONFIG_FILENAME', 'Station', 'Antenna', 'parse_config', 'ovro']
 
-CONFIG_FILENAME = os.path.join(os.path.dirname(__file__), 'ovro.txt')
+
+OVRO_CONFIG_FILENAME = os.path.join(os.path.dirname(__file__), 'ovro.txt')
 
 
-def smart_int(s):
+def _smart_int(s):
     i = 0
     v = None
     while i < len(s):
@@ -79,7 +81,7 @@ class Antenna(object):
     
     def __init__(self, id, lat, lon, elev):
         if isinstance(id, str):
-            id = smart_int(id)
+            id = _smart_int(id)
         self.id = id
         self.lat = lat
         self.lon = lon
@@ -130,4 +132,4 @@ def parse_config(filename):
 
 
 # A ready-made Station instance, filled with Antennas
-ovro = parse_config(CONFIG_FILENAME)
+ovro = parse_config(OVRO_CONFIG_FILENAME)

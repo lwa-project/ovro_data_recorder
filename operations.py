@@ -5,6 +5,8 @@ from textwrap import fill as tw_fill
 
 from filewriter import FileWriterBase
 
+__all__ = ['OperationsQueue',]
+
 
 class OperationsQueue(object):
     """

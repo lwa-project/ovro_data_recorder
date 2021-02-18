@@ -12,7 +12,6 @@ import argparse
 import threading
 from functools import reduce
 from datetime import datetime, timedelta
-from logging.handlers import TimedRotatingFileHandler
 
 from common import *
 from reductions import *
@@ -315,21 +314,6 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
-
-
-class LogFileHandler(TimedRotatingFileHandler):
-    def __init__(self, filename, rollover_callback=None):
-        days_per_file =  1
-        file_count    = 21
-        TimedRotatingFileHandler.__init__(self, filename, when='D',
-                                          interval=days_per_file,
-                                          backupCount=file_count)
-        self.filename = filename
-        self.rollover_callback = rollover_callback
-    def doRollover(self):
-        super(LogFileHandler, self).doRollover()
-        if self.rollover_callback is not None:
-            self.rollover_callback()
 
 
 def main(argv):

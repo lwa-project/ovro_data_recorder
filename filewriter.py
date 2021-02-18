@@ -11,12 +11,16 @@ from textwrap import fill as tw_fill
 
 from casacore.tables import table, tableutil
 
-from common import FS, CLOCK, NCHAN, CHAN_BW, chan_to_freq, timetag_to_datetime, timetag_to_tuple, timetag_to_astropy
+from common import *
 from lwahdf import *
 from lwams import *
 
+
+__all__ = ['FileWriterBase', 'TarredFileWriterBase', 'HDF5Writer', 'MeasurementSetWriter']
+
+
 # Temporary file directory
-TEMP_BASEDIR = "/dev/shm"
+_TEMP_BASEDIR = "/dev/shm"
 
 
 class FileWriterBase(object):
@@ -248,7 +252,7 @@ class MeasurementSetWriter(FileWriterBase):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
         # Setup
-        self._tempdir = os.path.join(TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
+        self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
         if not os.path.exists(self._tempdir):
             os.mkdir(self._tempdir)
             

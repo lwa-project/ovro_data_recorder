@@ -4,14 +4,23 @@ import signal
 import logging
 import threading
 from datetime import datetime, timedelta
+from logging.handlers import TimedRotatingFileHandler
 
 from astropy.time import Time as AstroTime
+
+
+__all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
+           'chan_to_freq', 'freq_to_chan', 'datetime_to_timetag', 
+           'timetag_to_datetime', 'timetag_to_tuple', 'timetag_to_astropy',
+           'daemonize', 'LogFileHandler', 'setup_signal_handling',
+           'synchronize_time']
 
 
 FS               = 196.0e6
 CLOCK            = 196.0e6
 NCHAN            = 4096
 CHAN_BW          = CLOCK / (2*NCHAN)
+NPIPELINE        = 16
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
 
 
@@ -146,9 +155,24 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(se.fileno(), sys.stderr.fileno())
 
 
+class LogFileHandler(TimedRotatingFileHandler):
+    def __init__(self, filename, rollover_callback=None):
+        days_per_file =  1
+        file_count    = 21
+        TimedRotatingFileHandler.__init__(self, filename, when='D',
+                                          interval=days_per_file,
+                                          backupCount=file_count)
+        self.filename = filename
+        self.rollover_callback = rollover_callback
+    def doRollover(self):
+        super(LogFileHandler, self).doRollover()
+        if self.rollover_callback is not None:
+            self.rollover_callback()
+
+
 def _handle_signal(signum, frame, log=None, threads=None, event=None):
     if log is None:
-        log = logging.getLogger(__name__)
+        log = logging.getLogger("__main__")
     SIGNAL_NAMES = dict((k, v) for v, k in \
                             reversed(sorted(signal.__dict__.items()))
                             if v.startswith('SIG') and \
