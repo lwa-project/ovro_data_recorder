@@ -109,7 +109,7 @@ class OperationsQueue(object):
         activeop = None
         try:
             if self._queue[0].is_active:
-                activeop = queueop
+                activeop = self._queue[0]
         except IndexError:
             pass
         return activeop
