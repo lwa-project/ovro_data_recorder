@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 import numpy
 import weakref
 
@@ -12,11 +13,13 @@ __all__ = ['OVRO_CONFIG_FILENAME', 'Station', 'Antenna', 'parse_config', 'ovro']
 OVRO_CONFIG_FILENAME = os.path.join(os.path.dirname(__file__), 'ovro.txt')
 
 
-def _smart_int(s):
+def _smart_int(s, positive_only=False):
     i = 0
     v = None
     while i < len(s):
         try:
+            if positive_only and s[i] == '-':
+                raise ValueError
             v = int(s[i:], 10)
             break
         except ValueError:
@@ -64,6 +67,22 @@ class Station(object):
         ant.parent = weakref.proxy(self)
         self.antennas.append(ant)
         
+    def select_subset(self, ids):
+        """
+        Given a list of antenna IDs (either as integer index or name), return a
+        new Station instance that only contains those antennas.
+        """
+        
+        subset = Station(self.name+"-fast", self.lat*1.0, self.lon*1.0, self.elev*1.0)
+        
+        all_ids = [ant.id for ant in self.antennas]
+        for id in ids:
+            if isinstance(id, int):
+                subset.append(copy.deepcopy(self.antennas[id]))
+            else:
+                subset.append(copy.deepcopy(self.antennas[all_ids.index(id)]))
+        return subset
+        
     @property
     def ecef(self):
         """
@@ -92,7 +111,7 @@ class Antenna(object):
     
     def __init__(self, id, lat, lon, elev):
         if isinstance(id, str):
-            id = _smart_int(id)
+            id = _smart_int(id, positive_only=True)
         self.id = id
         self.lat = lat
         self.lon = lon
