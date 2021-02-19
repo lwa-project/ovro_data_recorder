@@ -3,10 +3,11 @@ import sys
 import numpy
 import shutil
 
+from casacore.measures import measures
 from casacore.tables import table, tableutil
 
-__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'create_ms', 'update_time',
-           'update_pointing', 'update_data']
+__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'create_ms',
+           'update_time', 'update_pointing', 'update_data']
 
 
 # Measurement set stokes name -> number
@@ -21,17 +22,36 @@ NUMERIC_STOKES = { 1:'I',   2:'Q',   3:'U',   4:'V',
                    9:'XX', 10:'XY', 11:'YX', 12:'YY'}
 
 
+def get_zenith(station, lwatime):
+    """
+    Given a Station instance and a LWATime instance, return the RA and Dec
+    coordiantes of the zenith in radians (J2000).
+    """
+    
+    # This should be compatible with what data2ms does/did.
+    dm = measures()
+    zenith = dm.direction('AZEL', '0deg', '90deg')
+    position = dm.position(*station.casa_position)
+    epoch = dm.epoch(*lwatime.casa_epoch)
+    dm.doframe(zenith)
+    dm.doframe(position)
+    dm.doframe(epoch)
+    pointing = dm.measure(zenith, 'J2000')
+    return pointing['m0']['value'], pointing['m1']['value']
+
+
 class _MSConfig(object):
     """
     Class to wrap configuation information needed to fill in/update a measurement
     set.
     """
     
-    def __init__(self, station, tint, freq, pols):
+    def __init__(self, station, tint, freq, pols, nint=1):
         self.station = station
         self.tint = tint
         self.freq = freq
         self.pols = pols
+        self.nint = nint
         
     @property
     def nant(self):
@@ -112,8 +132,9 @@ def update_time(filename, start_time, centroid_time, stop_time):
     
     # Main table
     tb = table(filename, readonly=False, ack=False)
-    tb.putcol('TIME', [start_time.mjd,]*(tb.nrows()), 0, tb.nrows())
-    tb.putcol('TIME_CENTROID', [centroid_time.mjd,]*(tb.nrows()), 0, tb.nrows())
+    nrow = tb.nrows()
+    tb.putcol('TIME', [start_time.mjd,]*nrow, 0, nrow)
+    tb.putcol('TIME_CENTROID', [centroid_time.mjd,]*nrow, 0, nrow)
     tb.flush()
     tb.close()
     

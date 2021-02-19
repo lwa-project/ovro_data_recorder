@@ -72,6 +72,17 @@ class Station(object):
         
         e =  EarthLocation(lat=self.lat*u.rad, lon=self.lon*u.rad, height=self.elev*u.m)
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
+        
+    @property
+    def casa_position(self):
+        """
+        Return a four-element tuple of (CASA position reference, CASA position 1,
+        CASA position 2, CASA position 3, CASA position 4) that is suitable for
+        use with casacore.measures.measures.position.
+        """
+        
+        x, y, z = self.ecef
+        return 'ITRF', '%fm' % x, '%fm' % y, '%fm' % z
 
 
 class Antenna(object):
