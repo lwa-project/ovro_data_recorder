@@ -262,14 +262,15 @@ class MeasurementSetWriter(FileWriterBase):
     call to write leads to a new measurement set.
     """
     
-    def __init__(self, filename, start_time, stop_time):
+    def __init__(self, filename, start_time, stop_time, is_tarred=True):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
         # Setup
         self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
         if not os.path.exists(self._tempdir):
             os.mkdir(self._tempdir)
-            
+        self.is_tarred = is_tarred
+        
         # Cleanup
         atexit.register(shutil.rmtree, self._tempdir)
         
@@ -331,10 +332,14 @@ class MeasurementSetWriter(FileWriterBase):
         # Save it to its final location
         self._counter += 1
         if self._counter == self._nint:
-            filename = "%s_%s.tar" % (self.filename, tagname)
+            if self.is_tarred:
+                filename = "%s_%s.tar" % (self.filename, tagname)
+                save_cmd = ['tar', 'cf', filename, tempname]
+            else:
+                filename = "%s_%s" % (self.filename, tagname)
+                save_cmd = ['cp', '-rf', filename, tempname]
             with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(['tar', 'cf', filename, tempname],
-                                      stderr=dn, cwd=self._tempdir)
+                subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
             shutil.rmtree(tempname)
             self._counter = 0
             
