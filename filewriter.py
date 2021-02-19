@@ -273,7 +273,7 @@ class MeasurementSetWriter(FileWriterBase):
         # Cleanup
         atexit.register(shutil.rmtree, self._tempdir)
         
-    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols):
+    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols, nints=1):
         """
         Set the metadata for the measurement sets and create the template.
         """
@@ -287,7 +287,7 @@ class MeasurementSetWriter(FileWriterBase):
             
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
-        create_ms(self._template, station, tint, freq, pols)
+        create_ms(self._template, station, tint, freq, pols, nints=nints)
         
         # Save
         self._station = station
@@ -298,7 +298,9 @@ class MeasurementSetWriter(FileWriterBase):
         self._nchan = nchan
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
+        self._nints = nints
         self._nbl = self._nant*(self._nant + 1) // 2
+        self._counter = 0
         self._started = True
         
     def write(self, time_tag, data):
@@ -307,31 +309,35 @@ class MeasurementSetWriter(FileWriterBase):
         tstop  = LWATime(time_tag + self._time_step, format='timetag', scale='utc')
         
         # Make a copy of the template
-        tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, tstart.datetime.strftime('%Y%m%d_%H%M%S'))
-        tempname = os.path.join(self._tempdir, tagname)
-        with open('/dev/null', 'wb') as dn:
-            subprocess.check_call(['cp', '-r', self._template, tempname],
-                                  stderr=dn)
-            
+        if self._counter == 0:
+            tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, tstart.datetime.strftime('%Y%m%d_%H%M%S'))
+            tempname = os.path.join(self._tempdir, tagname)
+            with open('/dev/null', 'wb') as dn:
+                subprocess.check_call(['cp', '-r', self._template, tempname],
+                                      stderr=dn)
+                
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
         # Update the time
-        update_time(tempname, tstart, tcent, tstop)
+        update_time(tempname, self._counter, tstart, tcent, tstop)
         
         # Update the pointing direction
-        update_pointing(tempname, *zen)
+        update_pointing(tempname, self._counter, *zen)
         
         # Fill in the main table
-        update_data(tempname, data[0,...])
+        update_data(tempname, self._counter, data[0,...])
         
         # Save it to its final location
-        filename = "%s_%s.tar" % (self.filename, tagname)
-        with open('/dev/null', 'wb') as dn:
-            subprocess.check_call(['tar', 'cf', filename, tempname],
-                                  stderr=dn, cwd=self._tempdir)
-        shutil.rmtree(tempname)
-        
+        self._counter += 1
+        if self._counter == self._nints:
+            filename = "%s_%s.tar" % (self.filename, tagname)
+            with open('/dev/null', 'wb') as dn:
+                subprocess.check_call(['tar', 'cf', filename, tempname],
+                                      stderr=dn, cwd=self._tempdir)
+            shutil.rmtree(tempname)
+            self._counter = 0
+            
     def stop(self):
         """
         Close out the file and then call the 'post_stop_task' method.
