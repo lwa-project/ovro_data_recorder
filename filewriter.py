@@ -307,7 +307,7 @@ class MeasurementSetWriter(FileWriterBase):
         tstop  = LWATime(time_tag + self._time_step, format='timetag', scale='utc')
         
         # Make a copy of the template
-        tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, dt.strftime('%Y%m%d_%H%M%S'))
+        tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, tstart.datetime.strftime('%Y%m%d_%H%M%S'))
         tempname = os.path.join(self._tempdir, tagname)
         with open('/dev/null', 'wb') as dn:
             subprocess.check_call(['cp', '-r', self._template, tempname],
