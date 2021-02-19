@@ -273,7 +273,7 @@ class MeasurementSetWriter(FileWriterBase):
         # Cleanup
         atexit.register(shutil.rmtree, self._tempdir)
         
-    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols, nints=1):
+    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols, nint=1):
         """
         Set the metadata for the measurement sets and create the template.
         """
@@ -287,7 +287,7 @@ class MeasurementSetWriter(FileWriterBase):
             
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
-        create_ms(self._template, station, tint, freq, pols, nints=nints)
+        create_ms(self._template, station, tint, freq, pols, nint=nint)
         
         # Save
         self._station = station
@@ -298,7 +298,7 @@ class MeasurementSetWriter(FileWriterBase):
         self._nchan = nchan
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
-        self._nints = nints
+        self._nint = nint
         self._nbl = self._nant*(self._nant + 1) // 2
         self._counter = 0
         self._started = True
@@ -330,7 +330,7 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Save it to its final location
         self._counter += 1
-        if self._counter == self._nints:
+        if self._counter == self._nint:
             filename = "%s_%s.tar" % (self.filename, tagname)
             with open('/dev/null', 'wb') as dn:
                 subprocess.check_call(['tar', 'cf', filename, tempname],

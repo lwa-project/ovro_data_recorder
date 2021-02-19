@@ -181,9 +181,9 @@ def update_pointing(filename, scan, ra, dec):
     
     # Field table
     tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
-    tb.putcell('DELAY_DIR', scan, numpy.array([[ra, dec],]))
-    tb.putcell('PHASE_DIR', scan, numpy.array([(ra, dec),]))
-    tb.putcell('REFERENCE_DIR', scan, numpy.array([(ra, dec),]))
+    tb.putcell('DELAY_DIR', scan, numpy.array([ra, dec]))
+    tb.putcell('PHASE_DIR', scan, numpy.array([ra, dec]))
+    tb.putcell('REFERENCE_DIR', scan, numpy.array([ra, dec]))
     tb.flush()
     tb.close()
 
@@ -559,9 +559,9 @@ def _write_observation_table(filename, config):
                                     keywords={'QuantumUnits':['s',], 
                                               'MEASINFO':{'type':'epoch', 'Ref':'UTC'}
                                               })
-    col2 = tableutil.makearrcoldesc('LOG', 'none', 1, 
+    col2 = tableutil.makescacoldesc('LOG', 'none',
                                     comment='Observing log')
-    col3 = tableutil.makearrcoldesc('SCHEDULE', 'none', 1, 
+    col3 = tableutil.makescacoldesc('SCHEDULE', 'none',
                                     comment='Observing schedule')
     col4 = tableutil.makescacoldesc('FLAG_ROW', False, 
                                     comment='Row flag')
@@ -582,7 +582,7 @@ def _write_observation_table(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
     tb = table("%s/OBSERVATION" % filename, desc, nrow=nint, ack=False)
     
-    tb.putcol('TIME_RANGE', [[0.0, 0.0],]*nint, 0, nint)
+    tb.putcol('TIME_RANGE', numpy.zeros((nint,2)), 0, nint)
     tb.putcol('LOG', ['Not provided',]*nint, 0, nint)
     tb.putcol('SCHEDULE', ['Not provided',]*nint, 0, nint)
     tb.putcol('FLAG_ROW', [False,]*nint, 0, nint)
@@ -644,8 +644,8 @@ def _write_observation_table(filename, config):
                                   col10, col11, col12, col13])
     tb = table("%s/SOURCE" % filename, desc, nrow=nint, ack=False)
     
-    tb.putcol('DIRECTION', [[0.0, 0.0],]*nint, 0, nint)
-    tb.putcol('PROPER_MOTION', [[0.0, 0.0],]*nint, 0, nint)
+    tb.putcol('DIRECTION', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('PROPER_MOTION', numpy.zeros((nint, 2)), 0, nint)
     tb.putcol('CALIBRATION_GROUP', [0,]*nint, 0, nint)
     tb.putcol('CODE', ['none',]*nint, 0, nint)
     tb.putcol('INTERVAL', [tint,]*nint, 0, nint)
@@ -663,17 +663,17 @@ def _write_observation_table(filename, config):
     
     # Field
     
-    col1 = tableutil.makearrcoldesc('DELAY_DIR', 0.0, 2, 
+    col1 = tableutil.makearrcoldesc('DELAY_DIR', 0.0, 1, 
                                     comment='Direction of delay center (e.g. RA, DEC)as polynomial in time.', 
                                     keywords={'QuantumUnits':['rad','rad'], 
                                               'MEASINFO':{'type':'direction', 'Ref':'J2000'}
                                               })
-    col2 = tableutil.makearrcoldesc('PHASE_DIR', 0.0, 2, 
+    col2 = tableutil.makearrcoldesc('PHASE_DIR', 0.0, 1, 
                                     comment='Direction of phase center (e.g. RA, DEC).', 
                                     keywords={'QuantumUnits':['rad','rad'], 
                                               'MEASINFO':{'type':'direction', 'Ref':'J2000'}
                                               })
-    col3 = tableutil.makearrcoldesc('REFERENCE_DIR', 0.0, 2, 
+    col3 = tableutil.makearrcoldesc('REFERENCE_DIR', 0.0, 1, 
                                     comment='Direction of REFERENCE center (e.g. RA, DEC).as polynomial in time.', 
                                     keywords={'QuantumUnits':['rad','rad'], 
                                               'MEASINFO':{'type':'direction', 'Ref':'J2000'}
@@ -697,15 +697,15 @@ def _write_observation_table(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
     tb = table("%s/FIELD" % filename, desc, nrow=nint, ack=False)
     
-    tb.putcol('DELAY_DIR', 0, numpy.array([[0.0, 0.0],]))
-    tb.putcol('PHASE_DIR', 0, numpy.array([[0.0, 0.0],]))
-    tb.putcol('REFERENCE_DIR', 0, numpy.array([[0.0, 0.0],]))
-    tb.putcol('CODE', 0, 'None')
-    tb.putcol('FLAG_ROW', 0, False)
-    tb.putcol('NAME', 0, 'zenith')
-    tb.putcol('NUM_POLY', 0, 0)
-    tb.putcol('SOURCE_ID', 0, 0)
-    tb.putcol('TIME', 0, 0.0)
+    tb.putcol('DELAY_DIR', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('PHASE_DIR', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('REFERENCE_DIR', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('CODE', ['none',]*nint, 0, nint)
+    tb.putcol('FLAG_ROW', [False,]*nint, 0, nint)
+    tb.putcol('NAME', ['zenith',]*nint, 0, nint)
+    tb.putcol('NUM_POLY', [0,]*nint, 0, nint)
+    tb.putcol('SOURCE_ID', list(range(nint)), 0, nint)
+    tb.putcol('TIME', [0.0,]*nint, 0, nint)
     
     tb.flush()
     tb.close()
