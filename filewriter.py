@@ -204,8 +204,8 @@ class HDF5Writer(FileWriterBase):
         set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * (int(FS) / int(CHAN_BW))
-        self._start_time_tag = timetag_to_tuple(datetime_to_timetag(self.start_time))
-        self._stop_time_tag = timetag_to_tuple(datetime_to_timetag(self.stop_time))
+        self._start_time_tag = LWATime(self.start_time, format='datetime', scale='utc').tuple
+        self._stop_time_tag = LWATime(self.stop_time, format='datetime', scale='utc').tuple
         self._pols = set_polarization_products(self._interface, pols, chunks)
         self._counter = 0
         self._started = True
@@ -225,7 +225,7 @@ class HDF5Writer(FileWriterBase):
             data = self.reduction(data)
             
         # Timestamps
-        time_tags = [timetag_to_tuple(time_tag+i*self._time_step) for i in range(data.shape[0])]
+        time_tags = [LWATime(time_tag+i*self._time_step, format='timetag').tuple for i in range(data.shape[0])]
         
         # Data selection
         if time_tags[0] < self._start_time_tag:
@@ -302,10 +302,9 @@ class MeasurementSetWriter(FileWriterBase):
         self._started = True
         
     def write(self, time_tag, data):
-        dt = timetag_to_datetime(time_tag)
-        tstart = timetag_to_astropy(time_tag)
-        tstop  = timetag_to_astropy(time_tag + self._time_step // 2)
-        tcent  = timetag_to_astropy(time_tag + self._time_step)
+        tstart = LWATime(time_tag, format='timetag', scale='utc')
+        tcent  = LWATime(time_tag + self._time_step // 2, format='timetag', scale='utc')
+        tstop  = LWATime(time_tag + self._time_step, format='timetag', scale='utc')
         
         # Make a copy of the template
         tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, dt.strftime('%Y%m%d_%H%M%S'))
@@ -315,8 +314,7 @@ class MeasurementSetWriter(FileWriterBase):
                                   stderr=dn)
             
         # Find the point overhead
-        zen = [tcent.sidereal_time('mean', self._station.lon).to_value('rad'),
-               self._station.lat]
+        zen = get_zenith(self._station, tcent)
         
         # Update the time
         update_time(tempname, tstart, tcent, tstop)
