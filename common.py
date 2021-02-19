@@ -10,10 +10,8 @@ from astropy.time import Time as AstroTime
 
 
 __all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
-           'chan_to_freq', 'freq_to_chan', 'datetime_to_timetag', 
-           'timetag_to_datetime', 'timetag_to_tuple', 'timetag_to_astropy',
-           'daemonize', 'LogFileHandler', 'setup_signal_handling',
-           'synchronize_time']
+           'LWATime', 'chan_to_freq', 'freq_to_chan', 'daemonize',
+           'LogFileHandler', 'setup_signal_handling', 'synchronize_time']
 
 
 FS               = 196.0e6
@@ -22,6 +20,64 @@ NCHAN            = 4096
 CHAN_BW          = CLOCK / (2*NCHAN)
 NPIPELINE        = 16
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
+
+
+class LWATime(AstroTime):
+    """
+    Subclass of astropy.time.Time that accept a LWA timetag as an input.  It
+    also attributes for accessing a (seconds, fraction seconds) tuple ("tuple")
+    and a LWA timetag ("timetag").
+    """
+    
+    def __init__(self, val, val2=None, format=None, scale=None, location=None, copy=False):
+        if format == 'timetag':
+            sec = val // int(FS)
+            frac = (val % int(FS)) / FS
+            val, val2 = sec, frac
+            format = 'unix'
+            if scale is not None:
+                assert(scale.lower() == 'utc')
+            else:
+                scale = 'utc'
+        AstroTime.__init__(self, val, val2, format=format, scale=scale,
+                           precision=None, in_subfmt=None,
+                           out_subfmt=None, location=location, copy=copy)
+        
+    @property
+    def tuple(self):
+        """
+        Return a (seconds, fractional seconds) tuple.
+        """
+        
+        val = self.timetag
+        sec = val // int(FS)
+        frac = (val % int(FS)) / FS
+        return sec, frac
+        
+    @property
+    def timetag(self):
+        """
+        Return a LWA timetag (ticks of a FS clock since the unix epoch).
+        """
+        
+        sec1 = (self.jd1 - 2440588.0)*86400
+        sec2 = self.jd2*86400
+        sec = int(sec1) + int(sec2)
+        frac = (sec1) - int(sec1) + sec2 - int(sec2)
+        return int(sec*FS) + int(frac*FS)
+        
+    @property
+    def casa_epoch(self):
+        """
+        Return a two element tuple of (CASA time reference, CASA time string)
+        that is suitable for use with casacore.measures.measures.epoch.
+        """
+        
+        dt = self.utc.datetime
+        _, frac = self.tuple
+        casa_time = %i-%i-%i-%i:%i:%f' % (dt.year, dt.month, dt.day,
+                                          dt.hour, dt.minute, dt.second+frac)
+        return 'UTC', casa_time
 
 
 def chan_to_freq(chan):
@@ -38,55 +94,6 @@ def freq_to_chan(freq):
     """
     
     return int(freq / CHAN_BW + 0.5)
-
-
-def datetime_to_timetag(dt):
-    """
-    Convert a datetime instance into a time tag (ticks of a FS clock since the
-    unix epoch).
-    """
-    
-    us = dt.microsecond / 1e6
-    dt = dt.replace(microsecond=0)
-    sec = (dt - OVRO_EPOCH).total_seconds()
-    time_tag = int(sec*FS) + int(us*FS)
-    return time_tag
-
-
-def timetag_to_datetime(time_tag):
-    """
-    Convert a time tag (ticks of a FS clock since the unix epoch) into a datetime
-    instance.
-    """
-    
-    s = time_tag // int(FS)
-    us = int(round((time_tag % int(FS)) / FS * 1e6))
-    if us == 1000000:
-        s += 1
-        us = 0
-    dt = datetime.utcfromtimestamp(s) + timedelta(microseconds=us)
-    return dt
-
-
-def timetag_to_tuple(time_tag):
-    """
-    Convert a time tag (ticks of a FS clock since the unix epoch) into a two-
-    element tuple of (integer seconds since the unix epoch, fraction of a second).
-    """
-    
-    s = time_tag // int(FS)
-    f = (time_tag % int(FS)) / FS
-    return (s, f)
-
-
-def timetag_to_astropy(time_tag):
-    """
-    Convert a time tag (ticks of a FS clock since the unix epoch) into an AstroPy
-    Time instance.
-    """
-    
-    s, f = timetag_to_tuple(time_tag)
-    return AstroTime(s, f, format='unix', scale='utc')
 
 
 """
