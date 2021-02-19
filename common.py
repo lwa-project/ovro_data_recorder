@@ -75,8 +75,8 @@ class LWATime(AstroTime):
         
         dt = self.utc.datetime
         _, frac = self.tuple
-        casa_time = %i-%i-%i-%i:%i:%f' % (dt.year, dt.month, dt.day,
-                                          dt.hour, dt.minute, dt.second+frac)
+        casa_time = '%i-%i-%i-%i:%i:%f' % (dt.year, dt.month, dt.day,
+                                           dt.hour, dt.minute, dt.second+frac)
         return 'UTC', casa_time
 
 
