@@ -316,6 +316,8 @@ class WriterOp(object):
 
 
 def main(argv):
+    global QUEUE
+    
     parser = argparse.ArgumentParser(
                  description="Data recorder for power beams"
                  )
@@ -333,6 +335,8 @@ def main(argv):
                         help='gulp size for ring buffers')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
+    parser.add_argument('-n', '--no-tar', action='store_true',
+                        help='do not store the measurement sets inside a tar file')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
@@ -396,6 +400,9 @@ def main(argv):
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
+    
+    # Update the queue
+    QUEUE._queue[0].is_tarred = not args.no_tar
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))
