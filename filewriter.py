@@ -325,7 +325,7 @@ class MeasurementSetWriter(FileWriterBase):
                 save_cmd = ['tar', 'cf', filename, tempname]
             else:
                 filename = "%s_%s" % (self.filename, tagname)
-                save_cmd = ['cp', '-rf', filename, tempname]
+                save_cmd = ['cp', '-rf', tempname, filename]
             with open('/dev/null', 'wb') as dn:
                 subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
             shutil.rmtree(tempname)
