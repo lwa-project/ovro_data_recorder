@@ -15,7 +15,7 @@ from lwahdf import *
 from lwams import *
 
 
-__all__ = ['FileWriterBase', 'TarredFileWriterBase', 'HDF5Writer', 'MeasurementSetWriter']
+__all__ = ['FileWriterBase', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
@@ -161,18 +161,6 @@ class FileWriterBase(object):
         if self.is_active:
             self.stop()
         self.stop = datetime.utcnow() - 2*self._margin
-
-
-class TarredFileWriterBase(FileWriterBase):
-    """
-    Sub-class of FileWriterBase that wraps the output file in a gzipped tar file
-    after the writing has stopped.
-    """
-    
-    def post_stop_task(self):
-        with open('/dev/null', 'wb') as dn:
-            subprocess.check_output(['tar', 'czf', self.filename+'.tar.gz', self.filename],
-                                     stderr=dn)
 
 
 class HDF5Writer(FileWriterBase):
