@@ -295,15 +295,18 @@ class WriterOp(object):
                 if QUEUE.active is not None:
                     # Write the data
                     if not QUEUE.active.is_started:
+                        self.log.info("Started operation - %s", QUEUE.active)
                         QUEUE.active.start(ovro, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
-                    if QUEUE.active.is_expired:
-                        QUEUE.active.stop()
                 elif was_active:
                     # Clean the queue
                     was_active = False
                     QUEUE.clean()
+                    
+                    # Close it out
+                    self.log.info("Ended operation - %s", QUEUE.previous)
+                    QUEUE.previous.stop()
                     
                 time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
                 
