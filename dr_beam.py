@@ -18,6 +18,7 @@ from common import *
 from reductions import *
 from filewriter import HDF5Writer
 from operations import OperationsQueue
+from monitoring import StatusWriter
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -396,6 +397,8 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    ops.append(StatusWriter(log, (), QUEUE))
+    
     try:
         os.unlink(QUEUE._queue[0].filename)
     except OSError:
@@ -407,6 +410,7 @@ def main(argv):
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
+    ops[-1].shutdown_event = shutdown_event
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))

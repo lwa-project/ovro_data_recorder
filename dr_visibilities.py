@@ -1,4 +1,4 @@
-#!/usr/env python
+StatusWriter#!/usr/env python
 
 import os
 import sys
@@ -19,6 +19,7 @@ from station import ovro
 from reductions import *
 from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
+from monitoring import StatusWriter
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -396,6 +397,7 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    ops.append(MCSResponder(log, (), QUEUE))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
@@ -403,6 +405,7 @@ def main(argv):
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
+    ops[-1].shutdown_event = shutdown_event
     
     # Update the queue
     QUEUE._queue[0].is_tarred = not args.no_tar
