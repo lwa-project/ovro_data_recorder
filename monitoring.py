@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import time
 import threading
 
@@ -8,7 +9,7 @@ from bifrost.proclog import load_by_pid
 
 class StatusWriter(object):
     def __init__(self, log, args, queue, shutdown_event=None):
-        self.log
+        self.log = log
         self.args = args
         self.queue = queue
         
@@ -42,11 +43,14 @@ class StatusWriter(object):
             
             # Write a status
             a, p, r = self._get_bifrost_times()
-            a = max(a.values())
-            p = max(p.values())
-            r = max(r.values())
+            try:
+                a = max(a.values())
+                p = max(p.values())
+                r = max(r.values())
+            except ValueError:
+                a, p, r = 0.0, 0.0, 0.0
             o = 'active' if self.queue.active else 'idle'
-            with open('status.log', 'a'):
+            with open('status.log', 'a') as fh:
                 fh.write("%.0f %s %s %s %s %s\n" % (time.time(), o, self._total_size, a, p, r))
                 
             # Wait
@@ -54,8 +58,8 @@ class StatusWriter(object):
             
     def _update_file_listing(self):
         # Load in the current batch of filenames
-        filenames = glob.glob('.')
-        filenames = filenames.sort(key=lambda x: os.path.getmtime(x))
+        filenames = glob.glob('./*')
+        filenames.sort(key=lambda x: os.path.getmtime(x))
         
         # Extract the relevant information about them:
         #  * name
@@ -63,19 +67,19 @@ class StatusWriter(object):
         #  * modification time
         files = []
         for filename in filenames:
-            files.append((filename, os.path.getsize(filename), os.path.getmtime(filename))
+            files.append((filename, os.path.getsize(filename), os.path.getmtime(filename)))
             
         # Done
         return files
         
     def _get_bifrost_times(self):
         a, p, r = {}, {}, {}
-        for block in self._state:
+        for block,contents in self._state.items():
             try:
-                perf = block['perf']
+                perf = contents['perf']
                 a[block] = perf['acquire_time']
                 p[block] = perf['process_time']
-                r[bloc] = perf['reserve_time']
+                r[block] = perf['reserve_time']
             except KeyError:
                 continue
                 
