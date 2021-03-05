@@ -13,8 +13,8 @@ __all__ = ['BeamCommandProcessor', 'VisibilityCommandProcessor']
 
 class CommandBase(object):
     """
-    Class to hold a data recording pipeline command.  It seems like a good idea
-    right now.
+    Base class to hold a data recording pipeline command.  It seems like a good
+    idea right now.
     """
     
     _required = ('id',)
@@ -28,6 +28,15 @@ class CommandBase(object):
         if filewriter_kwds is None:
             filewriter_kwds = {}
         self.filewriter_kwds = filewriter_kwds
+        
+    @classmethod
+    def attach_to_processor(cls, processor):
+        kls = cls(processor.log, processor.queue, processor.directory,
+                  processor.filewriter_base, processor.filewriter_kwds,
+                  processor.shutdown_event)
+        name = kls.command_name.replace('HDF5', '').replace('MS', '')
+        setattr(processor, name.lower(), kls)
+        return kls
         
     @property
     def command_name(self):
@@ -240,6 +249,12 @@ class Delete(CommandBase):
 
 
 class CommandProcessorBase(object):
+    """
+    Base class for a command processor.
+    """
+    
+    _commands = ()
+    
     def __init__(self, log, directory, queue, filewriter_base, filewriter_kwds=None, shutdown_event=None):
         self.log = log
         self.directory = directory
@@ -252,26 +267,39 @@ class CommandProcessorBase(object):
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
         
+        for cls in self._commands:
+            cls.attach_to_processor(self)
+            
     def main(self):
         pass
 
 
 class BeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for power beam data.  Supports:
+     * record
+     * cancel
+     * delete
+    """
+    
+    _commands = (HDF5Writer, Cancel, Delete)
+    
     def __init__(self, log, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, directory, queue, HDF5Writer,
                                       shutdown_event=shutdown_event)
-        
-        for cls in (HDF5Record, Cancel, Delete):
-            kls = cls(log, directory, queue, HDF5Writer, {})
-            setattr(self, kls.command_name.replace('HDF5', '').lower(), kls)
 
 
 class VisibilityCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for visibilitye data.  Supports:
+     * record
+     * cancel
+     * delete
+    """
+    
+    _commands = (MSRecord, Cancel, Delete)
+    
     def __init__(self, log, directory, queue, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, directory, queue, MeasurementSetWriter,
                                       filewriter_kwds={'is_tarred': is_tarred},
                                       shutdown_event=shutdown_event)
-        
-        for cls in (MSRecord, Cancel, Delete):
-            kls = cls(log, directory, queue, MeasurementSetWriter, filewriter_kwds={'is_tarred': is_tarred})
-            setattr(self, kls.command_name.replace('MS', '').lower(), kls)
