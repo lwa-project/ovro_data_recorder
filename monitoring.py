@@ -199,7 +199,7 @@ class GlobalLogger(object):
     def shutdown_event(self):
         return self._shutdown_event
         
-    @setter.shutdown_event
+    @shutdown_event.setter
     def shutdown_event(self, event):
         self._shutdown_event = event
         for attr in ('perf', 'storage', 'status'):
