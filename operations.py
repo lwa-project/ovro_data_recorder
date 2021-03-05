@@ -2,6 +2,7 @@ import weakref
 from bisect import bisect
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
+from collections import deque
 
 from filewriter import FileWriterBase
 
@@ -14,7 +15,7 @@ class OperationsQueue(object):
     """
     
     def __init__(self):
-        self._queue = []
+        self._queue = deque([])
         self._last = None
         
         self._lag = timedelta()
@@ -81,15 +82,22 @@ class OperationsQueue(object):
                 to_remove.append(queueop)
         for expiredop in to_remove:
             self._last = expiredop
-            del self._queue[self._queue.index(expiredop)]
+            self._queue.remove(expiredop)
             
         # Link it with the queue
         fileop._queue = weakref.proxy(self)
         
         # Put it in the right place
         idx = bisect([queueop.start_time for queueop in self._queue], fileop.start_time)
-        self._queue.insert(idx, fileop)
-        
+        if idx == 0:
+            self._queue.appendleft(fileop)
+        elif idx == len(self._queue):
+            self._queue.append(fileop)
+        else:
+            self._queue.append(None)
+            self._queue[idx+1:] = self._queue[idx:-1]
+            self._queue[idx] = fileop
+            
     def clean(self):
         """
         Purge the queue of anything that has expired.
@@ -101,7 +109,7 @@ class OperationsQueue(object):
                 to_remove.append(queueop)
         for expiredop in to_remove:
             self._last = expiredop
-            del self._queue[self._queue.index(expiredop)]
+            self._queue.remove(expiredop)
             
     @property
     def active(self):
