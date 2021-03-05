@@ -8,6 +8,20 @@ from common import LWATime
 __all__ = ['CommandProcessor',]
 
 
+def expect_json_input(fnc):
+    def parse(self, data):
+        try:
+            data = json.loads(data)
+            return fnc(self, data)
+        except ValueError as e:
+            try:
+                self.log.error("Failed to parse JSON: %s", str(e))
+            except AttributeError:
+                print("ERROR: Failed to parse JSON - %s" % str(e))
+            return False
+    return parse
+
+
 class CommandProcessor(object):
     def __init__(self, log, directory, queue, filewriter_base, filewriter_kwds={}, shutdown_event=None):
         self.log = log
@@ -22,13 +36,8 @@ class CommandProcessor(object):
     def main(self):
         pass
         
+    @expect_json_input
     def record(self, data):
-        try:
-            data = json.loads(data)
-        except ValueError as e:
-            self.log.error("Failed to parse JSON: %s", str(e))
-            return False
-            
         try:
             id = data['id']
             mjd_start = data['mjd_start']
@@ -52,13 +61,8 @@ class CommandProcessor(object):
             
         return True
         
+    @expect_json_input
     def cancel(self, data):
-        try:
-            data = json.loads(data)
-        except ValueError as e:
-            self.log.error("Failed to parse JSON: %s", str(e))
-            return False
-            
         try:
             id = data['id']
             queuenumber = data['queue_number']
@@ -74,13 +78,8 @@ class CommandProcessor(object):
             
         return True
         
+    @expect_json_input
     def delete(self, data):
-        try:
-            data = json.loads(data)
-        except ValueError as e:
-            self.log.error("Failed to parse JSON: %s", str(e))
-            return False
-            
         try:
             id = data['id']
             filenumber = data['file_number']
