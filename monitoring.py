@@ -40,7 +40,7 @@ class PerformanceLogger(object):
                 
             # Find the maximum acquire/process/reserve times
             acquire, process, reserve = 0.0, 0.0, 0.0
-            for block,contents in self._state[1][1]:
+            for block,contents in self._state[1][1].items():
                 try:
                     perf = contents['perf']
                 except KeyError:
@@ -53,13 +53,13 @@ class PerformanceLogger(object):
             rx_valid, rx_rate, missing_fraction = False, 0.0, 0.0
             good0, late0, missing0 = 0, 0, 0
             good1, late1, missing1 = 0, 0, 0
-            for block,contents in self._state[0][1]:
+            for block,contents in self._state[0][1].items():
                 if block[-8:] == '_capture':
                     rx_valid = True
                     good0 = contents['stats']['ngood_bytes']
                     late0 = contents['stats']['nlate_bytes']
                     missing0 = contents['stats']['nmissing_bytes']
-            for block,contents in self._state[1][1]:
+            for block,contents in self._state[1][1].items():
                 if block[-8:] == '_capture':
                     good1 = contents['stats']['ngood_bytes']
                     late1 = contents['stats']['nlate_bytes']
@@ -166,10 +166,11 @@ class StatusLogger(object):
             time_left = None
             if is_active:
                 active_filename = self.queue.active.filename
-                time_left = self.queue.active.utcnow() - self.queue.active.stop_time
+                time_left = self.queue.active.stop_time - self.queue.active.utcnow()
                 
             # Report
             self.log.debug("=== Status Report ===")
+            self.log.debug(" queue size: %i", len(self.queue))
             self.log.debug(" active operation: %s", is_active)
             if is_active:
                 self.log.debug(" active filename: %s", os.path.basename(active_filename))
