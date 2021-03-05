@@ -221,6 +221,10 @@ class Delete(CommandBase):
     _required = ('id', 'file_number')
     
     def action(self, id, file_number):
+        if self.queue.active is not None:
+            self.log_error("Cannot delete while recording is active")
+            return False
+        
         try:
             filenames = glob.glob(os.path.join(self.directory, '*'))
             filenames.sort(key=lambda x: os.path.getmtime(x))
