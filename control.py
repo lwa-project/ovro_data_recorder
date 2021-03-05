@@ -224,7 +224,7 @@ class Delete(CommandBase):
         if self.queue.active is not None:
             self.log_error("Cannot delete while recording is active")
             return False
-        
+            
         try:
             filenames = glob.glob(os.path.join(self.directory, '*'))
             filenames.sort(key=lambda x: os.path.getmtime(x))
@@ -262,7 +262,7 @@ class BeamCommandProcessor(CommandProcessorBase):
                                       shutdown_event=shutdown_event)
         
         for cls in (HDF5Record, Cancel, Delete):
-            kls = cls(log, directory, queue, filewriter_base, filewriter_kwds)
+            kls = cls(log, directory, queue, HDF5Writer, {})
             setattr(self, kls.command_name.replace('HDF5', '').lower(), kls)
 
 
@@ -273,5 +273,5 @@ class VisibilityCommandProcessor(CommandProcessorBase):
                                       shutdown_event=shutdown_event)
         
         for cls in (MSRecord, Cancel, Delete):
-            kls = cls(log, directory, queue, filewriter_base, filewriter_kwds)
+            kls = cls(log, directory, queue, MeasurementSetWriter, filewriter_kwds={'is_tarred': is_tarred})
             setattr(self, kls.command_name.replace('MS', '').lower(), kls)
