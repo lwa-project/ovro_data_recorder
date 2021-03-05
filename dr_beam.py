@@ -19,7 +19,7 @@ from reductions import *
 from filewriter import HDF5Writer
 from operations import OperationsQueue
 from monitoring import GlobalLogger
-from control import CommandProcessor
+from control import BeamCommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket

@@ -20,7 +20,7 @@ from reductions import *
 from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
 from monitoring import GlobalLogger
-from control import CommandProcessor
+from control import VisibilityCommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -398,8 +398,8 @@ def main(argv):
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, args, QUEUE))
-    ops.append(CommandProcessor(log, args.record_directory, QUEUE,
-                                MeasurementSetWriter, {'is_tarred': not args.no_tar}))
+    ops.append(VisibilityCommandProcessor(log, args.record_directory, QUEUE,
+                                          is_tarred=not args.no_tar))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
