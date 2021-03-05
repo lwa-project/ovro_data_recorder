@@ -189,12 +189,25 @@ class GlobalLogger(object):
         self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
-        self.shutdown_event = shutdown_event
+        self._shutdown_event = shutdown_event
         
         self.perf = PerformanceLogger(log, queue, shutdown_event=shutdown_event)
         self.storage = StorageLogger(log, args.record_directory, shutdown_event=shutdown_event)
         self.status = StatusLogger(log, queue, shutdown_event=shutdown_event)
         
+    @property
+    def shutdown_event(self):
+        return self._shutdown_event
+        
+    @setter.shutdown_event
+    def shutdown_event(self, event):
+        self._shutdown_event = event
+        for attr in ('perf', 'storage', 'status'):
+            logger = getattr(self, attr, None)
+            if logger is None:
+                continue
+            logger.shutdown_event = event
+            
     def main(self):
         t_status = 0.0
         t_perf = 0.0
