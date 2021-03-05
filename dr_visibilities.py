@@ -1,4 +1,4 @@
-StatusWriter#!/usr/env python
+GlobalLogger#!/usr/env python
 
 import os
 import sys
@@ -19,7 +19,7 @@ from station import ovro
 from reductions import *
 from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
-from monitoring import StatusWriter
+from monitoring import GlobalLogger
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -339,6 +339,8 @@ def main(argv):
                         help='gulp size for ring buffers')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
+    parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
+                        help='directory to save recorded files to')
     parser.add_argument('-n', '--no-tar', action='store_true',
                         help='do not store the measurement sets inside a tar file')
     parser.add_argument('-f', '--fork', action='store_true',
