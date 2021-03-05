@@ -20,6 +20,7 @@ from reductions import *
 from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
 from monitoring import GlobalLogger
+from control import CommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -35,9 +36,6 @@ from bifrost import asarray as BFAsArray
 
 
 QUEUE = OperationsQueue()
-QUEUE.append(MeasurementSetWriter('test_ms',
-                                  datetime.utcnow()+timedelta(seconds=15),
-                                  datetime.utcnow()+timedelta(seconds=300)))
 
 
 class CaptureOp(object):
@@ -399,18 +397,30 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(MCSResponder(log, args, QUEUE))
+    ops.append(GlobalLogger(log, args, QUEUE))
+    ops.append(CommandProcessor(log, args.record_directory, QUEUE,
+                                MeasurementSetWriter, {'is_tarred': not args.no_tar}))
     
+    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
+    mjd_now = int(t_now.mjd)
+    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
+    ops[-1].record(json.dumps({'id': 234343423,
+                               'mjd_start': mjd_now,
+                               'mpm_start': mpm_now,
+                               'duration_ms': 300*1000}))
+    
+    try:
+        os.unlink(QUEUE[0].filename)
+    except OSError:
+        pass
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
     
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
+    ops[-2].shutdown_event = shutdown_event
     ops[-1].shutdown_event = shutdown_event
-    
-    # Update the queue
-    QUEUE._queue[0].is_tarred = not args.no_tar
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))

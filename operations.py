@@ -26,6 +26,9 @@ class OperationsQueue(object):
     def __len__(self):
         return len(self._queue)
         
+    def __getitem__(self, idx):
+        return self._queue[idx]
+        
     def update_lag(self, latest_dt):
         """
         Given a datetime instance that represents the last time processes by
@@ -60,7 +63,7 @@ class OperationsQueue(object):
         if not isinstance(fileop, FileWriterBase):
             raise TypeError("Expected a sub-class of FileWriterBase")
         if fileop._padded_start_time < datetime.utcnow() - timedelta(seconds=2):
-            raise TypeError("Insufficient advanced notice %s" % (datetime.utcnow()-fileop.start_time,))
+            raise RuntimeError("Insufficient advanced notice %s" % (datetime.utcnow()-fileop.start_time,))
             
         # Conflict checking and cleaning
         to_remove = []

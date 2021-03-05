@@ -19,6 +19,7 @@ from reductions import *
 from filewriter import HDF5Writer
 from operations import OperationsQueue
 from monitoring import GlobalLogger
+from control import CommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -34,10 +35,6 @@ from bifrost import asarray as BFAsArray
 
 
 QUEUE = OperationsQueue()
-QUEUE.append(HDF5Writer('test.hdf5',
-                        datetime.utcnow()+timedelta(seconds=15),
-                        datetime.utcnow()+timedelta(seconds=30),
-                        reduction=XXYYCRCI(1, 1)))
 
 
 class CaptureOp(object):
@@ -400,9 +397,18 @@ def main(argv):
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, args, QUEUE))
+    ops.append(CommandProcessor(log, args.record_directory, QUEUE, HDF5Writer))
+    
+    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
+    mjd_now = int(t_now.mjd)
+    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
+    ops[-1].record(json.dumps({'id': 234343423,
+                               'mjd_start': mjd_now,
+                               'mpm_start': mpm_now,
+                               'duration_ms': 30*1000}))
     
     try:
-        os.unlink(QUEUE._queue[0].filename)
+        os.unlink(QUEUE[0].filename)
     except OSError:
         pass
         
@@ -412,6 +418,7 @@ def main(argv):
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
+    ops[-2].shutdown_event = shutdown_event
     ops[-1].shutdown_event = shutdown_event
     
     # Launch!
