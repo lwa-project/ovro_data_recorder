@@ -399,7 +399,7 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, (), QUEUE))
+    ops.append(GlobalLogger(log, args, QUEUE))
     
     try:
         os.unlink(QUEUE._queue[0].filename)

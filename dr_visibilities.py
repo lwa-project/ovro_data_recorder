@@ -399,7 +399,7 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(MCSResponder(log, (), QUEUE))
+    ops.append(MCSResponder(log, args, QUEUE))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
