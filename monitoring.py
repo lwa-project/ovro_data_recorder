@@ -113,7 +113,8 @@ class StorageLogger(object):
             # Update the state
             self._update()
             
-            # Find the current disk space
+            # Find the disk size and free space for the disk hosting the
+            # directory - this should be quota-aware
             st = os.statvfs(self.directory)
             disk_free = st.f_bavail * st.f_frsize
             disk_total = st.f_blocks * st.f_frsize
@@ -168,6 +169,14 @@ class StatusLogger(object):
                 active_filename = self.queue.active.filename
                 time_left = self.queue.active.stop_time - self.queue.active.utcnow()
                 
+            # TODO: Overall system system/health
+            #  What goes into this?
+            #   * RX rate/missing packets?
+            #   * Block processing time?
+            #   * Free disk space?
+            #   * Thread check?
+            #   * ???
+            
             # Report
             self.log.debug("=== Status Report ===")
             self.log.debug(" queue size: %i", len(self.queue))
