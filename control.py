@@ -50,21 +50,24 @@ class CommandBase(object):
         Print a DEBUG line to the log with the command name prepended.
         """
         
-        self.log.debug("%s - %s", self.command_name, *args)
+        msg = "%s - "+args[0]
+        self.log.debug(msg, self.command_name, *args[1:])
         
     def log_info(self, *args):
         """
         Print an INFO line to the log with the command name prepended.
         """
         
-        self.log.info("%s - %s", self.command_name, *args)
+        msg = "%s - "+args[0]
+        self.log.info(msg, self.command_name, *args[1:])
         
     def log_warning(self, *args):
         """
         Print a WARNING line to the log with the command name prepended.
         """
         
-        self.log.warning("%s - %s", self.command_name, *args)
+        msg = "%s - "+args[0]
+        self.log.warning(msg, self.command_name, *args[1:])
         
     def log_error(self, *args):
         """
@@ -79,7 +82,8 @@ class CommandBase(object):
         Print a FATAL line to the log with the command name prepended.
         """
         
-        self.log.fatal("%s - %s", self.command_name, *args)
+        msg = "%s - "+args[0]
+        self.log.fatal(msg, self.command_name, *args[1:])
         
     def action(self, *args, **kwds):
         """
@@ -166,6 +170,7 @@ class HDF5Record(CommandBase):
             self.log_error("Failed to schedule recording: %s", str(e))
             return False
             
+        self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
         return True
 
 
@@ -198,6 +203,7 @@ class MSRecord(CommandBase):
             self.log_error("Failed to schedule recording: %s", str(e))
             return False
             
+        self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
         return True
 
 
@@ -212,11 +218,15 @@ class Cancel(CommandBase):
     
     def action(self, id, queue_number):
         try:
+            filename = self.queue[queue_number].filename
+            start = self.queue[queue_number].start_time
+            stop = self.queue[queue_number].stop_time
             self.queue[queue_number].cancel()
         except IndexError as e:
             self.log_error("Failed to cancel recording: %s", str(e))
             return False
             
+        self.log_info("Canceled recording for %s to %s to %s", start, stop, filename)
         return True
 
 
@@ -245,6 +255,7 @@ class Delete(CommandBase):
             self.log_error("Failed to delete file: %s", str(e))
             return False
             
+        self.log_info("Deleted recording %s", filenames[file_number])
         return True
 
 
