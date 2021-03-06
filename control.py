@@ -32,8 +32,7 @@ class CommandBase(object):
     @classmethod
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
-                  processor.filewriter_base, processor.filewriter_kwds,
-                  processor.shutdown_event)
+                  processor.filewriter_base, processor.filewriter_kwds)
         name = kls.command_name.replace('HDF5', '').replace('MS', '')
         setattr(processor, name.lower(), kls)
         return kls
@@ -72,7 +71,8 @@ class CommandBase(object):
         Print an ERROR line to the log with the command name prepended.
         """
         
-        self.log.error("%s - %s", self.command_name, *args)
+        msg = "%s - "+args[0]
+        self.log.error(msg, self.command_name, *args[1:])
         
     def log_fatal(self, *args):
         """
@@ -135,10 +135,10 @@ class HDF5Record(CommandBase):
     _required = ('id', 'start_mjd', 'start_mpm', 'duration_ms')
     _optional = ('stokes_mode', 'time_avg', 'chan_avg')
     
-    def action(self, id, start_mj, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
+    def action(self, id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (mjd_start, id))
-            start = LWATime(mjd_start, mpm_start/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -159,7 +159,7 @@ class HDF5Record(CommandBase):
             self.log_error("Unknown Stokes mode: %s", stokes_mode)
             return False
             
-        op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
+        op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
@@ -181,10 +181,10 @@ class MSRecord(CommandBase):
     
     _required = ('id', 'start_mjd', 'start_mpm', 'duration_ms')
     
-    def action(self, id, start_mj, start_mpm, duration_ms):
+    def action(self, id, start_mjd, start_mpm, duration_ms):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (mjd_start, id))
-            start = LWATime(mjd_start, mpm_start/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -282,7 +282,7 @@ class BeamCommandProcessor(CommandProcessorBase):
      * delete
     """
     
-    _commands = (HDF5Writer, Cancel, Delete)
+    _commands = (HDF5Record, Cancel, Delete)
     
     def __init__(self, log, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, directory, queue, HDF5Writer,

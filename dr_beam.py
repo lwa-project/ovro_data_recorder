@@ -397,14 +397,14 @@ def main(argv):
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, args, QUEUE))
-    ops.append(CommandProcessor(log, args.record_directory, QUEUE, HDF5Writer))
+    ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     ops[-1].record(json.dumps({'id': 234343423,
-                               'mjd_start': mjd_now,
-                               'mpm_start': mpm_now,
+                               'start_mjd': mjd_now,
+                               'start_mpm': mpm_now,
                                'duration_ms': 30*1000}))
     
     try:

@@ -1,4 +1,4 @@
-GlobalLogger#!/usr/env python
+#!/usr/env python
 
 import os
 import sys
@@ -405,8 +405,8 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     ops[-1].record(json.dumps({'id': 234343423,
-                               'mjd_start': mjd_now,
-                               'mpm_start': mpm_now,
+                               'start_mjd': mjd_now,
+                               'start_mpm': mpm_now,
                                'duration_ms': 300*1000}))
     
     try:
