@@ -228,6 +228,84 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
+class StatisticsOp(object):
+    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+        self.data_pols = []
+        self.data_min = []
+        self.data_max = []
+        self.data_avg = []
+        
+    def get_snapshot(self):
+        return self.data_pols, self.data_min, self.data_max, self.data_avg
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
+            
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbeam    = ihdr['nbeam']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            pols     = ihdr['pols']
+            
+            self.data_pols = pols
+            
+            igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+            ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
+                idata = idata.reshape(-1, npol)
+                
+                self.data_min = numpy.min(idata, axis=0)
+                self.data_max = numpy.max(idata, axis=0)
+                self.data_avg = numpy.mean(idata, axis=0)
+                
+                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+
+
 class WriterOp(object):
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
@@ -394,9 +472,11 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+    ops.append(StatisticsOp(log, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE))
+    ops.append(GlobalLogger(log, args, QUEUE, block=ops[1]))
     ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
