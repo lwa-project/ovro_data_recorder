@@ -33,6 +33,8 @@ for ant in ovro.antennas:
 ovro = ovro2
 
 # Simulation setup
+nant = len(ovro.antennas) // 2
+nbl = nant*(nant+1)//2
 chan0 = 1234
 nchan = 184
 CHAN_BW = 196e6 / 8192
@@ -44,15 +46,24 @@ aa = simVis.build_sim_array(ovro, ovro.antennas[0::2], freqs/1e9, jd=jd)
 
 # Simulate with bright sources only
 dataSet = simVis.build_sim_data(aa, simVis.SOURCES, pols=['xx','yy'], jd=jd)
-nbl, _ = dataSet.XX.data.shape
 
 # Make the final data set that can be used with dr_visibilities.py
 # NOTE:  XY and XY are 1% of XX and have sign flip between XY and YX
 vis = numpy.zeros((nbl,nchan,4), dtype=numpy.complex64)
-vis[:,:,0] = dataSet.XX.data
-vis[:,:,1] = dataSet.XX.data* 0.01
-vis[:,:,2] = dataSet.XX.data*-0.01
-vis[:,:,3] = dataSet.YY.data
-
+k = 0
+l = 0
+for i in range(nant):
+    for j in range(i, nant):
+        vis[l,:,0] = dataSet.XX.data[k,:]
+        vis[l,:,1] = dataSet.XX.data[k,:]* 0.01
+        vis[l,:,2] = dataSet.XX.data[k,:]*-0.01
+        vis[l,:,3] = dataSet.YY.data[k,:]
+        if i == j:
+            vis[l,:,:] = vis[l,:,:].real
+        else:
+            k += 1
+            k %= dataSet.XX.data.shape[0]
+        l += 1
+        
 # Done
 numpy.save('sky.npy', vis)
