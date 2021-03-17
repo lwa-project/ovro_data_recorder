@@ -316,6 +316,7 @@ def _write_main_table(filename, config):
                 uv[k,:] = (l1[0]-l2[0], l1[1]-l2[1], l1[2]-l2[2])
                 a1[k] = i
                 a2[k] = j
+                k += 1
                 
     tb.putcol('UVW', uv, 0, nint*nbl)
     tb.putcol('FLAG', fg.transpose(0,2,1), 0, nint*nbl)
