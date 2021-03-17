@@ -502,20 +502,20 @@ def _write_polarization_table(filename, config):
     tb = table("%s/FEED" % filename, desc, nrow=nant, ack=False)
     
     presp = numpy.zeros((nant,2,2), dtype=numpy.complex64)
-    if pols[0] > 8:
-        ptype = numpy.tile(['X', 'Y'], (nant,1))
+    if stks[0] > 8:
+        ptype = [['X', 'Y'] for i in range(nant)]
         presp[:,0,0] = 1.0
         presp[:,0,1] = 0.0
         presp[:,1,0] = 0.0
         presp[:,1,1] = 1.0
-    elif pols[0] > 4:
-        ptype = numpy.tile(['R', 'L'], (nant,1))
+    elif stks[0] > 4:
+        ptype = [['R', 'L'] for i in range(nant)]
         presp[:,0,0] = 1.0
         presp[:,0,1] = -1.0j
         presp[:,1,0] = 1.0j
         presp[:,1,1] = 1.0
     else:
-        ptype = numpy.tile(['X', 'Y'], (nant,1))
+        ptype = [['X', 'Y'] for i in range(nant)]
         presp[:,0,0] = 1.0
         presp[:,0,1] = 0.0
         presp[:,1,0] = 0.0
@@ -523,7 +523,7 @@ def _write_polarization_table(filename, config):
         
     tb.putcol('POSITION', numpy.zeros((nant,3)), 0, nant)
     tb.putcol('BEAM_OFFSET', numpy.zeros((nant,2,2)), 0, nant)
-    tb.putcol('POLARIZATION_TYPE', ptype, 0, nant)
+    tb.putcol('POLARIZATION_TYPE', numpy.array(ptype, dtype='S'), 0, nant)
     tb.putcol('POL_RESPONSE', presp, 0, nant)
     tb.putcol('RECEPTOR_ANGLE', numpy.zeros((nant,2)), 0, nant)
     tb.putcol('ANTENNA_ID', list(range(nant)), 0, nant)
