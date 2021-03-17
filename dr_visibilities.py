@@ -186,6 +186,16 @@ class DummyOp(object):
             nchan = 184
             npol = 4
             
+            # Try to load model visibilities
+            try:
+                vis_base = numpy.load('utils/sky.npy')
+            except:
+                self.log.warn("Could not load model visibilities from utils/sky.py, using random data")
+                vis_base = numpy.zeros((nbl, nchan, npol), dtype=numpy.complex64)
+            assert(vis_base.shape[0] == nbl)
+            assert(vis_base.shape[1] == nchan)
+            assert(vis_base.shape[2] == npol)
+            
             ohdr = {'time_tag': int(int(time.time())*FS),
                     'seq0':     0, 
                     'chan0':    chan0,
@@ -213,7 +223,7 @@ class DummyOp(object):
                         prev_time = curr_time
                         
                         odata = ospan.data_view(numpy.complex64).reshape(oshape)
-                        odata[...] = numpy.random.randn(*oshape)
+                        odata[...] = vis_base + 0.01*numpy.random.randn(*oshape)
                         
                         curr_time = time.time()
                         while curr_time - prev_time < tgulp:
