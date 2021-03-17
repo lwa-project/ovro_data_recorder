@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import numpy
 import shutil
 
@@ -123,6 +124,20 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
     _write_polarization_table(filename, config)
     _write_observation_table(filename, config)
     _write_misc_required_tables(filename, config)
+    
+    # Fixup the info and keywords for the main table
+    tb = table(filename, readonly=False, ack=False)
+    tb.putinfo({'type':'Measurement Set', 
+               'readme':'This is a MeasurementSet Table holding measurements from a Telescope'})
+    tb.putkeyword('MS_VERSION', numpy.float32(2.0))
+    for tablename in sorted(glob.glob('%s/*' % filename)):
+        if os.path.isdir(tablename):
+            tname = os.path.basename(tablename)
+            stb = table("%s/%s" % (filename, tname), ack=False)
+            tb.putkeyword(tname, stb)
+            stb.close()
+    tb.flush()
+    tb.close()
 
 
 def update_time(filename, scan, start_time, centroid_time, stop_time):
@@ -280,7 +295,6 @@ def _write_main_table(filename, config):
                                   col10, col11, col12, col13, col14, col15, col16, 
                                   col17, col18, col19, col20, col21, col22])
     tb = table("%s" % filename, desc, nrow=nint*nbl, ack=False)
-    
     
     fg = numpy.zeros((nint*nbl,npol,nchan), dtype=numpy.bool)
     fc = numpy.zeros((nint*nbl,npol,nchan,1), dtype=numpy.bool)
