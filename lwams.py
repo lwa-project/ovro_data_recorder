@@ -123,6 +123,7 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
     _write_antenna_table(filename, config)
     _write_polarization_table(filename, config)
     _write_observation_table(filename, config)
+    _write_spectralwindow_table(filename, config)
     _write_misc_required_tables(filename, config)
     
     # Fixup the info and keywords for the main table
