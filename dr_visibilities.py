@@ -1,5 +1,7 @@
 #!/usr/env python
 
+from __future__ import print_function, division
+
 import os
 import sys
 import h5py
@@ -14,8 +16,9 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
+from lwa_antpos.station import ovrolwa as ovro
+
 from common import *
-from station import ovro
 from reductions import *
 from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
@@ -56,8 +59,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, chan0, nchan, navg, nsrc, hdr_ptr, hdr_size_ptr):
-        print "++++++++++++++++ seq0     =", seq0
-        print "                 time_tag =", time_tag
+        print("++++++++++++++++ seq0     =", seq0)
+        print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -70,7 +73,7 @@ class CaptureOp(object):
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
-        print "******** CFREQ:", hdr['cfreq']
+        print("******** CFREQ:", hdr['cfreq'])
         hdr_str = json.dumps(hdr)
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
@@ -112,8 +115,8 @@ class ReaderOp(object):
         self.shutdown_event.set()
 
     def seq_callback(self, seq0, time_tag, chan0, nchan, navg, nsrc, hdr_ptr, hdr_size_ptr):
-        print "++++++++++++++++ seq0     =", seq0
-        print "                 time_tag =", time_tag
+        print("++++++++++++++++ seq0     =", seq0)
+        print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -126,7 +129,7 @@ class ReaderOp(object):
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
-        print "******** CFREQ:", hdr['cfreq']
+        print("******** CFREQ:", hdr['cfreq'])
         hdr_str = json.dumps(hdr)
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')

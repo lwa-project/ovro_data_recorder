@@ -1,5 +1,7 @@
 #!/usr/env python
 
+from __future__ import print_function, division
+
 import os
 import sys
 import h5py
@@ -56,8 +58,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
-        #print "++++++++++++++++ seq0     =", seq0
-        #print "                 time_tag =", time_tag
+        #print("++++++++++++++++ seq0     =", seq0)
+        #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -112,8 +114,8 @@ class ReaderOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
-        #print "++++++++++++++++ seq0     =", seq0
-        #print "                 time_tag =", time_tag
+        #print("++++++++++++++++ seq0     =", seq0)
+        #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
