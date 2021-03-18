@@ -158,7 +158,7 @@ class ReaderOp(object):
                         
                     curr_time = time.time()
                     while curr_time - prev_time < tgulp:
-                        time.sleep(0.05)
+                        time.sleep(0.01)
                         curr_time = time.time()
                     prev_time = curr_time
 
@@ -207,10 +207,10 @@ class DummyOp(object):
                 self.log.warn("Could not load model visibilities from utils/sky.py, using random data")
                 vis_base = numpy.zeros((nbl, nchan, npol), dtype=numpy.complex64)
             assert(vis_base.shape[0] >= nbl)
-            assert(vis_base.shape[1] == nchan)
+            assert(vis_base.shape[1] >= nchan)
             assert(vis_base.shape[2] == npol)
             
-            vis_base = vis_base[:self.nbl,...]
+            vis_base = vis_base[:self.nbl,::(4 if self.fast else 1),:]
             
             ohdr = {'time_tag': int(int(time.time())*FS),
                     'seq0':     0, 
@@ -243,7 +243,7 @@ class DummyOp(object):
                         
                         curr_time = time.time()
                         while curr_time - prev_time < tgulp:
-                            time.sleep(0.05)
+                            time.sleep(0.01)
                             curr_time = time.time()
                             
                     curr_time = time.time()
