@@ -299,7 +299,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size*(10 if self.fast else 1))
             
             first_gulp = True
             was_active = False
