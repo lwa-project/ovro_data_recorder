@@ -300,36 +300,36 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Make a copy of the template
         if self._counter == 0:
-            tagname = "%s_%s_%.0fMHz.ms" % (os.path.basename(self.filename), tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
-            tempname = os.path.join(self._tempdir, tagname)
+            self.tagname = "%s_%s_%.0fMHz.ms" % (os.path.basename(self.filename), tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
+            self.tempname = os.path.join(self._tempdir, self.tagname)
             with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(['cp', '-r', self._template, tempname],
+                subprocess.check_call(['cp', '-r', self._template, self.tempname],
                                       stderr=dn)
                 
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
         # Update the time
-        update_time(tempname, self._counter, tstart, tcent, tstop)
+        update_time(self.tempname, self._counter, tstart, tcent, tstop)
         
         # Update the pointing direction
-        update_pointing(tempname, self._counter, *zen)
+        update_pointing(self.tempname, self._counter, *zen)
         
         # Fill in the main table
-        update_data(tempname, self._counter, data[0,...])
+        update_data(self.tempname, self._counter, data[0,...])
         
         # Save it to its final location
         self._counter += 1
         if self._counter == self._nint:
             if self.is_tarred:
-                filename = os.path.join(os.path.dirname(self.filename), "%s.tar" % tagname)
-                save_cmd = ['tar', 'cf', filename, os.path.basename(tempname)]
+                filename = os.path.join(os.path.dirname(self.filename), "%s.tar" % self.tagname)
+                save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
             else:
-                filename = os.path.join(os.path.dirname(self.filename), tagname)
-                save_cmd = ['cp', '-rf', tempname, filename]
+                filename = os.path.join(os.path.dirname(self.filename), self.tagname)
+                save_cmd = ['cp', '-rf', self.tempname, filename]
             with open('/dev/null', 'wb') as dn:
                 subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
-            shutil.rmtree(tempname)
+            shutil.rmtree(self.tempname)
             self._counter = 0
             
     def stop(self):
