@@ -250,19 +250,20 @@ class MeasurementSetWriter(FileWriterBase):
     call to write leads to a new measurement set.
     """
     
-    def __init__(self, filename, start_time, stop_time, is_tarred=True):
+    def __init__(self, filename, start_time, stop_time, nint_per_file=1, is_tarred=True):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
         # Setup
         self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
         if not os.path.exists(self._tempdir):
             os.mkdir(self._tempdir)
+        self.nint_per_file = nint_per_file
         self.is_tarred = is_tarred
         
         # Cleanup
         atexit.register(shutil.rmtree, self._tempdir)
         
-    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols, nint=1):
+    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols):
         """
         Set the metadata for the measurement sets and create the template.
         """
@@ -276,7 +277,7 @@ class MeasurementSetWriter(FileWriterBase):
             
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
-        create_ms(self._template, station, tint, freq, pols, nint=nint)
+        create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
         
         # Save
         self._station = station
@@ -287,7 +288,7 @@ class MeasurementSetWriter(FileWriterBase):
         self._nchan = nchan
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
-        self._nint = nint
+        self._nint = self.nint_per_file
         self._nbl = self._nant*(self._nant + 1) // 2
         self._counter = 0
         self._started = True
