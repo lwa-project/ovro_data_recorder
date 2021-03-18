@@ -190,34 +190,34 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
     nrow = tb.nrows()
     last_scan = tb.getcell('SCAN_NUMBER', nrow-1)
     nbl = nrow // (last_scan + 1)
-    tb.putcol('TIME', [start_time.mjd,]*nbl, scan*nbl, nbl)
-    tb.putcol('TIME_CENTROID', [centroid_time.mjd,]*nbl, scan*nbl, nbl)
+    tb.putcol('TIME', [start_time.measurementset,]*nbl, scan*nbl, nbl)
+    tb.putcol('TIME_CENTROID', [centroid_time.measurementset,]*nbl, scan*nbl, nbl)
     tb.flush()
     tb.close()
     
     # Feed table
     if scan == 0:
         tb = table(os.path.join(filename, "FEED"), readonly=False, ack=False)
-        tb.putcell('TIME', 0, start_time.mjd)
+        tb.putcell('TIME', 0, start_time.measurementset)
         tb.flush()
         tb.close()
         
     # Observation table
     tb = table(os.path.join(filename, "OBSERVATION"), readonly=False, ack=False)
-    tb.putcell('TIME_RANGE', scan, [start_time.mjd,stop_time.mjd])
-    tb.putcell('RELEASE_DATE', scan, start_time.mjd)
+    tb.putcell('TIME_RANGE', scan, [start_time.measurementset,stop_time.measurementset])
+    tb.putcell('RELEASE_DATE', scan, start_time.measurementset)
     tb.flush()
     tb.close()
     
     # Source table
     tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
-    tb.putcell('TIME', scan, start_time.mjd)
+    tb.putcell('TIME', scan, start_time.measurementset)
     tb.flush()
     tb.close()
     
     # Field table
     tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
-    tb.putcell('TIME', scan, start_time.mjd)
+    tb.putcell('TIME', scan, start_time.measurementset)
     tb.flush()
     tb.close()
 
