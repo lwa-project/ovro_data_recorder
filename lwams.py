@@ -7,8 +7,10 @@ import shutil
 from casacore.measures import measures
 from casacore.tables import table, tableutil
 
-__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'create_ms',
-           'update_time', 'update_pointing', 'update_data']
+from common import LWATime
+
+__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'get_zenith_uvw',
+           'create_ms', 'update_time', 'update_pointing', 'update_data']
 
 
 # Measurement set stokes name -> number
@@ -39,6 +41,43 @@ def get_zenith(station, lwatime):
     dm.doframe(epoch)
     pointing = dm.measure(zenith, 'J2000')
     return pointing['m0']['value'], pointing['m1']['value']
+
+
+def get_zenith_uvw(station, lwatime):
+    """
+    Given a Station instance and a LWATime instance, return the (u,v,w)
+    coordinates of the baselines.
+    """
+    
+    # This should be compatible with what data2ms does/did.
+    dm = measures()
+    zenith = dm.direction('AZEL', '0deg', '90deg')
+    position = dm.position(*station.casa_position)
+    epoch = dm.epoch(*lwatime.casa_epoch)
+    dm.doframe(zenith)
+    dm.doframe(position)
+    dm.doframe(epoch)
+    
+    nant = len(station.antennas)
+    nbl = nant*(nant+1)//2
+    pos = numpy.zeros((nant,3), dtype=numpy.float64)
+    for i in range(nant):
+        ant = station.antennas[i]
+        position = dm.position('ITRF', *['%.6fm' % v for v in ant.ecef])
+        baseline = dm.as_baseline(position)
+        uvw = dm.to_uvw(baseline)
+        pos[i,:] = uvw['xyz'].get_value()
+        
+    uvw = numpy.zeros((nbl,3), dtype=numpy.float64)
+    k = 0
+    for i in range(nant):
+        a1 = pos[i,:]
+        for j in range(i, nant):
+            a2 = pos[j,:]
+            uvw[k,:] = a1 - a2
+            k += 1
+            
+    return uvw
 
 
 class _MSConfig(object):
@@ -307,13 +346,12 @@ def _write_main_table(filename, config):
     sg = numpy.ones((nint*nbl,npol))*9999
     
     k = 0
+    base_uvw = get_zenith_uvw(station, LWATime.now())   # Kind of an interesting choice
     for t in range(nint):
+        uv[t*nbl:(t+1)*nbl,:] = base_uvw
+        
         for i in range(nant):
-            l1 = station.antennas[i].ecef
             for j in range(i, nant):
-                l2 = station.antennas[j].ecef
-                
-                uv[k,:] = (l1[0]-l2[0], l1[1]-l2[1], l1[2]-l2[2])
                 a1[k] = i
                 a2[k] = j
                 k += 1
