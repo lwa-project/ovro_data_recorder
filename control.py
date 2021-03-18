@@ -310,7 +310,8 @@ class VisibilityCommandProcessor(CommandProcessorBase):
     
     _commands = (MSRecord, Cancel, Delete)
     
-    def __init__(self, log, directory, queue, is_tarred=False, shutdown_event=None):
+    def __init__(self, log, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, directory, queue, MeasurementSetWriter,
-                                      filewriter_kwds={'is_tarred': is_tarred},
+                                      filewriter_kwds={'nint_per_file': nint_per_file,
+                                                       'is_tarred': is_tarred},
                                       shutdown_event=shutdown_event)

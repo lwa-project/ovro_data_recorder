@@ -349,6 +349,8 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
+    parser.add_argument('-i', '--nint-per-file', type=int, default=1,
+                        help='number of integrations to write per measurement set')
     parser.add_argument('-n', '--no-tar', action='store_true',
                         help='do not store the measurement sets inside a tar file')
     parser.add_argument('-f', '--fork', action='store_true',
@@ -409,6 +411,7 @@ def main(argv):
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, args, QUEUE))
     ops.append(VisibilityCommandProcessor(log, args.record_directory, QUEUE,
+                                          nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
