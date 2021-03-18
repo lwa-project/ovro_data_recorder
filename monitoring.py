@@ -53,21 +53,22 @@ class PerformanceLogger(object):
             rx_valid, rx_rate, missing_fraction = False, 0.0, 0.0
             good0, late0, missing0 = 0, 0, 0
             good1, late1, missing1 = 0, 0, 0
-            for block,contents in self._state[0][1].items():
-                if block[-8:] == '_capture':
-                    rx_valid = True
-                    good0 = contents['stats']['ngood_bytes']
-                    late0 = contents['stats']['nlate_bytes']
-                    missing0 = contents['stats']['nmissing_bytes']
-            for block,contents in self._state[1][1].items():
-                if block[-8:] == '_capture':
-                    good1 = contents['stats']['ngood_bytes']
-                    late1 = contents['stats']['nlate_bytes']
-                    missing1 = contents['stats']['nmissing_bytes']
             try:
+                for block,contents in self._state[0][1].items():
+                    if block[-8:] == '_capture':
+                        rx_valid = True
+                        good0 = contents['stats']['ngood_bytes']
+                        late0 = contents['stats']['nlate_bytes']
+                        missing0 = contents['stats']['nmissing_bytes']
+                for block,contents in self._state[1][1].items():
+                    if block[-8:] == '_capture':
+                        good1 = contents['stats']['ngood_bytes']
+                        late1 = contents['stats']['nlate_bytes']
+                        missing1 = contents['stats']['nmissing_bytes']
+                        
                 rx_rate = (good1 - good1) / (self._state[1][0] - self._state[0][0])
                 missing_fraction = (missing1 - missing0) / (good1 - good0 + missing1 - missing0)
-            except (IndexError, ZeroDivisionError):
+            except (KeyError, IndexError, ZeroDivisionError):
                 rx_valid = False
                 
             # Load average
