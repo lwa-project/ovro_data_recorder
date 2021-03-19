@@ -205,7 +205,7 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
         
     # Observation table
     tb = table(os.path.join(filename, "OBSERVATION"), readonly=False, ack=False)
-    tb.putcell('TIME_RANGE', scan, [start_time.measurementset,stop_time.measurementset])
+    tb.putcell('TIME_RANGE', scan, [start_time.measurementset, stop_time.measurementset])
     tb.putcell('RELEASE_DATE', scan, start_time.measurementset)
     tb.flush()
     tb.close()
