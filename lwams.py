@@ -188,8 +188,9 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
     # Main table
     tb = table(filename, readonly=False, ack=False)
     nrow = tb.nrows()
+    first_scan = tb.getcell('SCAN_NUMBER', 0)
     last_scan = tb.getcell('SCAN_NUMBER', nrow-1)
-    nbl = nrow // (last_scan + 1)
+    nbl = nrow // (last_scan - first_scan + 1)
     tb.putcol('TIME', [start_time.measurementset,]*nbl, scan*nbl, nbl)
     tb.putcol('TIME_CENTROID', [centroid_time.measurementset,]*nbl, scan*nbl, nbl)
     tb.flush()
