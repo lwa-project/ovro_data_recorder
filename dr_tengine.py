@@ -549,7 +549,7 @@ class TEngineOp(object):
                     ohdr['time_tag'] = base_time_tag
                     ohdr['cfreq0']   = self.rFreq[0]
                     ohdr['cfreq1']   = self.rFreq[1]
-                    ohdr['bw']       = self.nchan_out*CHAN_BW
+                    ohdr['bw']       = self.nchan_out*50e3
                     ohdr['gain0']    = self.gain[0]
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
@@ -790,7 +790,7 @@ class WriterOp(object):
             igulp_size = ntune*ntime_gulp*nbeam*npol
             
             # Figure out where we need to be in the buffer to be at a frame boundary
-            NPACKET_SET = 16
+            NPACKET_SET = 4
             ticksPerSample = int(FS) // int(bw)
             toffset = int(time_tag0) // ticksPerSample
             soffset = toffset % (NPACKET_SET*int(ntime_pkt))
@@ -831,9 +831,9 @@ class WriterOp(object):
                     time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
                     
                     try:
-                        udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src, 8, 
+                        udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
                                  data0[t:t+NPACKET_SET,:,:])
-                        udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8, 8, 
+                        udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
                                  data1[t:t+NPACKET_SET,:,:])
                     except Exception as e:
                         print type(self).__name__, 'Sending Error', str(e)
