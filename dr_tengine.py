@@ -102,7 +102,7 @@ class CaptureOp(object):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_pbeam(self.seq_callback)
         
-        with UDPCapture("ibeam", self.sock, self.oring, self.nserver, self.beam0, 9000, 
+        with UDPCapture("ibeam1", self.sock, self.oring, self.nserver, self.beam0, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
             while not self.shutdown_event.is_set():
