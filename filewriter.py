@@ -15,7 +15,7 @@ from lwahdf import *
 from lwams import *
 
 
-__all__ = ['FileWriterBase', 'HDF5Writer', 'MeasurementSetWriter']
+__all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
@@ -161,6 +161,22 @@ class FileWriterBase(object):
         if self.is_active:
             self.stop()
         self.stop = datetime.utcnow() - 2*self._margin
+
+
+class DRXWriter(FileWriterBase):
+    def __init__(self, filename, beam, start_time, stop_time):
+        FileWriterBase.__init__(self, filename, start_time, stop_time)
+        self.beam = beam
+        
+    def start(self):
+        """
+        Start the file writer and return the open file handle.
+        """
+        
+        self._interface = open(self.filename, 'wb')
+        self._started = True
+        
+        return self._interface
 
 
 class HDF5Writer(FileWriterBase):

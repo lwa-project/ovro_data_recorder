@@ -17,8 +17,7 @@ from datetime import datetime, timedelta
 from common import *
 from station import ovro
 from reductions import *
-from filewriter import MeasurementSetWriter
-from operations import OperationsQueue
+from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 
@@ -35,7 +34,7 @@ from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
 
 
-QUEUE = OperationsQueue()
+QUEUE = FileOperationsQueue()
 
 
 class CaptureOp(object):

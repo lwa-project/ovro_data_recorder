@@ -15,7 +15,9 @@ from collections import deque
 from datetime import datetime, timedelta
 
 from common import *
-from operations import OperationsQueue
+from operations import FileOperationsQueue, DrxOperationsQueue
+from monitoring import GlobalLogger
+from control import VoltageBeamCommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -55,7 +57,8 @@ FILTER2CHAN = {1:   250000//50000,
 DRX_NSAMPLE_PER_PKT = 4096
 
 
-QUEUE = OperationsQueue()
+FILE_QUEUE = FileOperationsQueue()
+DRX_QUEUE = DrxOperationsQueue()
 
 
 class CaptureOp(object):
@@ -341,10 +344,11 @@ class ReChannelizerOp(object):
 
 
 class TEngineOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, guarantee=True, core=None, gpu=None):
+    def __init__(self, log, iring, oring, beam0=1, ntime_gulp=250, guarantee=True, core=None, gpu=None):
         self.log        = log
         self.iring      = iring
         self.oring      = oring
+        self.beam0      = beam0
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
@@ -390,14 +394,24 @@ class TEngineOp(object):
         sampleCount = numpy.array([0,]*ntune, dtype=numpy.int64)
         self.sampleCount = BFArray(sampleCount, space='cuda')
         
-    def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
+    def updateConfig(self, hdr, time_tag, forceUpdate=False):
+        global DRX_QUEUE
+        
         # Get the current pipeline time to figure out if we need to shelve a command or not
         pipeline_time = time_tag / FS
         
+        # Get the current DRX command - but only if we aren't in a forced update
+        config = DRX_QUEUE.active
+        if forceUpdate:
+            config = None
+            
         # Can we act on this configuration change now?
         if config:
-            ## Pull out the tuning (something unique to DRX/BAM/COR)
-            tuning = config[0]
+            ## Pull out the beam
+            beam = config[0]
+            if beam != self.beam0:
+                return False
+            DRX_QUEUE.set_active_accepted()
             
             ## Set the configuration time - DRX commands are for the first slot in the next second
             slot = 0 / 100.0
@@ -432,8 +446,11 @@ class TEngineOp(object):
                 
         if config:
             self.log.info("TEngine: New configuration received for tuning %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
-            tuning, freq, filt, gain = config
-            
+            beam, tuning, freq, filt, gain = config
+            if beam != self.beam0:
+                self.log.info("TEngine: Not for this beam, skipping")
+                return False
+                
             self.rFreq[tuning] = freq
             self.filt = filt
             self.nchan_out = FILTER2CHAN[filt]
@@ -513,7 +530,7 @@ class TEngineOp(object):
                 
                 self.rFreq[0] = 40e6
                 self.rFreq[1] = 60e6
-                self.updateConfig( None, ihdr, iseq.time_tag, forceUpdate=True )
+                self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
                 
                 nbeam    = ihdr['nbeam']
                 chan0    = ihdr['chan0']
@@ -663,7 +680,7 @@ class TEngineOp(object):
                             copy_array(self.sampleCount, sample_count)
                             
                             ## Check for an update to the configuration
-                            if self.updateConfig( None, ihdr, base_time_tag, forceUpdate=False ):
+                            if self.updateConfig( ihdr, base_time_tag, forceUpdate=False ):
                                 reset_sequence = True
                                 sample_count *= 0
                                 copy_array(self.sampleCount, sample_count)
@@ -739,7 +756,7 @@ class WriterOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         
     def main(self):
-        global QUEUE
+        global FILE_QUEUE
         
         if self.core is not None:
             cpu_affinity.set_core(self.core)
@@ -754,8 +771,6 @@ class WriterOp(object):
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
-        fh = open("test.dat", "wb")
-        udt = DiskWriter("drx", fh, core=self.core)
         desc0 = HeaderInfo()
         desc1 = HeaderInfo()
         
@@ -801,7 +816,8 @@ class WriterOp(object):
             desc1.set_tuning(int(round(cfreq1 / FS * 2**32)))
             desc_src = ((1&0x7)<<3)
             
-            first_gulp = False
+            first_gulp = True 
+            was_active = False
             for ispan in iseq.read(igulp_size, begin=boffset):
                 if ispan.size < igulp_size:
                     continue # Ignore final gulp
@@ -810,8 +826,8 @@ class WriterOp(object):
                 prev_time = curr_time
                 
                 if first_gulp:
-                    QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
-                    self.log.info("Current pipeline lag is %s", QUEUE.lag)
+                    FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
+                    self.log.info("Current pipeline lag is %s", FILE_QUEUE.lag)
                     first_gulp = False
                     
                 shape = (-1,nbeam,ntune,npol)
@@ -820,17 +836,35 @@ class WriterOp(object):
                 data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                 data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                 
-                for t in xrange(0, data0.shape[0], NPACKET_SET):
-                    time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
-                    
-                    try:
-                        udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
-                                 data0[t:t+NPACKET_SET,:,:])
-                        udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
-                                 data1[t:t+NPACKET_SET,:,:])
-                    except Exception as e:
-                        print type(self).__name__, 'Sending Error', str(e)
+                if FILE_QUEUE.active is not None:
+                    # Write the data
+                    if not FILE_QUEUE.active.is_started:
+                        self.log.info("Started operation - %s", FILE_QUEUE.active)
+                        fh = FILE_QUEUE.active.start()
+                        udt = DiskWriter("drx", fh, core=self.core)
+                        was_active = True
                         
+                    for t in xrange(0, data0.shape[0], NPACKET_SET):
+                        time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
+                        
+                        try:
+                            udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
+                                     data0[t:t+NPACKET_SET,:,:])
+                            udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
+                                     data1[t:t+NPACKET_SET,:,:])
+                        except Exception as e:
+                            print type(self).__name__, 'Sending Error', str(e)
+                            
+                elif was_active:
+                    # Clean the queue
+                    was_active = False
+                    FILE_QUEUE.clean()
+                    
+                    # Close it out
+                    self.log.info("Ended operation - %s", FILE_QUEUE.previous)
+                    del udt
+                    FILE_QUEUE.previous.stop()
+                    
                 time_tag += int(ntime_gulp)*ticksPerSample
                 
                 curr_time = time.time()
@@ -928,8 +962,8 @@ def main(argv):
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(WriterOp(log, write_ring,
                         npkt_gulp=32, core=cores.pop(0)))
-    #ops.append(GlobalLogger(log, args, QUEUE))
-    #ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
+    #ops.append(GlobalLogger(log, args, FILE_QUEUE))
+    #ops.append(VoltageBeamCommandProcessor(log, args.record_directory, FILE_QUEUE, DRX_QUEUE))
     
     """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
@@ -941,7 +975,7 @@ def main(argv):
                                'duration_ms': 30*1000}))
     
     try:
-        os.unlink(QUEUE[0].filename)
+        os.unlink(FILE_QUEUE[0].filename)
     except OSError:
         pass
     """

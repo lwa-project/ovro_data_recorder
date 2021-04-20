@@ -16,10 +16,9 @@ from datetime import datetime, timedelta
 
 from common import *
 from reductions import *
-from filewriter import HDF5Writer
-from operations import OperationsQueue
+from operations import FileOperationsQueue
 from monitoring import GlobalLogger
-from control import BeamCommandProcessor
+from control import PowerBeamCommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -34,7 +33,7 @@ from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
 
 
-QUEUE = OperationsQueue()
+QUEUE = FileOperationsQueue()
 
 
 class CaptureOp(object):
@@ -397,7 +396,7 @@ def main(argv):
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, args, QUEUE))
-    ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
+    ops.append(PowerBeamCommandProcessor(log, args.record_directory, QUEUE))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
