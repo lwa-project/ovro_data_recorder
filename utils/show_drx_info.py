@@ -11,21 +11,23 @@ from lsl.reader import drx, errors
 def main(args):
     for filename in args:
         with open(filename, 'rb') as fh:
+            nframe = os.path.getsize(filename) // drx.FRAME_SIZE
             frame0 = drx.read_frame(fh)
-            fh.seek((os.path.getsize(filename)//drx.FRAME_SIZE-1)*drx.FRAME_SIZE, 0)
+            fh.seek((nframe-1)*drx.FRAME_SIZE, 0)
             frameN = drx.read_frame(fh)
             fh.seek(0)
             
             print('Time Range:')
             print('  Start:', frame0.time.dp_timetag, '->', frame0.time.datetime)
             print('  Stop: ', frameN.time.dp_timetag, '->', frameN.time.datetime)
+            print('  Total frames:', nframe)
             
             sets = []
             times = {}
             tuning_word1, tuning_word2 = None, None
             central_freq1, central_freq2 = None, None
             sample_rate1, sample_rate2 = None, None
-            for i in range(256):
+            for i in range(1024):
                 try:
                     frame = drx.read_frame(fh)
                 except errors.EOFError:
