@@ -1,5 +1,11 @@
 #!/usr/env python
 
+from __future__ import division, print_function
+try:
+    range = xrange
+except NameError:
+    pass
+    
 import os
 import sys
 import h5py
@@ -80,8 +86,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
-        #print "++++++++++++++++ seq0     =", seq0
-        #print "                 time_tag =", time_tag
+        #print("++++++++++++++++ seq0     =", seq0)
+        #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -441,7 +447,7 @@ class TEngineOp(object):
                 if pipeline_time >= stored_time:
                     config_time, config = self._pending.popleft()
             except IndexError:
-                #print "No pending configuration at %.1f" % pipeline_time
+                #print("No pending configuration at %.1f" % pipeline_time)
                 pass
                 
         if config:
@@ -547,7 +553,7 @@ class TEngineOp(object):
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                 self.oring.resize(ogulp_size)
                 
-                ticksPerTime = int(FS) / int(50e3)
+                ticksPerTime = int(FS) // int(50e3)
                 base_time_tag = iseq.time_tag
                 sample_count = numpy.array([0,]*ntune, dtype=numpy.int64)
                 copy_array(self.sampleCount, sample_count)
@@ -804,7 +810,7 @@ class WriterOp(object):
             if soffset != 0:
                 soffset = NPACKET_SET*ntime_pkt - soffset
             boffset = soffset*nbeam*ntune*npol
-            print '!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset
+            print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
             
             time_tag += soffset*ticksPerSample                  # Correct for offset
             time_tag -= int(round(fdly*ticksPerSample))         # Correct for FIR filter delay
@@ -844,7 +850,7 @@ class WriterOp(object):
                         udt = DiskWriter("drx", fh, core=self.core)
                         was_active = True
                         
-                    for t in xrange(0, data0.shape[0], NPACKET_SET):
+                    for t in range(0, data0.shape[0], NPACKET_SET):
                         time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
                         
                         try:
@@ -853,7 +859,7 @@ class WriterOp(object):
                             udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
                                      data1[t:t+NPACKET_SET,:,:])
                         except Exception as e:
-                            print type(self).__name__, 'Sending Error', str(e)
+                            print(type(self).__name__, 'Sending Error', str(e))
                             
                 elif was_active:
                     # Clean the queue
