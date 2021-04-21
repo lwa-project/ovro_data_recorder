@@ -391,8 +391,8 @@ class TEngineOp(object):
         nbeam, ntune, npol = 1, 2, 2
         ## Coefficients
         coeffs.shape += (1,)
-        coeffs = numpy.repeat(coeffs, nbeam*npol, axis=1)
-        coeffs.shape = (coeffs.shape[0],nbeam,npol)
+        coeffs = numpy.repeat(coeffs, nbeam*ntune*npol, axis=1)
+        coeffs.shape = (coeffs.shape[0],nbeam,ntune,npol)
         self.coeffs = BFArray(coeffs, space='cuda')
         ## Phase rotator state
         phaseState = numpy.array([0,]*ntune, dtype=numpy.float64)
@@ -474,8 +474,8 @@ class TEngineOp(object):
             try:
                 phaseRot = self.phaseRot.copy(space='system')
             except AttributeError:
-                phaseRot = numpy.zeros((2,self.ntime_gulp*self.nchan_out), dtype=numpy.complex64)
-            phaseRot[tuning,:] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
+                phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
+            phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
             phaseRot = phaseRot.astype(numpy.complex64)
             copy_array(self.phaseState, phaseState)
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
@@ -504,8 +504,8 @@ class TEngineOp(object):
                 try:
                     phaseRot = self.phaseRot.copy(space='system')
                 except AttributeError:
-                    phaseRot = numpy.zeros((2,self.ntime_gulp*self.nchan_out), dtype=numpy.complex64)
-                phaseRot[tuning,:] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
+                    phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
+                phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
                 phaseRot = phaseRot.astype(numpy.complex64)
                 copy_array(self.phaseState, phaseState)
                 self.phaseRot = BFAsArray(phaseRot, space='cuda')
@@ -586,6 +586,8 @@ class TEngineOp(object):
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 15
                     act_gain1 = self.gain[1] + 15
+                    rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
+                    rel_gain = BFArray(rel_gain, space='cuda')
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
                         for ispan in iseq_spans:
@@ -606,14 +608,14 @@ class TEngineOp(object):
                                 
                                 ## Prune the data ahead of the IFFT
                                 try:
-                                    pdata[0,...] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
-                                    pdata[1,...] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
+                                    pdata[:,:,:,0,:] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
+                                    pdata[:,:,:,1,:] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
                                 except NameError:
-                                    pshape = (ntune,self.ntime_gulp,self.nchan_out,nbeam,npol)
+                                    pshape = (self.ntime_gulp,self.nchan_out,nbeam,ntune,npol)
                                     pdata = BFArray(shape=pshape, dtype=numpy.complex64, space='cuda_host')
                                     
-                                    pdata[0,...] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
-                                    pdata[1,...] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
+                                    pdata[:,:,:,0,:] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
+                                    pdata[:,:,:,1,:] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
                                     
                                 ### From here until going to the output ring we are on the GPU
                                 try:
@@ -629,54 +631,44 @@ class TEngineOp(object):
                                     gdata = BFArray(shape=bdata.shape, dtype=numpy.complex64, space='cuda')
                                     
                                     bfft = Fft()
-                                    bfft.init(bdata, gdata, axes=2, apply_fftshift=True)
+                                    bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
                                     bfft.execute(bdata, gdata, inverse=True)
                                     
-                                ## Phase rotation
-                                gdata = gdata.reshape((2,-1,nbeam*npol))
+                                ## Phase rotation and output "desired gain imbalance" correction
+                                gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap("""
-                                      a(i,j,k) *= exp(Complex<float>(0.0, -2*BF_PI_F*fmod(g(i)*s(i), 1.0)))*b(i,j);
+                                      auto k = (j / 2) % 2;
+                                      a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
                                       """, 
-                                      {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount}, 
-                                      axis_names=('i','j','k'), 
+                                      {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
+                                      axis_names=('i','j'),
                                       shape=gdata.shape, 
                                       extra_code="#define BF_PI_F 3.141592654f")
-                                gdata = gdata.reshape((2,-1,nbeam,npol))
+                                gdata = gdata.reshape((-1,nbeam,ntune,npol))
                                 
                                 ## FIR filter
                                 try:
-                                    bfir0.execute(gdata[0,...], fdata0)
-                                    bfir1.execute(gdata[1,...], fdata1)
+                                    bfir.execute(gdata, fdata)
                                 except NameError:
-                                    fdata0 = BFArray(shape=gdata.shape[1:], dtype=gdata.dtype, space='cuda')
-                                    fdata1 = BFArray(shape=gdata.shape[1:], dtype=gdata.dtype, space='cuda')
-                                 
-                                    bfir0 = Fir()
-                                    bfir1 = Fir()
-                                    bfir0.init(self.coeffs, 1)
-                                    bfir1.init(self.coeffs, 1)
-                                    bfir0.execute(gdata[0,...], fdata0)
-                                    bfir1.execute(gdata[1,...], fdata1)
+                                    fdata = BFArray(shape=gdata.shape, dtype=gdata.dtype, space='cuda')
+                                    
+                                    bfir = Fir()
+                                    bfir.init(self.coeffs, 1)
+                                    bfir.execute(gdata, fdata)
                                     
                                 ## Quantization
                                 try:
-                                    Quantize(fdata0, qdata0, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
-                                    Quantize(fdata1, qdata1, scale=8./(2**act_gain1 * numpy.sqrt(self.nchan_out)))
+                                    Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
                                 except NameError:
-                                    qdata0 = BFArray(shape=fdata0.shape, native=False, dtype='ci4', space='cuda')
-                                    qdata1 = BFArray(shape=fdata1.shape, native=False, dtype='ci4', space='cuda')
-                                    Quantize(fdata0, qdata0, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
-                                    Quantize(fdata1, qdata1, scale=8./(2**act_gain1 * numpy.sqrt(self.nchan_out)))
+                                    qdata = BFArray(shape=fdata.shape, native=False, dtype='ci4', space='cuda')
+                                    Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
                                     
                                 ## Save
                                 try:
-                                    copy_array(tdata0, qdata0)
-                                    copy_array(tdata1, qdata1)
+                                    copy_array(tdata, qdata)
                                 except NameError:
-                                    tdata0 = qdata0.copy('system')
-                                    tdata1 = qdata1.copy('system')
-                                odata[:,:,0,:] = tdata0.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,npol)
-                                odata[:,:,1,:] = tdata1.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,npol)
+                                    tdata = qdata.copy('system')
+                                odata[...] = tdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
@@ -706,14 +698,10 @@ class TEngineOp(object):
                                     del bdata
                                     del gdata
                                     del bfft
-                                    del fdata0
-                                    del fdata1
-                                    del bfir0
-                                    del bfir1
-                                    del qdata0
-                                    del qdata1
-                                    del tdata0
-                                    del tdata1
+                                    del fdata
+                                    del bfir
+                                    del qdata
+                                    del tdata
                                 except NameError:
                                     pass
                                     
@@ -732,10 +720,8 @@ class TEngineOp(object):
                         try:
                             del pdata
                             del gdata
-                            del fdata0
-                            del fdata1
-                            del qdata0
-                            del qdata1
+                            del fdata
+                            del qdata
                         except NameError:
                             pass
                             
