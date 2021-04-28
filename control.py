@@ -171,7 +171,7 @@ class HDF5Record(CommandBase):
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
-            return False, "Failed to schedule recording: %s" % str(e)""
+            return False, "Failed to schedule recording: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
         return True, {}

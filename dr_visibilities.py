@@ -503,11 +503,11 @@ def main(argv):
         
     # Setup the subsystem ID
     mcs_id = 'drv'
-    if args.fast:
+    if args.quick:
         mcs_id += 'f'
     else:
         mcs_id += 's'
-    mcs_id += args.addr.split('.')[-1]
+    mcs_id += args.address.split('.')[-1]
     
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
@@ -570,9 +570,9 @@ def main(argv):
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    c = mcs.Client()
+    c = Client()
     r = c.send_command(mcs_id, 'record',
-                       start_mjd=mjd_now, start_mpm=mpm_now, 'duration_ms': 300*1000)
+                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=300*1000)
     print('III', r)
     
     while not shutdown_event.is_set():

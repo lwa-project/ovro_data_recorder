@@ -260,7 +260,7 @@ class Client(object):
             value = MonitorPoint.from_json(value[0])
             return value
         except Exception as e:
-            print('ERROR:', str(e))
+            print('ERROR2:', str(e))
             return None
             
     def set_monitor_point_callback(self, name, callback, id=None):
@@ -335,7 +335,7 @@ class Client(object):
                 output.append((value[1].key, MonitorPoint.from_json(value[0])))
             return output
         except Exception as e:
-            print('ERROR:', str(e))
+            print('ERROR3:', str(e))
             return None
             
     def set_monitor_point_branch_callback(self, name, callback, id=None):
@@ -466,5 +466,5 @@ class Client(object):
             
             return True, found
         except Exception as e:
-            print('ERROR:', str(e))
+            print('ERROR1:', str(e))
             return False, s_id

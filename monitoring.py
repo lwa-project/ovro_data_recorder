@@ -2,6 +2,7 @@ import os
 import sys
 import glob
 import time
+import numpy
 import threading
 from collections import deque
 
@@ -307,21 +308,21 @@ class StatisticsLogger(object):
                 self.log.debug("  %s", p)
                 try:
                     self.client.write_monitor_point('statistics/%s/min' % p,
-                                                    min[:,i], timestamp='s')
+                                                    min[:,i].tolist(), timestamp='s')
                     self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                    avg[:,i], timestamp='s')
+                                                    avg[:,i].tolist(), timestamp='s')
                     self.client.write_monitor_point('statistics/%s/max' % p,
-                                                    max[:,i], timestamp='s')
+                                                    max[:,i].tolist(), timestamp='s')
                 except IndexError:
                     self.client.write_monitor_point('statistics/%s/min' % p,
-                                                    min[i], timestamp='s')
+                                                    float(min[i]), timestamp='s')
                     self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                    avg[i], timestamp='s')
+                                                    float(avg[i]), timestamp='s')
                     self.client.write_monitor_point('statistics/%s/max' % p,
-                                                    max[i], timestamp='s')
+                                                    float(max[i]), timestamp='s')
                     
                 try:
-                    if type(min[i]) is not float:
+                    if type(min[i]) not in (float, numpy.float32, numpy.float64):
                         raise TypeError
                     self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
                 except TypeError:

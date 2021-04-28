@@ -325,7 +325,7 @@ class PlotterOp(object):
                     mjd, dt = tt.mjd, tt.datetime
                     mjd = int(mjd)
                     h, m, s = dt.hour, dt.minute, dt.second
-                    filename = '%i_%02i%02i%02i.png' % (mjd, h, m, s)
+                    filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
                     canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
                     canvas.print_figure(filename)
                     
