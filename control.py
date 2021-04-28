@@ -18,7 +18,7 @@ class CommandBase(object):
     idea right now.
     """
     
-    _required = ('id',)
+    _required = ('sequence_id',)
     _optional = ()
     
     def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None):
@@ -134,10 +134,10 @@ class HDF5Record(CommandBase):
      * duration_ms - the duration of the recording in ms
     """
     
-    _required = ('id', 'start_mjd', 'start_mpm', 'duration_ms')
+    _required = ('sequence_id', 'start_mjd', 'start_mpm', 'duration_ms')
     _optional = ('stokes_mode', 'time_avg', 'chan_avg')
     
-    def action(self, id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
+    def action(self, sequence_id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
             filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
             start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
@@ -182,9 +182,9 @@ class MSRecord(CommandBase):
      * duration_ms - the duration of the recording in ms
     """
     
-    _required = ('id', 'start_mjd', 'start_mpm', 'duration_ms')
+    _required = ('sequence_id', 'start_mjd', 'start_mpm', 'duration_ms')
     
-    def action(self, id, start_mjd, start_mpm, duration_ms):
+    def action(self, sequence_id, start_mjd, start_mpm, duration_ms):
         try:
             filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
             start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
@@ -212,9 +212,9 @@ class Cancel(CommandBase):
      * queue_number - scheduled recording queue number of cancel
     """
     
-    _required = ('id', 'queue_number')
+    _required = ('sequence_id', 'queue_number')
     
-    def action(self, id, queue_number):
+    def action(self, sequence_id, queue_number):
         try:
             filename = self.queue[queue_number].filename
             start = self.queue[queue_number].start_time
@@ -235,9 +235,9 @@ class Delete(CommandBase):
      * file_number - scheduled recording queue number of cancel
     """
     
-    _required = ('id', 'file_number')
+    _required = ('sequence_id', 'file_number')
     
-    def action(self, id, file_number):
+    def action(self, sequence_id, file_number):
         if self.queue.active is not None:
             self.log_error("Cannot delete while recording is active")
             return False
