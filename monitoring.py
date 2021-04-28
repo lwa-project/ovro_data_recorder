@@ -185,7 +185,46 @@ class StatusLogger(object):
             if is_active:
                 self.log.debug(" active filename: %s", os.path.basename(active_filename))
                 self.log.debug(" active time remaining: %s", time_left)
-                
+            self.log.debug("===   ===")
+            
+            # Sleep
+            if once:
+                break
+            time.sleep(10)
+
+
+class StatisticsLogger(object):
+    def __init__(self, log, block, shutdown_event=None):
+        self.log = log
+        self.block = block
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        
+    def _update(self):
+        pass
+        
+    def main(self, once=False):
+        while not self.shutdown_event.is_set():
+            # Poll
+            # NOTE:  This isn't really thread safe but does it matter?
+            pols, min, max, avg = self.block.get_snapshot()
+            
+            # Report
+            self.log.debug("=== Statistics Report ===")
+            for i,p in enumerate(pols):
+                self.log.debug("  %s", p)
+                try:
+                    if type(min[i]) is not float:
+                        raise TypeError
+                    self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
+                except TypeError:
+                    for j in range(5):
+                        self.log.debug("    %i", j)
+                        self.log.debug("      min/avg/max: %.3f %.3f %.3f", min[j,i], avg[j,i], max[j,i])
+                except IndexError:
+                    self.log.debug("    min/avg/max: --- --- ---")
+                    
             # Sleep
             if once:
                 break
@@ -193,10 +232,11 @@ class StatusLogger(object):
 
     
 class GlobalLogger(object):
-    def __init__(self, log, args, queue, shutdown_event=None):
+    def __init__(self, log, args, queue, block=None, shutdown_event=None):
         self.log = log
         self.args = args
         self.queue = queue
+        self.block = block
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
@@ -204,7 +244,9 @@ class GlobalLogger(object):
         self.perf = PerformanceLogger(log, queue, shutdown_event=shutdown_event)
         self.storage = StorageLogger(log, args.record_directory, shutdown_event=shutdown_event)
         self.status = StatusLogger(log, queue, shutdown_event=shutdown_event)
-        
+        if self.block is not None:
+            self.stats = StatisticsLogger(log, self.block)
+            
     @property
     def shutdown_event(self):
         return self._shutdown_event
@@ -212,7 +254,7 @@ class GlobalLogger(object):
     @shutdown_event.setter
     def shutdown_event(self, event):
         self._shutdown_event = event
-        for attr in ('perf', 'storage', 'status'):
+        for attr in ('perf', 'storage', 'status', 'stats'):
             logger = getattr(self, attr, None)
             if logger is None:
                 continue
@@ -222,6 +264,7 @@ class GlobalLogger(object):
         t_status = 0.0
         t_perf = 0.0
         t_storage = 0.0
+        t_stats = 0.0
         while not self.shutdown_event.is_set():
             # Poll
             t_now = time.time()
@@ -234,6 +277,11 @@ class GlobalLogger(object):
             if t_now - t_status > 10.0:
                 self.status.main(once=True)
                 t_status = t_now
+            if t_now - t_stats > 10.0:
+                mthd = getattr(self, 'stats', None)
+                if mthd != None:
+                    mthd.main(once=True)
+                t_stats = t_now
                 
             # Sleep
             time.sleep(10)

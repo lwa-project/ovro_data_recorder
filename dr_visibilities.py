@@ -1,5 +1,11 @@
 #!/usr/env python
 
+from __future__ import division, print_function
+try:
+    range = xrange
+except NameError:
+    pass
+    
 import os
 import sys
 import h5py
@@ -57,8 +63,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, chan0, nchan, navg, nsrc, hdr_ptr, hdr_size_ptr):
-        print "++++++++++++++++ seq0     =", seq0
-        print "                 time_tag =", time_tag
+        print("++++++++++++++++ seq0     =", seq0)
+        print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -66,12 +72,12 @@ class CaptureOp(object):
                'nchan':    nchan,
                'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
-               'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
+               'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
                'npol':     2,
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
-        print "******** CFREQ:", hdr['cfreq']
+        print("******** CFREQ:", hdr['cfreq'])
         hdr_str = json.dumps(hdr)
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
@@ -114,8 +120,8 @@ class ReaderOp(object):
         self.shutdown_event.set()
 
     def seq_callback(self, seq0, time_tag, chan0, nchan, navg, nsrc, hdr_ptr, hdr_size_ptr):
-        print "++++++++++++++++ seq0     =", seq0
-        print "                 time_tag =", time_tag
+        print("++++++++++++++++ seq0     =", seq0)
+        print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -123,12 +129,12 @@ class ReaderOp(object):
                'nchan':    nchan,
                'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
-               'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
+               'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
                'npol':     2,
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
-        print "******** CFREQ:", hdr['cfreq']
+        print("******** CFREQ:", hdr['cfreq'])
         hdr_str = json.dumps(hdr)
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
@@ -219,7 +225,7 @@ class DummyOp(object):
                     'nchan':    nchan,
                     'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                     'navg':     navg,
-                    'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
+                    'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
                     'npol':     npol,
                     'nbl':      nbl,
                     'complex':  True,
@@ -252,6 +258,94 @@ class DummyOp(object):
                     self.perf_proclog.update({'acquire_time': -1, 
                                               'reserve_time': reserve_time, 
                                               'process_time': process_time,})
+
+
+class StatisticsOp(object):
+    def __init__(self, log, iring, ntime_gulp=1, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+        self.data_pols = []
+        self.data_min = []
+        self.data_max = []
+        self.data_avg = []
+        
+    def get_snapshot(self, ant=None):
+        if ant is None:
+            return self.data_pols, self.data_min, self.data_max, self.data_avg
+        else:
+            try:
+                return self.data_pols, self.data_min[ant], self.data_max[ant], self.data_avg[ant]
+            except IndexError:
+                return None, None, None, None
+                
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
+            
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbl      = ihdr['nbl']
+            nstand   = ihdr['nstand']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            
+            autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
+            self.data_pols = ['XX', 'YY']
+            
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
+            
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                
+                ## Pull out the auto-correlations
+                adata = idata[0,autos,:,:].real
+                adata = adata[:,:,[0,1]]
+                
+                self.data_min = numpy.min(adata, axis=1)
+                self.data_max = numpy.max(adata, axis=1)
+                self.data_avg = numpy.mean(adata, axis=1)
+                
+                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
 
 
 class WriterOp(object):
@@ -335,7 +429,7 @@ class WriterOp(object):
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -359,7 +453,7 @@ def main(argv):
                         help='run in offline using the specified file to read from')
     parser.add_argument('--filename', type=str,
                         help='filename containing packets to read from in offline mode')
-    parser.add_argument('-c', '--cores', type=str, default='0,1',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1,
                         help='gulp size for ring buffers')
@@ -440,9 +534,11 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, nbl,
                              ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
                              core=cores.pop(0)))
+    ops.append(StatisticsOp(log, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE))
+    ops.append(GlobalLogger(log, args, QUEUE, block=ops[1]))
     ops.append(VisibilityCommandProcessor(log, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
