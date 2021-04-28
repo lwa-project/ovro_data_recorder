@@ -591,7 +591,7 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE, block=ops[1]))
+    ops.append(GlobalLogger(log, args, QUEUE, block=ops[2]))
     ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')

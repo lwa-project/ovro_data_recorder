@@ -538,7 +538,7 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE))
+    ops.append(GlobalLogger(log, args, QUEUE, block=ops[1]))
     ops.append(VisibilityCommandProcessor(log, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
