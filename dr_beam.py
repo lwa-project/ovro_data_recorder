@@ -307,9 +307,8 @@ class PlotterOp(object):
                     sdata = numpy.log10(sdata)*10
                     
                     ## Create a diagnostic plot after suming the flags across polarization
-                    ts = time_tag / int(fS)
-                    ts = datetime.datetime.utcfromtimestamp(ts)
-                    ts = ts.strftime('%y%m%d %H:%M:%S')
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.datetime.strftime('%y%m%d %H:%M:%S')
                     
                     ax.cla()
                     ax.plot(frange/1e6, sdata[0,:,0], color='#1F77B4')
@@ -317,7 +316,7 @@ class PlotterOp(object):
                     ax.set_xlim((frange[0]/1e6,frange[-1]/1e6))
                     ax.set_xlabel('Frequency [MHz]')
                     ax.set_ylabel('Power [arb. dB]')
-                    ax.xaxis.set_major_locator(MultipleLocator(base=2.0))
+                    ax.xaxis.set_major_locator(MultipleLocator(base=10.0))
                     fig.tight_layout()
                     
                     ## Save the plot
@@ -388,7 +387,7 @@ class StatisticsOp(object):
             npol     = ihdr['npol']
             pols     = ihdr['pols']
             
-            self.data_pols = pols
+            self.data_pols = pols.split(',')
             
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)

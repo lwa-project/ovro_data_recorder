@@ -214,8 +214,11 @@ class StatisticsLogger(object):
             self.log.debug("=== Statistics Report ===")
             for i,p in enumerate(pols):
                 self.log.debug("  %s", p)
-                self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
-                
+                try:
+                    self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
+                except IndexError:
+                    self.log.debug("    min/avg/max: --- --- ---")
+                    
             # Sleep
             if once:
                 break
@@ -235,7 +238,7 @@ class GlobalLogger(object):
         self.perf = PerformanceLogger(log, queue, shutdown_event=shutdown_event)
         self.storage = StorageLogger(log, args.record_directory, shutdown_event=shutdown_event)
         self.status = StatusLogger(log, queue, shutdown_event=shutdown_event)
-        if self.blocks is not None:
+        if self.block is not None:
             self.stats = StatisticsLogger(log, self.block)
             
     @property
