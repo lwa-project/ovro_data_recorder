@@ -38,13 +38,7 @@ class CommandBase(object):
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
         def wrapper(**kwargs):
-            output = kls(**kwargs)
-            try:
-                if len(output) < 2:
-                    output += ({},)
-            except TypeError:
-                output = (output, {})
-            return output
+            return kls(**kwargs)
         callback.action = wrapper
         processor.client.set_command_callback(name.lower(), callback)
         return kls
@@ -101,7 +95,8 @@ class CommandBase(object):
         """
         Action to be called when the command is processed.  It should accept
         only arguments in the same order as self._required.  It should also
-        return a boolean of whether or not the command succeeded.
+        two-element tuple of (boolean of whether or not the command succeeded, 
+        an info message or an empty dictionary).
         """
         
         raise NotImplementedError("Must be overridden by the subclass.")
@@ -155,7 +150,7 @@ class HDF5Record(CommandBase):
             stop = start + duration
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
-            return False
+            return False, "Failed to unpack command data: %s" % str(e)
             
         if stokes_mode in (None, 'XXYYCRCI'):
             reduction_op = XXYYCRCI(time_avg=time_avg, chan_avg=chan_avg)
@@ -169,17 +164,17 @@ class HDF5Record(CommandBase):
             reduction_op = IV(time_avg=time_avg, chan_avg=chan_avg)
         else:
             self.log_error("Unknown Stokes mode: %s", stokes_mode)
-            return False
+            return False, "Unknown Stokes mode: %s" % stokes_mode
             
         op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
-            return False
+            return False, "Failed to schedule recording: %s" % str(e)""
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {}
 
 
 class MSRecord(CommandBase):
@@ -202,17 +197,17 @@ class MSRecord(CommandBase):
             stop = start + duration
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
-            return False
+            return False, "Failed to unpack command data: %s" % str(e)
             
         op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
-            return False
+            return False, "Failed to schedule recording: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {}
 
 
 class Cancel(CommandBase):
@@ -232,10 +227,10 @@ class Cancel(CommandBase):
             self.queue[queue_number].cancel()
         except IndexError as e:
             self.log_error("Failed to cancel recording: %s", str(e))
-            return False
+            return False, "Failed to cancel recording: %s" % str(e)
             
         self.log_info("Canceled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {}
 
 
 class Delete(CommandBase):
@@ -250,7 +245,7 @@ class Delete(CommandBase):
     def action(self, sequence_id, file_number):
         if self.queue.active is not None:
             self.log_error("Cannot delete while recording is active")
-            return False
+            return False, "Cannot delete while recording is active"
             
         try:
             filenames = glob.glob(os.path.join(self.directory, '*'))
@@ -261,10 +256,10 @@ class Delete(CommandBase):
                 os.unlink(filenames[file_number])
         except (IndexError, OSError) as e:
             self.log_error("Failed to delete file: %s", str(e))
-            return False
+            return False, "Failed to delete file: %s" % str(e)
             
         self.log_info("Deleted recording %s", filenames[file_number])
-        return True
+        return True, {}
 
 
 class CommandProcessorBase(object):

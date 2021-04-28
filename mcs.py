@@ -154,6 +154,8 @@ class CommandCallbackBase(object):
                     
             ts = time.time()
             status, response = self.action(**payload)
+            if isinstance(status, bool):
+                status = 'success' if status else 'error'
             status = {'sequence_id': sequence_id,
                       'timestamp': ts,
                       'status': status,
@@ -425,11 +427,10 @@ class Client(object):
         """
         Send a command to the given subsystem and wait for a response.  The 
         arguments for the command are given as keywords.  If a response is
-        received within the timeout window, that response is returned as a
-        three-element tuple of (True, sequence_id, the response as a dictionary).
-        If a response was not received within the timeout window or another
-        error occurred, return a three-element tuple of (False, sequence_id,
-        None).
+        received within the timeout window, that response is returned as a two-
+        element tuple of (True, the response as a dictionary).  If a response
+        was not received within the timeout window or another error occurred,
+        return a two-element tuple of (False, sequence_id).
         """
         
         if command.startswith('/'):
@@ -463,7 +464,7 @@ class Client(object):
                         break
             cancel()
             
-            return True, s_id, found
+            return True, found
         except Exception as e:
             print('ERROR:', str(e))
-            return False, s_id, None
+            return False, s_id

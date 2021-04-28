@@ -306,22 +306,25 @@ class StatisticsLogger(object):
             for i,p in enumerate(pols):
                 self.log.debug("  %s", p)
                 try:
-                    if type(min[i]) is not float:
-                        raise TypeError
-                    self.client.write_monitor_point('statistics/%s/min' % p,
-                                                    min[i], timestamp='s')
-                    self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                    avg[i], timestamp='s')
-                    self.client.write_monitor_point('statistics/%s/max' % p,
-                                                    max[i], timestamp='s')
-                    self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
-                except TypeError:
                     self.client.write_monitor_point('statistics/%s/min' % p,
                                                     min[:,i], timestamp='s')
                     self.client.write_monitor_point('statistics/%s/avg' % p,
                                                     avg[:,i], timestamp='s')
                     self.client.write_monitor_point('statistics/%s/max' % p,
                                                     max[:,i], timestamp='s')
+                except IndexError:
+                    self.client.write_monitor_point('statistics/%s/min' % p,
+                                                    min[i], timestamp='s')
+                    self.client.write_monitor_point('statistics/%s/avg' % p,
+                                                    avg[i], timestamp='s')
+                    self.client.write_monitor_point('statistics/%s/max' % p,
+                                                    max[i], timestamp='s')
+                    
+                try:
+                    if type(min[i]) is not float:
+                        raise TypeError
+                    self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
+                except TypeError:
                     for j in range(5):
                         self.log.debug("    %i", j)
                         self.log.debug("      min/avg/max: %.3f %.3f %.3f", min[j,i], avg[j,i], max[j,i])
