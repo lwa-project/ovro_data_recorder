@@ -190,6 +190,23 @@ class Client(object):
                 pass
         self.client.close()
         
+    def remove_monitor_point(self, name):
+        """
+        Remove the specified monitoring point.  Returns True if the deletion was
+        successful, False otherwise.
+        """
+        
+        if self.id is None:
+            raise RuntimeError("Writing monitoring points is not supported in anonymous mode")
+        if name.startswith('/'):
+            name = name[1:]
+            
+        try:
+            self.client.delete('/mon/%s/%s' % (self.id, name))
+            return True
+        except Exception as e:
+            return False
+            
     def write_monitor_point(self, name, value, timestamp=None, unit=''):
         """
         Write a value to the specified monitoring point.  Returns True if the

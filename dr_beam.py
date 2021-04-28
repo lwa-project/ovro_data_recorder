@@ -557,6 +557,9 @@ def main(argv):
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
         
+    # Setup the subsystem ID
+    mcs_id = 'dr%i' % args.beam
+    
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
@@ -590,8 +593,8 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE, block=ops[2]))
-    ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
+    ops.append(GlobalLogger(log, mcs_id, args, QUEUE, block=ops[2]))
+    ops.append(BeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)

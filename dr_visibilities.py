@@ -500,6 +500,14 @@ def main(argv):
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
         
+    # Setup the subsystem ID
+    mcs_id = 'drv'
+    if args.fast:
+        mcs_id += 'f'
+    else:
+        mcs_id += 's'
+    mcs_id += args.addr.split('.')[-1]
+    
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
@@ -538,8 +546,8 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE, block=ops[1]))
-    ops.append(VisibilityCommandProcessor(log, args.record_directory, QUEUE,
+    ops.append(GlobalLogger(log, mcs_id, args, QUEUE, block=ops[1]))
+    ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
     
