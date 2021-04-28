@@ -146,7 +146,12 @@ class CommandCallbackBase(object):
             sequence_id = value['sequence_id']
             command = value['command']
             payload = value['kwargs']
-            
+            if 'sequence_id' not in payload:
+                try:
+                    payload['sequence_id'] = sequence_id.decode()
+                except AttributeError:
+                    payload['sequence_id'] = sequence_id
+                    
             ts = time.time()
             status, response = self.action(**payload)
             status = {'sequence_id': sequence_id,
@@ -420,10 +425,11 @@ class Client(object):
         """
         Send a command to the given subsystem and wait for a response.  The 
         arguments for the command are given as keywords.  If a response is
-        received within the timeout window, that response is returned as a two-
-        element tuple of (True, the response as a dictionary).  If a response
-        was not received within the timeout window or another error occurred,
-        return a two-element tuple of (False, None).
+        received within the timeout window, that response is returned as a
+        three-element tuple of (True, sequence_id, the response as a dictionary).
+        If a response was not received within the timeout window or another
+        error occurred, return a three-element tuple of (False, sequence_id,
+        None).
         """
         
         if command.startswith('/'):
@@ -432,6 +438,10 @@ class Client(object):
         full_name = '/cmd/%s/%s' % (subsystem, command)
         resp_name = '/resp/'+full_name[5:]
         sequence_id = uuid.uuid1().hex
+        try:
+            s_id = sequence_id.decode()
+        except AttributeError:
+            s_id = sequence_id
         payload = {'sequence_id': sequence_id,
                    'timestamp': time.time(),
                    'command': command,
@@ -448,13 +458,12 @@ class Client(object):
             while not found and (time.time() - t0) < self.timeout:
                 for event in events_iterator:
                     value = json.loads(event.value)
-                    print('DDD', value)
                     if value['sequence_id'] == sequence_id:
                         found = value
                         break
             cancel()
             
-            return True, found
+            return True, s_id, found
         except Exception as e:
             print('ERROR:', str(e))
-            return False, None
+            return False, s_id, None
