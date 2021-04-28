@@ -40,13 +40,14 @@ QUEUE = OperationsQueue()
 
 class CaptureOp(object):
     def __init__(self, log, sock, oring, nbl, ntime_gulp=1,
-                 slot_ntime=6, shutdown_event=None, core=None):
+                 slot_ntime=6, fast=False, shutdown_event=None, core=None):
         self.log     = log
         self.sock    = sock
         self.oring   = oring
         self.nbl     = nbl
-        self.ntime_gulp   = ntime_gulp
-        self.slot_ntime   = slot_ntime
+        self.ntime_gulp = ntime_gulp
+        self.slot_ntime = slot_ntime
+        self.fast    = fast
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
@@ -63,7 +64,7 @@ class CaptureOp(object):
                'chan0':    chan0,
                'cfreq':    chan0*CHAN_BW,
                'nchan':    nchan,
-               'bw':       nchan*CHAN_BW,
+               'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
                'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
                'npol':     2,
@@ -96,17 +97,18 @@ class CaptureOp(object):
 
 class ReaderOp(object):
     def __init__(self, log, filename, oring, nbl, ntime_gulp=1,
-                 slot_ntime=6, shutdown_event=None, core=None):
+                 slot_ntime=6, fast=False, shutdown_event=None, core=None):
         self.log      = log
         self.filename = filename
         self.oring    = oring
         self.nbl      = nbl
-        self.ntime_gulp   = ntime_gulp
-        self.slot_ntime   = slot_ntime
+        self.ntime_gulp = ntime_gulp
+        self.slot_ntime = slot_ntime
+        self.fast     = fast
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
-        self.core    = core
+        self.core     = core
         
     def shutdown(self):
         self.shutdown_event.set()
@@ -119,7 +121,7 @@ class ReaderOp(object):
                'chan0':    chan0,
                'cfreq':    chan0*CHAN_BW,
                'nchan':    nchan,
-               'bw':       nchan*CHAN_BW,
+               'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
                'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
                'npol':     2,
@@ -140,25 +142,37 @@ class ReaderOp(object):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
         
+        navg  = 2400 if self.fast else 240000
+        tint  = navg / CHAN_BW
+        tgulp = tint * self.ntime_gulp
+        
         with open(self.filename, 'rb') as fh:
-            with DiskReader("cor_184", fh, self.oring, self.nbl, 0,  
+            with DiskReader("cor_%i" % (184//4 if self.fast else 184), fh, self.oring, self.nbl, 0,  
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
+                prev_time = time.time()
                 while not self.shutdown_event.is_set():
                     status = capture.recv()
                     if status in (1,4,5,6):
                         break
+                        
+                    curr_time = time.time()
+                    while curr_time - prev_time < tgulp:
+                        time.sleep(0.01)
+                        curr_time = time.time()
+                    prev_time = curr_time
 
 
 class DummyOp(object):
     def __init__(self, log, sock, oring, nbl, ntime_gulp=1,
-                 slot_ntime=6, shutdown_event=None, core=None):
+                 slot_ntime=6, fast=False, shutdown_event=None, core=None):
         self.log     = log
         self.sock    = sock
         self.oring   = oring
         self.nbl     = nbl
-        self.ntime_gulp   = ntime_gulp
-        self.slot_ntime   = slot_ntime
+        self.ntime_gulp = ntime_gulp
+        self.slot_ntime = slot_ntime
+        self.fast    = fast
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
@@ -177,21 +191,33 @@ class DummyOp(object):
           
     def main(self):
         with self.oring.begin_writing() as oring:
-            navg  = 240000
+            navg  = 2400 if self.fast else 240000
             tint  = navg / CHAN_BW
             tgulp = tint * self.ntime_gulp
             nsrc  = self.nbl
             nbl   = self.nbl
             chan0 = 1234
-            nchan = 184
+            nchan = 184 // (4 if self.fast else 1)
             npol = 4
+            
+            # Try to load model visibilities
+            try:
+                vis_base = numpy.load('utils/sky.npy')
+            except:
+                self.log.warn("Could not load model visibilities from utils/sky.py, using random data")
+                vis_base = numpy.zeros((nbl, nchan, npol), dtype=numpy.complex64)
+            assert(vis_base.shape[0] >= nbl)
+            assert(vis_base.shape[1] >= nchan)
+            assert(vis_base.shape[2] == npol)
+            
+            vis_base = vis_base[:self.nbl,::(4 if self.fast else 1),:]
             
             ohdr = {'time_tag': int(int(time.time())*FS),
                     'seq0':     0, 
                     'chan0':    chan0,
                     'cfreq':    chan0*CHAN_BW,
                     'nchan':    nchan,
-                    'bw':       nchan*CHAN_BW,
+                    'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                     'navg':     navg,
                     'nstand':   int(numpy.sqrt(8*nsrc+1)-1)/2,
                     'npol':     npol,
@@ -213,11 +239,11 @@ class DummyOp(object):
                         prev_time = curr_time
                         
                         odata = ospan.data_view(numpy.complex64).reshape(oshape)
-                        odata[...] = numpy.random.randn(*oshape)
+                        odata[...] = vis_base + 0.01*numpy.random.randn(*oshape)
                         
                         curr_time = time.time()
                         while curr_time - prev_time < tgulp:
-                            time.sleep(0.1)
+                            time.sleep(0.01)
                             curr_time = time.time()
                             
                     curr_time = time.time()
@@ -229,10 +255,12 @@ class DummyOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, iring, ntime_gulp=1, guarantee=True, core=None):
+    def __init__(self, log, station, iring, ntime_gulp=1, fast=False, guarantee=True, core=None):
         self.log        = log
+        self.station    = station
         self.iring      = iring
         self.ntime_gulp = ntime_gulp
+        self.fast       = fast
         self.guarantee  = guarantee
         self.core       = core
         
@@ -271,7 +299,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size*(10 if self.fast else 1))
             
             first_gulp = True
             was_active = False
@@ -295,7 +323,7 @@ class WriterOp(object):
                     # Write the data
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(ovro, chan0, navg, nchan, chan_bw, npol, pols)
+                        QUEUE.active.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
                 elif was_active:
@@ -339,15 +367,25 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
+    parser.add_argument('-q', '--quick', action='store_true',
+                        help='run in fast visibiltiy mode')
+    parser.add_argument('-i', '--nint-per-file', type=int, default=1,
+                        help='number of integrations to write per measurement set')
     parser.add_argument('-n', '--no-tar', action='store_true',
                         help='do not store the measurement sets inside a tar file')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
     
+    # Process the -q/--quick option
+    station = ovro
+    if args.quick:
+        args.nint_per_file = max([10, args.nint_per_file])
+        station = ovro.select_subset(list(range(1, 48+1)))
+        
     # Fork, if requested
     if args.fork:
-        stderr = '/tmp/%s_%i.stderr' % (os.path.splitext(os.path.basename(__file__))[0], tuning)
+        stderr = '/tmp/%s_%i.stderr' % (os.path.splitext(os.path.basename(__file__))[0], args.port)
         daemonize(stdin='/dev/null', stdout='/dev/null', stderr=stderr)
         
     # Setup logging
@@ -383,22 +421,30 @@ def main(argv):
     capture_ring = Ring(name="capture")
     write_ring   = Ring(name="write")
     
+    # Setup antennas
+    nant = len(station.antennas)
+    nbl = nant*(nant+1)//2
+    
     # Setup the blocks
     ops = []
     if args.offline:
         if args.filename:
-            ops.append(ReaderOp(log, args.filename, capture_ring, 352*353//2,
-                                ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
+            ops.append(ReaderOp(log, args.filename, capture_ring, nbl,
+                                ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
+                                core=cores.pop(0)))
         else:
-            ops.append(DummyOp(log, isock, capture_ring, 352*353//2,
-                               ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
+            ops.append(DummyOp(log, isock, capture_ring, nbl,
+                               ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
+                               core=cores.pop(0)))
     else:
-        ops.append(CaptureOp(log, isock, capture_ring, 352*353//2,
-                             ntime_gulp=args.gulp_size, slot_ntime=6, core=cores.pop(0)))
-    ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+        ops.append(CaptureOp(log, isock, capture_ring, nbl,
+                             ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
+                             core=cores.pop(0)))
+    ops.append(WriterOp(log, station, capture_ring,
+                        ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, args, QUEUE))
     ops.append(VisibilityCommandProcessor(log, args.record_directory, QUEUE,
+                                          nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
     
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')

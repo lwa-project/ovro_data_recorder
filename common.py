@@ -78,6 +78,15 @@ class LWATime(AstroTime):
         casa_time = '%i-%i-%i-%i:%i:%f' % (dt.year, dt.month, dt.day,
                                            dt.hour, dt.minute, dt.second+frac)
         return 'UTC', casa_time
+        
+    @property
+    def measurementset(self):
+        """
+        Returns a time value of MJD seconds that is compatible with how time is
+        stored in a measurement set.
+        """
+        
+        return self.utc.mjd*86400.0
 
 
 def chan_to_freq(chan):
