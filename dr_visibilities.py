@@ -332,7 +332,7 @@ class StatisticsOp(object):
                 
                 ## Pull out the auto-correlations
                 adata = idata[0,autos,:,:].real
-                adata = adata[:,:,[0,1],[0,1]]
+                adata = adata[:,:,[0,1]]
                 
                 self.data_min = numpy.min(adata, axis=1)
                 self.data_max = numpy.max(adata, axis=1)

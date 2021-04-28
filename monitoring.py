@@ -215,7 +215,13 @@ class StatisticsLogger(object):
             for i,p in enumerate(pols):
                 self.log.debug("  %s", p)
                 try:
+                    if type(min[i]) is not float:
+                        raise TypeError
                     self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
+                except TypeError:
+                    for j in range(5):
+                        self.log.debug("    %i", j)
+                        self.log.debug("      min/avg/max: %.3f %.3f %.3f", min[j,i], avg[j,i], max[j,i])
                 except IndexError:
                     self.log.debug("    min/avg/max: --- --- ---")
                     
