@@ -1,5 +1,11 @@
 #!/usr/env python
 
+from __future__ import division, print_function
+try:
+    range = xrange
+except NameError:
+    pass
+
 import os
 import sys
 import h5py
@@ -56,8 +62,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
-        #print "++++++++++++++++ seq0     =", seq0
-        #print "                 time_tag =", time_tag
+        #print("++++++++++++++++ seq0     =", seq0)
+        #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -112,8 +118,8 @@ class ReaderOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
-        #print "++++++++++++++++ seq0     =", seq0
-        #print "                 time_tag =", time_tag
+        #print("++++++++++++++++ seq0     =", seq0)
+        #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -228,6 +234,113 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
+class PlotterOp(object):
+    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        # Setup the figure
+        ## Import
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
+        from matplotlib.ticker import MultipleLocator
+        
+        ## Create
+        fig = plt.Figure(figsize=(6,6))
+        ax = fig.gca()
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
+            
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbeam    = ihdr['nbeam']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            pols     = ihdr['pols']
+            
+            igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+            ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            
+            frange = (numpy.arange(nchan) + chan0) * CHAN_BW
+            last_save = 0.0
+            
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    ## Average and dB
+                    sdata = idata.mean(axis=0)
+                    sdata = numpy.log10(sdata)*10
+                    
+                    ## Create a diagnostic plot after suming the flags across polarization
+                    ts = time_tag / int(fS)
+                    ts = datetime.datetime.utcfromtimestamp(ts)
+                    ts = ts.strftime('%y%m%d %H:%M:%S')
+                    
+                    ax.cla()
+                    ax.plot(frange/1e6, sdata[0,:,0], color='#1F77B4')
+                    ax.plot(frange/1e6, sdata[0,:,1], color='#FF7F0E')
+                    ax.set_xlim((frange[0]/1e6,frange[-1]/1e6))
+                    ax.set_xlabel('Frequency [MHz]')
+                    ax.set_ylabel('Power [arb. dB]')
+                    ax.xaxis.set_major_locator(MultipleLocator(base=2.0))
+                    fig.tight_layout()
+                    
+                    ## Save the plot
+                    tt = LWATime(time_tag, format='timetag')
+                    mjd, dt = tt.mjd, tt.datetime
+                    mjd = int(mjd)
+                    h, m, s = dt.hour, dt.minute, dt.second
+                    filename = '%i_%02i%02i%02i.png' % (mjd, h, m, s)
+                    canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
+                    canvas.print_figure(filename)
+                    
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+
+
 class StatisticsOp(object):
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
@@ -296,7 +409,7 @@ class StatisticsOp(object):
                 self.data_max = numpy.max(idata, axis=0)
                 self.data_avg = numpy.mean(idata, axis=0)
                 
-                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -386,7 +499,7 @@ class WriterOp(object):
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -410,7 +523,7 @@ def main(argv):
                         help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='beam to receive data for')
-    parser.add_argument('-c', '--cores', type=str, default='0,1',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1000,
                         help='gulp size for ring buffers')
@@ -472,6 +585,8 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+    ops.append(PlotterOp(log, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
