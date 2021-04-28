@@ -163,17 +163,17 @@ class StorageLogger(object):
             self.client.write_monitor_point('storage/active_directory',
                                             self.directory, timestamp=ts)
             self.client.write_monitor_point('storage/active_directory_size',
-                                            total_size, timestamp=ts, unit='B'
+                                            total_size, timestamp=ts, unit='B')
             self.client.write_monitor_point('storage/active_directory_count',
                                             len(self._files), timestamp=ts)
             
             # Log the last 100 files
             subfiles = self._files[-100:]
             nsubfile = len(subfiles)
-            for i,subfile in len(subfiles):
-                self.client.write_monitor_point('storage/files/name_%i' % i
+            for i,subfile in enumerate(subfiles):
+                self.client.write_monitor_point('storage/files/name_%i' % i,
                                                 subfile, timestamp=ts)
-                self.client.write_monitor_point('storage/files/size_%i' % i
+                self.client.write_monitor_point('storage/files/size_%i' % i,
                                                 os.path.getsize(subfile), timestamp=ts, unit='B')
             for i in range(nsubfile, 100):
                 self.client.remove_monitor_point('storage/files/name_%i' % i)
@@ -246,21 +246,21 @@ class StatusLogger(object):
             #   * ???
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is None:
-                missing = mcs.MonitorPoint(0.0)
+                missing = MonitorPoint(0.0)
             processing = self.client.read_monitor_point('bifrost/max_process')
             total = self.client.read_monitor_point('storage/active_disk_size')
             free = self.client.read_monitor_point('storage/active_disk_free')
-            free = 1.0*free / total
+            dfree = 1.0*free.value / total.value
             ts = min([v.timestamp for v in (missing, processing, total, free)])
-            if free < 0.99 and missing < 0.01:
+            if dfree < 0.99 and missing.value < 0.01:
                 self.client.write_monitor_point('summary', 'normal', timestamp=ts)
                 self.client.write_monitor_point('info', 'A-OK', timestamp=ts)
-            elif free > 0.99 and missing < 0.01:
+            elif dfree > 0.99 and missing.value < 0.01:
                 self.client.write_monitor_point('summary', 'warning', timestamp=ts)
-                self.client.write_monitor_point('info', "no space (%.1f%% used)" % (free*100.0,), timestamp=ts)
-            elif free < 0.99 and missing > 0.01:
+                self.client.write_monitor_point('info', "no space (%.1f%% used)" % (dfree*100.0,), timestamp=ts)
+            elif dfree < 0.99 and missing.value > 0.01:
                 self.client.write_monitor_point('summary', 'warning', timestamp=ts)
-                self.client.write_monitor_point('info', "missing packets (%.1f%% missing)" % (missing*100.0,), timestamp=ts)
+                self.client.write_monitor_point('info', "missing packets (%.1f%% missing)" % (missing.value*100.0,), timestamp=ts)
             else:
                 self.client.write_monitor_point('summary', 'error', timestamp=ts)
                 self.client.write_monitor_point('info', "it's bad", timestamp=ts)

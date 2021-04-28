@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from common import LWATime
 from reductions import *
 from filewriter import HDF5Writer, MeasurementSetWriter
-from mcs import MonitorPoint, Client
+from mcs import MonitorPoint, CommandCallbackBase, Client
 
 __all__ = ['BeamCommandProcessor', 'VisibilityCommandProcessor']
 
@@ -36,7 +36,17 @@ class CommandBase(object):
                   processor.filewriter_base, processor.filewriter_kwds)
         name = kls.command_name.replace('HDF5', '').replace('MS', '')
         setattr(processor, name.lower(), kls)
-        processor.client.set_command_callback(name.lower, kls)
+        callback = CommandCallbackBase(processor.client.client)
+        def wrapper(**kwargs):
+            output = kls(**kwargs)
+            try:
+                if len(output) < 2:
+                    output += ({},)
+            except TypeError:
+                output = (output, {})
+            return output
+        callback.action = wrapper
+        processor.client.set_command_callback(name.lower(), callback)
         return kls
         
     @property
@@ -139,7 +149,7 @@ class HDF5Record(CommandBase):
     
     def action(self, sequence_id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
             start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
@@ -186,7 +196,7 @@ class MSRecord(CommandBase):
     
     def action(self, sequence_id, start_mjd, start_mpm, duration_ms):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
             start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration

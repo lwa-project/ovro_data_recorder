@@ -597,14 +597,6 @@ def main(argv):
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, block=ops[2]))
     ops.append(BeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    c = Client()
-    r = c.send_command(mcs_id, 'record',
-                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
-    print('III', r)
-    
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
     
@@ -619,6 +611,15 @@ def main(argv):
     for thread in threads:
         #thread.daemon = True
         thread.start()
+        
+    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
+    mjd_now = int(t_now.mjd)
+    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
+    c = Client()
+    r = c.send_command(mcs_id, 'record',
+                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+    print('III', r)
+    
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")
