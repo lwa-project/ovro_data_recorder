@@ -26,6 +26,7 @@ from filewriter import HDF5Writer
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import BeamCommandProcessor
+from mcs import Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -599,16 +600,11 @@ def main(argv):
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    ops[-1].record(json.dumps({'id': 234343423,
-                               'start_mjd': mjd_now,
-                               'start_mpm': mpm_now,
-                               'duration_ms': 30*1000}))
+    c = Client()
+    r = c.send_command(mcs_id, 'record',
+                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+    print('III', r)
     
-    try:
-        os.unlink(QUEUE[0].filename)
-    except OSError:
-        pass
-        
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
     
