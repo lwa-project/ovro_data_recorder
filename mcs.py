@@ -187,9 +187,9 @@ class ImageMonitorPoint(MonitorPoint):
     @staticmethod
     def _decode_image_data(image_data):
         try:
-            image_data = self.value.encode()
+            image_data = image_data.encode()
         except AttributeError:
-            image_data = self.value
+            pass
         image_data = base64.urlsafe_b64decode(image_data)
         return image_data
         
@@ -206,7 +206,7 @@ class ImageMonitorPoint(MonitorPoint):
         image_data = image.read()
         image.close()
         
-        image_data = self._encode_image_data(image_data)
+        image_data = cls._encode_image_data(image_data)
         
         return cls(image_data, mime='image/png')
         
@@ -222,7 +222,7 @@ class ImageMonitorPoint(MonitorPoint):
         image_data = image.read()
         image.close()
         
-        image_data = self._encode_image_data(image_data)
+        image_data = cls._encode_image_data(image_data)
         
         return cls(image_data, mime='image/png')
         
@@ -249,7 +249,7 @@ class ImageMonitorPoint(MonitorPoint):
             with open(name_or_handle, 'rb') as fh:
                 image_data = fh.read()
                 
-        image_data = self._encode_image_data(image_data)
+        image_data = cls._encode_image_data(image_data)
         
         mime = 'image/png'
         if ext in ('.jpg', '.jpeg'):
@@ -263,7 +263,7 @@ class ImageMonitorPoint(MonitorPoint):
         to matplotlib.pyplot.imread.
         """
         
-        image_data = self._decode_image_data(image_data)
+        image_data = self._decode_image_data(self.value)
         
         image = BytesIO()
         image.write(image_data)
@@ -279,7 +279,7 @@ class ImageMonitorPoint(MonitorPoint):
         file handle.
         """
         
-        image_data = self._decode_image_data(image_data)
+        image_data = self._decode_image_data(self.value)
         
         try:
             name_or_handle.write(image_data)
