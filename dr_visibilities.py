@@ -444,7 +444,7 @@ def main(argv):
     global QUEUE
     
     parser = argparse.ArgumentParser(
-                 description="Data recorder for power beams"
+                 description="Data recorder for slow/fast visibility data"
                  )
     parser.add_argument('-a', '--address', type=str, default='127.0.0.1',
                         help='IP address to listen to')
