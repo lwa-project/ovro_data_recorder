@@ -42,6 +42,12 @@ from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
 
 
+import PIL.Image, PIL.ImageDraw, PIL.ImageFont
+
+
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+
+
 QUEUE = OperationsQueue()
 
 
@@ -261,13 +267,171 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
-class StatisticsOp(object):
-    def __init__(self, log, iring, ntime_gulp=1, guarantee=True, core=None):
+class SpectraOp(object):
+    def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=-1):
         self.log        = log
         self.iring      = iring
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
+        
+        self.client = Client(id)
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
+        
+    def _plot_spectra(self, time_tag, freq, specs):
+        # Plotting setup
+        nchan = freq.size
+        nstand = specs.shape[0]
+        try:
+            minval = numpy.min(specs[numpy.where(numpy.isfinite(specs))])
+            maxval = numpy.max(specs[numpy.where(numpy.isfinite(specs))])
+        except ValueError:
+            minval = 0.0
+            maxval = 1.0
+            
+        # Image setup
+        width = 20
+        height = 18
+        im = PIL.Image.new('RGB', (width * 65 + 1, height * 65 + 21), '#FFFFFF')
+        draw = PIL.ImageDraw.Draw(im)
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        
+        # Axes boxes
+        for i in xrange(width + 1):
+            draw.line([i * 65, 0, i * 65, height * 65], fill = '#000000')
+        for i in xrange(height + 1):
+            draw.line([(0, i * 65), (im.size[0], i * 65)], fill = '#000000')
+            
+        # Power as a function of frequency for all antennas
+        x = numpy.arange(nchan) * 64 // nchan
+        for s in xrange(nstand):
+            if s >= height * width:
+                break
+            x0, y0 = (s % width) * 65 + 1, (s // width + 1) * 65
+            draw.text((x0 + 5, y0 - 60), str(s+1), font=font, fill='#000000')
+            
+            ## XX
+            c = '#1F77B4'
+            y = ((54.0 / (maxval - minval)) * (specs[s,:,0] - minval)).clip(0, 54)
+            draw.line(zip(x0 + x, y0 - y), fill=c)
+            
+            ## YY
+            c = '#FF7F0E'
+            y = ((54.0 / (maxval - minval)) * (specs[s,:,1] - minval)).clip(0, 54)
+            draw.line(zip(x0 + x, y0 - y), fill=c)
+            
+        # Summary
+        ySummary = height * 65 + 2
+        timeStr = datetime.utcfromtimestamp(time_tag / fS)
+        timeStr = timeStr.strftime("%Y/%m/%d %H:%M:%S UTC")
+        draw.text((5, ySummary), timeStr, font = font, fill = '#000000')
+        rangeStr = 'range shown: %.3f to %.3f dB' % (minval, maxval)
+        draw.text((210, ySummary), rangeStr, font = font, fill = '#000000')
+        x = im.size[0] + 15
+        for label, c in reversed(zip(('good XX','good YY','flagged XX','flagged YY'),
+                                     ('#1F77B4','#FF7F0E','#799CB4',   '#FFC28C'))):
+            x -= draw.textsize(label, font = font)[0] + 20
+            draw.text((x, ySummary), label, font = font, fill = c)
+            
+        return im
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Spectra: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbl      = ihdr['nbl']
+            nstand   = ihdr['nstand']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8   # complex64
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
+            self.iring.resize(igulp_size, igulp_size*10)
+            
+            # Setup the arrays for the frequencies and auto-correlations
+            freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
+            autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
+            last_save = 0.0
+            
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Pull out the auto-correlations
+                    adata = idata[0,autos,:,:,:].real
+                    adata = adata[:,:,[0,1],[0,1]]
+                    
+                    ## Plot
+                    im = self._plot_spectra(time_tag, freq, 10*numpy.log10(adata))
+                    
+                    ## Save
+                    mp = MonitorPointImage.from_image(im)
+                    self.client.write_monitor_point('diagnostics/spectra',
+                                                    mp, timestamp=ts)
+                    
+                    if True:
+                        ## Save again, this time to disk
+                        mjd, dt = tt.mjd, tt.datetime
+                        mjd = int(mjd)
+                        h, m, s = dt.hour, dt.minute, dt.second
+                        filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
+                        mp.to_file(filename)
+                        
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': 0.0, 
+                                          'process_time': process_time,})
+                
+        self.log.info("SpectraOp - Done")
+
+
+class StatisticsOp(object):
+    def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -278,20 +442,6 @@ class StatisticsOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
-        self.data_pols = []
-        self.data_min = []
-        self.data_max = []
-        self.data_avg = []
-        
-    def get_snapshot(self, ant=None):
-        if ant is None:
-            return self.data_pols, self.data_min, self.data_max, self.data_avg
-        else:
-            try:
-                return self.data_pols, self.data_min[ant], self.data_max[ant], self.data_avg[ant]
-            except IndexError:
-                return None, None, None, None
-                
     def main(self):
         if self.core is not None:
             cpu_affinity.set_core(self.core)
@@ -305,6 +455,7 @@ class StatisticsOp(object):
             
             self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
             
+            # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbl      = ihdr['nbl']
@@ -314,11 +465,12 @@ class StatisticsOp(object):
             chan_bw  = ihdr['bw'] / nchan
             npol     = ihdr['npol']
             
-            autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
-            self.data_pols = ['XX', 'YY']
-            
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
             ishape = (self.ntime_gulp,nbl,nchan,npol)
+            
+            autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
+            data_pols = ['XX', 'YY']
+            last_save = 0.0
             
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
@@ -329,17 +481,35 @@ class StatisticsOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                ## Setup and load
                 idata = ispan.data_view(numpy.complex64).reshape(ishape)
                 
-                ## Pull out the auto-correlations
-                adata = idata[0,autos,:,:].real
-                adata = adata[:,:,[0,1]]
-                
-                self.data_min = numpy.min(adata, axis=1)
-                self.data_max = numpy.max(adata, axis=1)
-                self.data_avg = numpy.mean(adata, axis=1)
-                
-                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_data, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Pull out the auto-correlations
+                    adata = idata[0,autos,:,:].real
+                    adata = adata[:,:,[0,1]]
+                    
+                    ## Run the statistics over all times/channels
+                    ##  * only really works for ntime_gulp=1
+                    data_min = numpy.min(adata, axis=1)
+                    data_max = numpy.max(adata, axis=1)
+                    data_avg = numpy.mean(adata, axis=1)
+                    
+                    ## Save
+                    self.client.write_monitor_point('statistics/%s/min' % p,
+                                                    data_min[:,i].tolist(), timestamp=ts)
+                    self.client.write_monitor_point('statistics/%s/avg' % p,
+                                                    data_avg[:,i].tolist(), timestamp=ts)
+                    self.client.write_monitor_point('statistics/%s/max' % p,
+                                                    data_max[:,i].tolist(), timestamp=ts)
+                    
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -347,6 +517,8 @@ class StatisticsOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+        self.log.info("StatisticsOp - Done")
 
 
 class WriterOp(object):
@@ -383,6 +555,7 @@ class WriterOp(object):
             
             self.log.info("Writer: Start of new sequence: %s", str(ihdr))
             
+            # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbl      = ihdr['nbl']
@@ -407,26 +580,31 @@ class WriterOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                ## On our first span, update the pipeline lag for the queue
+                ## so that we start recording at the right times
                 if first_gulp:
                     QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
                     self.log.info("Current pipeline lag is %s", QUEUE.lag)
                     first_gulp = False
                     
+                ## Setup and load
                 idata = ispan.data_view(numpy.complex64).reshape(ishape)
                
+                ## Determine what to do
                 if QUEUE.active is not None:
-                    # Write the data
+                    ### Recording active - write
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
                         QUEUE.active.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
                 elif was_active:
-                    # Clean the queue
+                    ### Recording just finished
+                    #### Clean
                     was_active = False
                     QUEUE.clean()
                     
-                    # Close it out
+                    #### Close
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
@@ -438,6 +616,8 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+        self.log.info("WriterOp - Done")
 
 
 def main(argv):
@@ -454,7 +634,7 @@ def main(argv):
                         help='run in offline using the specified file to read from')
     parser.add_argument('--filename', type=str,
                         help='filename containing packets to read from in offline mode')
-    parser.add_argument('-c', '--cores', type=str, default='0,1,2',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1,
                         help='gulp size for ring buffers')
@@ -543,11 +723,14 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, nbl,
                              ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
                              core=cores.pop(0)))
-    ops.append(StatisticsOp(log, capture_ring,
+    if not args.quick:
+        ops.append(SpectraOp(log, mcs_id, capture_ring,
+                             ntime_gulp=args.gulp_size, core=cores.pop(0)))))
+    ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, mcs_id, args, QUEUE, block=ops[1]))
+    ops.append(GlobalLogger(log, mcs_id, args, QUEUE))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
