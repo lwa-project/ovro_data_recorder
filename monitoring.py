@@ -280,66 +280,9 @@ class StatusLogger(object):
                 break
             time.sleep(10)
 
-
-class StatisticsLogger(object):
-    def __init__(self, log, id, block, shutdown_event=None):
-        self.log = log
-        self.id = id
-        self.block = block
-        if shutdown_event is None:
-            shutdown_event = threading.Event()
-        self.shutdown_event = shutdown_event
-        
-        self.client = Client(id)
-        
-    def _update(self):
-        pass
-        
-    def main(self, once=False):
-        while not self.shutdown_event.is_set():
-            # Poll
-            # NOTE:  This isn't really thread safe but does it matter?
-            ts = time.time()
-            pols, min, max, avg = self.block.get_snapshot()
-            
-            # Report
-            self.log.debug("=== Statistics Report ===")
-            for i,p in enumerate(pols):
-                self.log.debug("  %s", p)
-                try:
-                    self.client.write_monitor_point('statistics/%s/min' % p,
-                                                    min[:,i].tolist(), timestamp='s')
-                    self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                    avg[:,i].tolist(), timestamp='s')
-                    self.client.write_monitor_point('statistics/%s/max' % p,
-                                                    max[:,i].tolist(), timestamp='s')
-                except IndexError:
-                    self.client.write_monitor_point('statistics/%s/min' % p,
-                                                    float(min[i]), timestamp='s')
-                    self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                    float(avg[i]), timestamp='s')
-                    self.client.write_monitor_point('statistics/%s/max' % p,
-                                                    float(max[i]), timestamp='s')
-                    
-                try:
-                    if type(min[i]) not in (float, numpy.float32, numpy.float64):
-                        raise TypeError
-                    self.log.debug("    min/avg/max: %.3f %.3f %.3f", min[i], avg[i], max[i])
-                except TypeError:
-                    for j in range(5):
-                        self.log.debug("    %i", j)
-                        self.log.debug("      min/avg/max: %.3f %.3f %.3f", min[j,i], avg[j,i], max[j,i])
-                except IndexError:
-                    self.log.debug("    min/avg/max: --- --- ---")
-                    
-            # Sleep
-            if once:
-                break
-            time.sleep(10)
-
     
 class GlobalLogger(object):
-    def __init__(self, log, id, args, queue, block=None, shutdown_event=None):
+    def __init__(self, log, id, args, queue, shutdown_event=None):
         self.log = log
         self.args = args
         self.queue = queue
@@ -352,9 +295,7 @@ class GlobalLogger(object):
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event)
         self.storage = StorageLogger(log, id, args.record_directory, shutdown_event=shutdown_event)
         self.status = StatusLogger(log, id, queue, shutdown_event=shutdown_event)
-        if self.block is not None:
-            self.stats = StatisticsLogger(log, id, self.block)
-            
+        
     @property
     def shutdown_event(self):
         return self._shutdown_event
@@ -385,11 +326,6 @@ class GlobalLogger(object):
             if t_now - t_status > 10.0:
                 self.status.main(once=True)
                 t_status = t_now
-            if t_now - t_stats > 10.0:
-                mthd = getattr(self, 'stats', None)
-                if mthd != None:
-                    mthd.main(once=True)
-                t_stats = t_now
                 
             # Sleep
             time.sleep(10)

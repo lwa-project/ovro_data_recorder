@@ -235,7 +235,7 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
-class PlotterOp(object):
+class SpectraOp(object):
     def __init__(self, log, id, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
@@ -278,6 +278,7 @@ class PlotterOp(object):
             
             self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
             
+            # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbeam    = ihdr['nbeam']
@@ -302,40 +303,41 @@ class PlotterOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
                 if time.time() - last_save > 60:
-                    ## Average and dB
-                    sdata = idata.mean(axis=0)
-                    sdata = numpy.log10(sdata)*10
-                    
-                    ## Create a diagnostic plot after suming the flags across polarization
+                    ## Timestamp
                     tt = LWATime(time_tag, format='timetag')
                     ts = tt.datetime.strftime('%y%m%d %H:%M:%S')
                     
+                    ## Average over time
+                    sdata = idata.mean(axis=0)
+                    
+                    ## Create a diagnostic plot after suming the flags across polarization
                     ax.cla()
-                    ax.plot(frange/1e6, sdata[0,:,0], color='#1F77B4')
-                    ax.plot(frange/1e6, sdata[0,:,1], color='#FF7F0E')
+                    ax.plot(frange/1e6, numpy.log10(sdata[0,:,0])*10, color='#1F77B4')
+                    ax.plot(frange/1e6, numpy.log10(sdata[0,:,1])*10, color='#FF7F0E')
                     ax.set_xlim((frange[0]/1e6,frange[-1]/1e6))
                     ax.set_xlabel('Frequency [MHz]')
                     ax.set_ylabel('Power [arb. dB]')
                     ax.xaxis.set_major_locator(MultipleLocator(base=10.0))
                     fig.tight_layout()
                     
-                    ## Save the plot
+                    ## Save
                     tt = LWATime(time_tag, format='timetag')
                     mp = MonitorPointImage.from_figure(fig)
-                    self.client.write_monitor_point('statistics/spectra',
+                    self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=tt.unix)
                     
-                    mjd, dt = tt.mjd, tt.datetime
-                    mjd = int(mjd)
-                    h, m, s = dt.hour, dt.minute, dt.second
-                    filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
-                    mp = self.client.read_monitor_point('statistics/spectra')
-                    mp = MonitorPointImage.from_monitorpoint(mp)
-                    mp.to_file(filename)
-                    
+                    if True:
+                        ## Save again, this time to disk
+                        mjd, dt = tt.mjd, tt.datetime
+                        mjd = int(mjd)
+                        h, m, s = dt.hour, dt.minute, dt.second
+                        filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
+                        mp.to_file(filename)
+                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
@@ -346,15 +348,19 @@ class PlotterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+        self.log.info("SpectraOp - Done")
 
 
 class StatisticsOp(object):
-    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+    def __init__(self, log, id, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
+        
+        self.client = Client(id)
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -364,14 +370,6 @@ class StatisticsOp(object):
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
-        
-        self.data_pols = []
-        self.data_min = []
-        self.data_max = []
-        self.data_avg = []
-        
-    def get_snapshot(self):
-        return self.data_pols, self.data_min, self.data_max, self.data_avg
         
     def main(self):
         if self.core is not None:
@@ -386,6 +384,7 @@ class StatisticsOp(object):
             
             self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
             
+            # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbeam    = ihdr['nbeam']
@@ -395,10 +394,11 @@ class StatisticsOp(object):
             npol     = ihdr['npol']
             pols     = ihdr['pols']
             
-            self.data_pols = pols.split(',')
-            
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            
+            data_pols = pols.split(',')
+            last_save = 0.0
             
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
@@ -409,13 +409,32 @@ class StatisticsOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 idata = idata.reshape(-1, npol)
                 
-                self.data_min = numpy.min(idata, axis=0)
-                self.data_max = numpy.max(idata, axis=0)
-                self.data_avg = numpy.mean(idata, axis=0)
-                
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_data, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Run the statistics over all times/channels
+                    ##  * only really works for nbeam=1
+                    data_min = numpy.min(idata, axis=0)
+                    data_max = numpy.max(idata, axis=0)
+                    data_avg = numpy.mean(idata, axis=0)
+                    
+                    ## Save
+                    for i,p in enumerate(data_pols):
+                        self.client.write_monitor_point('statistics/%s/min' % p,
+                                                        float(data_min[i]), timestamp=ts)
+                        self.client.write_monitor_point('statistics/%s/avg' % p,
+                                                        float(data_avg[i]), timestamp=ts)
+                        self.client.write_monitor_point('statistics/%s/max' % p,
+                                                        float(data_max[i]), timestamp=ts)
+                        
+                    last_save = time.time()
+                    
                 time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
                 
                 curr_time = time.time()
@@ -424,6 +443,8 @@ class StatisticsOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+        self.log.info("StatisticsOp - Done")
 
 
 class WriterOp(object):
@@ -458,6 +479,7 @@ class WriterOp(object):
             
             self.log.info("Writer: Start of new sequence: %s", str(ihdr))
             
+            # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbeam    = ihdr['nbeam']
@@ -483,26 +505,31 @@ class WriterOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                ## On our first span, update the pipeline lag for the queue
+                ## so that we start recording at the right times
                 if first_gulp:
                     QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
                     self.log.info("Current pipeline lag is %s", QUEUE.lag)
                     first_gulp = False
                     
+                ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
+                ## Determine what to do
                 if QUEUE.active is not None:
-                    # Write the data
+                    ### Recording active - write
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
                         QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
                 elif was_active:
-                    # Clean the queue
+                    ### Recording just finished - clean
+                    #### Clean
                     was_active = False
                     QUEUE.clean()
                     
-                    # Close it out
+                    #### Close
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
@@ -514,6 +541,8 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+        self.log.info("WriterOp - Done")
 
 
 def main(argv):
@@ -595,13 +624,13 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
-    ops.append(PlotterOp(log, mcs_id, capture_ring,
+    ops.append(SpectraOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(StatisticsOp(log, capture_ring,
+    ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, mcs_id, args, QUEUE, block=ops[2]))
+    ops.append(GlobalLogger(log, mcs_id, args, QUEUE))
     ops.append(BeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     # Setup the threads
