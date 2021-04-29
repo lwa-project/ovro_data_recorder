@@ -4,6 +4,11 @@ import json
 import time
 import uuid
 import etcd3
+import base64
+try:
+    from io import BytesIO
+except ImportError:
+    from StringIO import StringIO as BytesIO
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
