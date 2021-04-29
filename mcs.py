@@ -113,6 +113,24 @@ class MonitorPointImage(MonitorPoint):
     
     _required = ('timestamp', 'value', 'mime', 'unit')
     
+    @staticmethod
+    def _encode_image_data(image_data):
+        image_data = base64.urlsafe_b64encode(image_data)
+        try:
+            image_data = image_data.decode()
+        except AttributeError:
+            pass
+        return image_data
+        
+    @staticmethod
+    def _decode_image_data(image_data):
+        try:
+            image_data = self.value.encode()
+        except AttributeError:
+            image_data = self.value
+        image_data = base64.urlsafe_b64decode(image_data)
+        return image_data
+        
     @classmethod
     def from_monitorpoint(cls, value):
         """
@@ -124,7 +142,7 @@ class MonitorPointImage(MonitorPoint):
     @classmethod
     def from_figure(cls, fig):
         """
-        Return a new MonitorPointImage instance based on matplotlib Figure.
+        Return a new MonitorPointImage instance based on a matplotlib Figure.
         """
         
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
@@ -134,12 +152,24 @@ class MonitorPointImage(MonitorPoint):
         image_data = image.read()
         image.close()
         
-        image_data = base64.urlsafe_b64encode(image_data)
-        try:
-            image_data = image_data.decode()
-        except AttributeError:
-            pass
-            
+        image_data = self._encode_image_data(image_data)
+        
+        return cls(image_data, mime='image/png')
+        
+    @classmethod
+    def from_image(cls, im):
+        """
+        Return a new MonitorPointImage instance based on a PIL.Image.
+        """
+        
+        image = BytesIO()
+        im.save(image, 'PNG')
+        image.seek(0)
+        image_data = image.read()
+        image.close()
+        
+        image_data = self._encode_image_data(image_data)
+        
         return cls(image_data, mime='image/png')
         
     @classmethod
@@ -154,20 +184,19 @@ class MonitorPointImage(MonitorPoint):
             ext = os.path.getext(name_or_handle.name)[1]
             if ext not in ('.png', '.jpg', '.jpeg'):
                 raise RuntimeError("Provided file does not seem to be a support image format")
+                
             image_data = name_or_handle.read()
         except AttributeError:
             ts = os.path.getmtime(name_or_handle)
             ext = os.path.getext(name_or_handle)[1]
             if ext not in ('.png', '.jpg', '.jpeg'):
                 raise RuntimeError("Provided file does not seem to be a support image format")
+                
             with open(name_or_handle, 'rb') as fh:
                 image_data = fh.read()
                 
-        image_data = base64.urlsafe_b64encode(image_data)
-        try:
-            image_data = image_data.decode()
-        except AttributeError:
-            pass
+        image_data = self._encode_image_data(image_data)
+        
         mime = 'image/png'
         if ext in ('.jpg', '.jpeg'):
             mime = 'image/jpeg'
@@ -180,11 +209,8 @@ class MonitorPointImage(MonitorPoint):
         to matplotlib.pyplot.imread.
         """
         
-        try:
-            image_data = self.value.encode()
-        except AttributeError:
-            image_data = self.value
-        image_data = base64.urlsafe_b64decode(image_data)
+        image_data = self._decode_image_data(image_data)
+        
         image = BytesIO()
         image.write(image_data)
         image.seek(0)
@@ -199,11 +225,8 @@ class MonitorPointImage(MonitorPoint):
         file handle.
         """
         
-        try:
-            image_data = self.value.encode()
-        except AttributeError:
-            image_data = self.value
-        image_data = base64.urlsafe_b64decode(image_data)
+        image_data = self._decode_image_data(image_data)
+        
         try:
             name_or_handle.write(image_data)
         except AttributeError:
