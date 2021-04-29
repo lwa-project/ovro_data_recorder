@@ -26,7 +26,7 @@ from filewriter import HDF5Writer
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import BeamCommandProcessor
-from mcs import Client
+from mcs import MonitorPointImage, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -236,12 +236,14 @@ class DummyOp(object):
 
 
 class PlotterOp(object):
-    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+    def __init__(self, log, id, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
+        
+        self.client = Client(id)
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -322,12 +324,17 @@ class PlotterOp(object):
                     
                     ## Save the plot
                     tt = LWATime(time_tag, format='timetag')
+                    mp = MonitorPointImage.from_figure(fig)
+                    self.client.write_monitor_point('statistics/spectra',
+                                                    mp, timestamp=tt.unix)
+                    
                     mjd, dt = tt.mjd, tt.datetime
                     mjd = int(mjd)
                     h, m, s = dt.hour, dt.minute, dt.second
                     filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
-                    canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
-                    canvas.print_figure(filename)
+                    mp = self.client.read_monitor_point('statistics/spectra')
+                    mp = MonitorPointImage.from_monitorpoint(mp)
+                    mp.to_file(filename)
                     
                     last_save = time.time()
                     
@@ -588,7 +595,7 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
-    ops.append(PlotterOp(log, capture_ring,
+    ops.append(PlotterOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
