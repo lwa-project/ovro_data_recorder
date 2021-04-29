@@ -151,9 +151,15 @@ class MonitorPointImage(MonitorPoint):
         
         try:
             ts = os.path.getmtime(name_or_handle.name)
+            ext = os.path.getext(name_or_handle.name)[1]
+            if ext not in ('.png', '.jpg', '.jpeg'):
+                raise RuntimeError("Provided file does not seem to be a support image format")
             image_data = name_or_handle.read()
         except AttributeError:
             ts = os.path.getmtime(name_or_handle)
+            ext = os.path.getext(name_or_handle)[1]
+            if ext not in ('.png', '.jpg', '.jpeg'):
+                raise RuntimeError("Provided file does not seem to be a support image format")
             with open(name_or_handle, 'rb') as fh:
                 image_data = fh.read()
                 
@@ -162,8 +168,11 @@ class MonitorPointImage(MonitorPoint):
             image_data = image_data.decode()
         except AttributeError:
             pass
+        mime = 'image/png'
+        if ext in ('.jpg', '.jpeg'):
+            mime = 'image/jpeg'
             
-        return cls(image_data, timestamp=ts, mime='image/png')
+        return cls(image_data, timestamp=ts, mime=mime)
         
     def as_array(self):
         """
