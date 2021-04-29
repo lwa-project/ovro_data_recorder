@@ -12,6 +12,9 @@ except ImportError:
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
+import matplotlib
+matplotlib.use('Agg')
+
 
 __all__ = ['MonitorPoint', 'MonitorPointImage', 'MonitorPointCallbackBase',
            'CommandCallbackBase', 'Client']
