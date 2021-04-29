@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
 
-__all__ = ['MonitorPoint', 'MonitorPointCallbackBase', 'CommandCallbackBase',
-           'Client']
+__all__ = ['MonitorPoint', 'MonitorPointImage', 'MonitorPointCallbackBase',
+           'CommandCallbackBase', 'Client']
 
 
 class MonitorPoint(object):
@@ -21,9 +21,11 @@ class MonitorPoint(object):
      * the units of the monitoring point value or '' if there are none.
     """
     
+    _required = ('timestamp', 'value', 'unit')
+    
     def __init__(self, value, timestamp=None, unit='', **kwargs):
         if isinstance(value, dict):
-            for key in ('timestamp', 'value', 'unit'):
+            for key in self._required:
                 if key not in value:
                     raise KeyError("Missing required key: %s" % key)
         else:
@@ -89,6 +91,107 @@ class MonitorPoint(object):
         
         value = self.as_dict()
         return json.dumps(value)
+
+
+class MonitorPointImage(MonitorPoint):
+    """
+    Object for representing a monitoring point image within the MCS framework.
+    At a minimum this includes:
+     * a UNIX timestamp of when the monitoring point was updated,
+     * the base64-encoded monitoring point image itself,
+     * the MIME-type of the encoded image, and
+     * the units of the monitoring point value or '' if there are none.
+    """
+    
+    _required = ('timestamp', 'value', 'mime', 'unit')
+    
+    @classmethod
+    def from_monitorpoint(cls, value):
+        """
+        Return a new MonitorPointImage instance based on a plain MonitorPoint.
+        """
+        
+        return cls(value.as_dict())
+        
+    @classmethod
+    def from_figure(cls, fig):
+        """
+        Return a new MonitorPointImage instance based on matplotlib Figure.
+        """
+        
+        canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
+        image = BytesIO()
+        canvas.print_png(image)
+        image.seek(0)
+        image_data = image.read()
+        image.close()
+        
+        image_data = base64.urlsafe_b64encode(image_data)
+        try:
+            image_data = image_data.decode()
+        except AttributeError:
+            pass
+            
+        return cls(image_data, mime='image/png')
+        
+    @classmethod
+    def from_file(cls, name_or_handle):
+        """
+        Return a new MonitorPointImage instance based the contents of a filename
+        or open file handle.
+        """
+        
+        try:
+            ts = os.path.getmtime(name_or_handle.name)
+            image_data = name_or_handle.read()
+        except AttributeError:
+            ts = os.path.getmtime(name_or_handle)
+            with open(name_or_handle, 'rb') as fh:
+                image_data = fh.read()
+                
+        image_data = base64.urlsafe_b64encode(image_data)
+        try:
+            image_data = image_data.decode()
+        except AttributeError:
+            pass
+            
+        return cls(image_data, timestamp=ts, mime='image/png')
+        
+    def as_array(self):
+        """
+        Return the data for the monitoring point image as a numpy.array, similar
+        to matplotlib.pyplot.imread.
+        """
+        
+        try:
+            image_data = self.value.encode()
+        except AttributeError:
+            image_data = self.value
+        image_data = base64.urlsafe_b64decode(image_data)
+        image = BytesIO()
+        image.write(image_data)
+        image.seek(0)
+        
+        image_data = plt.imread(image)
+        image.close()
+        return image_data
+        
+    def to_file(self, name_or_handle):
+        """
+        Write the monitoring point image to the specified filename or open
+        file handle.
+        """
+        
+        try:
+            image_data = self.value.encode()
+        except AttributeError:
+            image_data = self.value
+        image_data = base64.urlsafe_b64decode(image_data)
+        try:
+            name_or_handle.write(image_data)
+        except AttributeError:
+            with open(name_or_handle, 'wb') as fh:
+                fh.write(image_data)
 
 
 class MonitorPointCallbackBase(object):
