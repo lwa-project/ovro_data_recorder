@@ -415,7 +415,7 @@ class StatisticsOp(object):
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
-                    tt = LWATime(time_data, format='timetag')
+                    tt = LWATime(time_tag, format='timetag')
                     ts = tt.unix
                     
                     ## Run the statistics over all times/channels

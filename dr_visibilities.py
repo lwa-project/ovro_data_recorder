@@ -304,14 +304,14 @@ class SpectraOp(object):
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
         
         # Axes boxes
-        for i in xrange(width + 1):
+        for i in range(width + 1):
             draw.line([i * 65, 0, i * 65, height * 65], fill = '#000000')
-        for i in xrange(height + 1):
+        for i in range(height + 1):
             draw.line([(0, i * 65), (im.size[0], i * 65)], fill = '#000000')
             
         # Power as a function of frequency for all antennas
         x = numpy.arange(nchan) * 64 // nchan
-        for s in xrange(nstand):
+        for s in range(nstand):
             if s >= height * width:
                 break
             x0, y0 = (s % width) * 65 + 1, (s // width + 1) * 65
@@ -320,12 +320,12 @@ class SpectraOp(object):
             ## XX
             c = '#1F77B4'
             y = ((54.0 / (maxval - minval)) * (specs[s,:,0] - minval)).clip(0, 54)
-            draw.line(zip(x0 + x, y0 - y), fill=c)
+            draw.line(list(zip(x0 + x, y0 - y)), fill=c)
             
             ## YY
             c = '#FF7F0E'
             y = ((54.0 / (maxval - minval)) * (specs[s,:,1] - minval)).clip(0, 54)
-            draw.line(zip(x0 + x, y0 - y), fill=c)
+            draw.line(list(zip(x0 + x, y0 - y)), fill=c)
             
         # Summary
         ySummary = height * 65 + 2
@@ -390,8 +390,8 @@ class SpectraOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata[0,autos,:,:,:].real
-                    adata = adata[:,:,[0,1],[0,1]]
+                    adata = idata[0,autos,:,:].real
+                    adata = adata[:,:,[0,3]]
                     
                     ## Plot
                     im = self._plot_spectra(time_tag, freq, 10*numpy.log10(adata))
@@ -486,12 +486,12 @@ class StatisticsOp(object):
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
-                    tt = LWATime(time_data, format='timetag')
+                    tt = LWATime(time_tag, format='timetag')
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
                     adata = idata[0,autos,:,:].real
-                    adata = adata[:,:,[0,1]]
+                    adata = adata[:,:,[0,3]]
                     
                     ## Run the statistics over all times/channels
                     ##  * only really works for ntime_gulp=1
@@ -500,13 +500,14 @@ class StatisticsOp(object):
                     data_avg = numpy.mean(adata, axis=1)
                     
                     ## Save
-                    self.client.write_monitor_point('statistics/%s/min' % p,
-                                                    data_min[:,i].tolist(), timestamp=ts)
-                    self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                    data_avg[:,i].tolist(), timestamp=ts)
-                    self.client.write_monitor_point('statistics/%s/max' % p,
-                                                    data_max[:,i].tolist(), timestamp=ts)
-                    
+                    for i,p in enumerate(data_pols):
+                        self.client.write_monitor_point('statistics/%s/min' % p,
+                                                        data_min[:,i].tolist(), timestamp=ts)
+                        self.client.write_monitor_point('statistics/%s/avg' % p,
+                                                        data_avg[:,i].tolist(), timestamp=ts)
+                        self.client.write_monitor_point('statistics/%s/max' % p,
+                                                        data_max[:,i].tolist(), timestamp=ts)
+                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
@@ -725,7 +726,7 @@ def main(argv):
                              core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
-                             ntime_gulp=args.gulp_size, core=cores.pop(0)))))
+                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,

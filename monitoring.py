@@ -286,7 +286,6 @@ class GlobalLogger(object):
         self.log = log
         self.args = args
         self.queue = queue
-        self.block = block
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
