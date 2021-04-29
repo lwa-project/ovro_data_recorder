@@ -1,3 +1,9 @@
+from __future__ import division, print_function
+try:
+    range = xrange
+except NameError:
+    pass
+    
 import os
 import sys
 import json
@@ -16,8 +22,8 @@ import matplotlib
 matplotlib.use('Agg')
 
 
-__all__ = ['MonitorPoint', 'MonitorPointImage', 'MonitorPointCallbackBase',
-           'CommandCallbackBase', 'Client']
+__all__ = ['MonitorPoint', 'MultiMonitorPoint', 'ImageMonitorPoint',
+           'MonitorPointCallbackBase', 'CommandCallbackBase', 'Client']
 
 
 class MonitorPoint(object):
@@ -32,6 +38,9 @@ class MonitorPoint(object):
     _required = ('timestamp', 'value', 'unit')
     
     def __init__(self, value, timestamp=None, unit='', **kwargs):
+        if isinstance(value, MonitorPoint):
+            value = value.as_dict()
+            
         if isinstance(value, dict):
             for key in self._required:
                 if key not in value:
@@ -72,6 +81,9 @@ class MonitorPoint(object):
         output = "%s%s at %s" % (str(self.value), self.unit, datetime.utcfromtimestamp(self.timestamp))
         return output
         
+    def __contains__(self, value):
+        return value in self._entries
+        
     @classmethod
     def from_json(cls, json_value):
         """
@@ -101,7 +113,57 @@ class MonitorPoint(object):
         return json.dumps(value)
 
 
-class MonitorPointImage(MonitorPoint):
+class MultiMonitorPoint(MonitorPoint):
+    """
+    Object for representing a multiple monitoring points updated at the same
+    time within the MCS framework.  At a minimum this includes:
+     * a UNIX timestamp of when the monitoring point was updated,
+     * a list of values of the monitoring points themselves,
+     * a list of field names for each monitoring point, and
+     * the units of the monitoring point values or '' if there are none.
+    
+    .. note:: If only a single unit is supplied, it is replicated for all
+              values.
+    """
+    
+    _required = ('timestamp', 'value', 'field', 'unit')
+    
+    def __init__(self, value, timestamp=None, field=None, unit='', **kwargs):
+        MonitorPoint.__init__(self, value, timestamp=timestamp, unit=unit, **kwargs)
+        
+        # The "multi" part
+        try:
+            len(self.value)
+            if isinstance(self.value, (str, bytes)):
+                raise TypeError
+        except TypeError:
+            self.value = [self.value,]
+        if field is None:
+            try:
+                field = self.field
+            except AttributeError:
+                field = ['value%i' % i for i in range(len(self.value))]
+        if isinstance(self.unit, str):
+            self.unit = [self.unit for i in range(len(self.value))]
+        if len(self.value) != len(field):
+            raise RuntimeError("value and field keys must have the same length")
+        if len(self.value) != len(self.unit):
+            raise RuntimeError("value and unit keys must have the same length")
+            
+        if 'field' not in self._entries:
+            self._entries.append('field')
+        self.field = field
+        
+    def as_list(self):
+        """
+        Return the information about the monitoring point as a list of three-
+        element tuples containing (field name, value, unit).
+        """
+        
+        return [e for e in zip(self.field, self.value, self.unit)]
+
+
+class ImageMonitorPoint(MonitorPoint):
     """
     Object for representing a monitoring point image within the MCS framework.
     At a minimum this includes:
@@ -132,17 +194,9 @@ class MonitorPointImage(MonitorPoint):
         return image_data
         
     @classmethod
-    def from_monitorpoint(cls, value):
-        """
-        Return a new MonitorPointImage instance based on a plain MonitorPoint.
-        """
-        
-        return cls(value.as_dict())
-        
-    @classmethod
     def from_figure(cls, fig):
         """
-        Return a new MonitorPointImage instance based on a matplotlib Figure.
+        Return a new ImageMonitorPoint instance based on a matplotlib Figure.
         """
         
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
@@ -159,7 +213,7 @@ class MonitorPointImage(MonitorPoint):
     @classmethod
     def from_image(cls, im):
         """
-        Return a new MonitorPointImage instance based on a PIL.Image.
+        Return a new ImageMonitorPoint instance based on a PIL.Image.
         """
         
         image = BytesIO()
@@ -175,7 +229,7 @@ class MonitorPointImage(MonitorPoint):
     @classmethod
     def from_file(cls, name_or_handle):
         """
-        Return a new MonitorPointImage instance based the contents of a filename
+        Return a new ImageMonitorPoint instance based the contents of a filename
         or open file handle.
         """
         

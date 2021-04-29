@@ -26,7 +26,7 @@ from filewriter import HDF5Writer
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import BeamCommandProcessor
-from mcs import MonitorPointImage, Client
+from mcs import ImageMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -326,7 +326,7 @@ class SpectraOp(object):
                     
                     ## Save
                     tt = LWATime(time_tag, format='timetag')
-                    mp = MonitorPointImage.from_figure(fig)
+                    mp = ImageMonitorPoint.from_figure(fig)
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=tt.unix)
                     

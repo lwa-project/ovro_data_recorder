@@ -27,7 +27,7 @@ from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
-from mcs import Client
+from mcs import ImageMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -397,7 +397,7 @@ class SpectraOp(object):
                     im = self._plot_spectra(time_tag, freq, 10*numpy.log10(adata))
                     
                     ## Save
-                    mp = MonitorPointImage.from_image(im)
+                    mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=ts)
                     
