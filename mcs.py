@@ -20,11 +20,16 @@ from textwrap import fill as tw_fill
 
 import matplotlib
 matplotlib.use('Agg')
-from maplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
 
 __all__ = ['MonitorPoint', 'MultiMonitorPoint', 'ImageMonitorPoint',
            'MonitorPointCallbackBase', 'CommandCallbackBase', 'Client']
+
+
+temp = etcd3.client()
+ETCD_TYPE = type(temp)
+del temp
 
 
 class MonitorPoint(object):
@@ -321,7 +326,7 @@ class CommandCallbackBase(object):
     def __init__(self, client):
         if isinstance(client, Client):
             client = client.client
-        elif isinstance(client, etcd3.client.Ectd3Client):
+        elif isinstance(client, ETCD_TYPE):
             pass
         else:
             raise TypeError("Expected a mcs.Client or etcd3.client.Ectd3Client")
@@ -391,7 +396,7 @@ class Client(object):
         self.timeout = timeout
         
         self.client = etcd3.client()
-        self._manifest = []
+        self._manifest = ['manifest',]
         self._watchers = {}
         
     def __del__(self):
@@ -407,25 +412,32 @@ class Client(object):
         Update the monitoring point manifest as needed.  Returns a Boolean of
         whether or not an update was made.
         """
-        
-        # Is it alread in the local manifest?
-        updated = False
-        value = None
-        if name not in self._manifest:
-            ## Not in the local manifest
-            self._manifest.append(name)
+       
+        with self.client.lock(self.id, ttl=5) as lock:
+            lock.acquire()
             
-            ## Check the published manifest
-            value = self.read_monitor_point('manifest')
-            for entry in self._manifest:
-                if entry not in value.value:
-                    value.value.append(entry)
-                    updated = True
-                    
-        # If there is an update, push it out
-        if updated and value is not None:
-            value = value.as_dict()
-            self.client.put('/mon/%s/manifest' % self.id, value)
+            # Is it alread in the local manifest?
+            updated = False
+            value = None
+            if name not in self._manifest:
+                ## Not in the local manifest
+                self._manifest.append(name)
+                
+                ## Check the published manifest
+                value = self.read_monitor_point('manifest')
+                if value is None:
+                    value = MonitorPoint([])
+                for entry in self._manifest:
+                    if entry not in value.value:
+                        value.value.append(entry)
+                        updated = True
+                        
+            # If there is an update, push it out
+            if updated and value is not None:
+                value.timestamp = time.time()
+                self.write_monitor_point('manifest', value)
+                
+            lock.release()
             
         return updated
         
