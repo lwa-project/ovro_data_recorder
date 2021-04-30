@@ -174,7 +174,7 @@ class HDF5Record(CommandBase):
             return False, "Failed to schedule recording: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True, {}
+        return True, {'filename': filename}
 
 
 class MSRecord(CommandBase):
@@ -207,7 +207,7 @@ class MSRecord(CommandBase):
             return False, "Failed to schedule recording: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True, {}
+        return True, {'filename': filename}
 
 
 class Cancel(CommandBase):
@@ -230,7 +230,7 @@ class Cancel(CommandBase):
             return False, "Failed to cancel recording: %s" % str(e)
             
         self.log_info("Canceled recording for %s to %s to %s", start, stop, filename)
-        return True, {}
+        return True, {'filename': filename}
 
 
 class Delete(CommandBase):
@@ -250,16 +250,17 @@ class Delete(CommandBase):
         try:
             filenames = glob.glob(os.path.join(self.directory, '*'))
             filenames.sort(key=lambda x: os.path.getmtime(x))
-            if os.path.isdir(filenames[file_number]):
-                shutil.rmtree(filenames[file_number])
+            filename = filenames[file_number]
+            if os.path.isdir(filename):
+                shutil.rmtree(filename)
             else:
-                os.unlink(filenames[file_number])
+                os.unlink(filename)
         except (IndexError, OSError) as e:
             self.log_error("Failed to delete file: %s", str(e))
             return False, "Failed to delete file: %s" % str(e)
             
-        self.log_info("Deleted recording %s", filenames[file_number])
-        return True, {}
+        self.log_info("Deleted recording %s", filename)
+        return True, {'filename': filename}
 
 
 class CommandProcessorBase(object):
