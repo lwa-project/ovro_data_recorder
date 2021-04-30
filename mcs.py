@@ -20,6 +20,7 @@ from textwrap import fill as tw_fill
 
 import matplotlib
 matplotlib.use('Agg')
+from maplotlib import pyplot as plt
 
 
 __all__ = ['MonitorPoint', 'MultiMonitorPoint', 'ImageMonitorPoint',
@@ -318,6 +319,12 @@ class CommandCallbackBase(object):
     """
     
     def __init__(self, client):
+        if isinstance(client, Client):
+            client = client.client
+        elif isinstance(client, etcd3.client.Ectd3Client):
+            pass
+        else:
+            raise TypeError("Expected a mcs.Client or etcd3.client.Ectd3Client")
         self.client = client
         
     @staticmethod
@@ -378,12 +385,13 @@ class Client(object):
         
         if id is not None:
             id = str(id)
-        self.id = str(id)
+        self.id = id
         if timeout is None:
             timeout = 1e9
         self.timeout = timeout
         
         self.client = etcd3.client()
+        self._manifest = []
         self._watchers = {}
         
     def __del__(self):
@@ -393,6 +401,33 @@ class Client(object):
             except Exception:
                 pass
         self.client.close()
+        
+    def _update_manifest(self, name):
+        """
+        Update the monitoring point manifest as needed.  Returns a Boolean of
+        whether or not an update was made.
+        """
+        
+        # Is it alread in the local manifest?
+        updated = False
+        value = None
+        if name not in self._manifest:
+            ## Not in the local manifest
+            self._manifest.append(name)
+            
+            ## Check the published manifest
+            value = self.read_monitor_point('manifest')
+            for entry in self._manifest:
+                if entry not in value.value:
+                    value.value.append(entry)
+                    updated = True
+                    
+        # If there is an update, push it out
+        if updated and value is not None:
+            value = value.as_dict()
+            self.client.put('/mon/%s/manifest' % self.id, value)
+            
+        return updated
         
     def remove_monitor_point(self, name):
         """
@@ -434,6 +469,7 @@ class Client(object):
         
         try:
             self.client.put('/mon/%s/%s' % (self.id, name), value)
+            self._update_manifest(name)
             return True
         except Exception:
             return False
