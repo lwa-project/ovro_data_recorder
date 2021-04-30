@@ -160,6 +160,11 @@ class MultiMonitorPoint(MonitorPoint):
             self._entries.append('field')
         self.field = field
         
+    def __str__(self):
+        output = ', '.join(["%s=%s%s" % v for v in zip(self.field, self.value, self.unit)])
+        output += " at %s" % datetime.utcfromtimestamp(self.timestamp))
+        return output
+        
     def as_list(self):
         """
         Return the information about the monitoring point as a list of three-
@@ -407,7 +412,7 @@ class Client(object):
                 pass
         self.client.close()
         
-    def _update_manifest(self, name):
+    def _update_manifest(self, name, drop=False):
         """
         Update the monitoring point manifest as needed.  Returns a Boolean of
         whether or not an update was made.
@@ -419,7 +424,24 @@ class Client(object):
             # Is it alread in the local manifest?
             updated = False
             value = None
-            if name not in self._manifest:
+            if drop:
+                ## Remove from the local manifest
+                try:
+                    del self._manifest[self._manifest.index(name)]
+                except ValueError:
+                    pass
+                    
+                ## Check the published manifest
+                value = self.read_monitor_point('manifest')
+                if value is None:
+                    value = MonitorPoint([])
+                try:
+                    del value.value[value.value.index(name)]
+                    updated = True
+                except ValueError:
+                    pass
+                    
+            elif name not in self._manifest:
                 ## Not in the local manifest
                 self._manifest.append(name)
                 
@@ -454,6 +476,7 @@ class Client(object):
             
         try:
             self.client.delete('/mon/%s/%s' % (self.id, name))
+            self._update_manifest(name, drop=True)
             return True
         except Exception as e:
             return False
