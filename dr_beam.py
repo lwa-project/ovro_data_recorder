@@ -276,7 +276,7 @@ class SpectraOp(object):
             
             self.sequence_proclog.update(ihdr)
             
-            self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
+            self.log.info("Spectra: Start of new sequence: %s", str(ihdr))
             
             # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
