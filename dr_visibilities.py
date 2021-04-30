@@ -27,7 +27,7 @@ from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
-from mcs import ImageMonitorPoint, Client
+from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -366,7 +366,6 @@ class SpectraOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8   # complex64
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, igulp_size*10)
             
             # Setup the arrays for the frequencies and auto-correlations
             freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
@@ -500,13 +499,10 @@ class StatisticsOp(object):
                     data_avg = numpy.mean(adata, axis=1)
                     
                     ## Save
-                    for i,p in enumerate(data_pols):
-                        self.client.write_monitor_point('statistics/%s/min' % p,
-                                                        data_min[:,i].tolist(), timestamp=ts)
-                        self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                        data_avg[:,i].tolist(), timestamp=ts)
-                        self.client.write_monitor_point('statistics/%s/max' % p,
-                                                        data_max[:,i].tolist(), timestamp=ts)
+                    for data,name in zip((data_min,data_avg,data_max), ('min','avg','max')):
+                        value = MultiMonitorPoint([data[:,i].tolist() for i in range(data.shape[1])],
+                                                  timestamp=ts, field=data_pols)
+                        self.client.write_monitor_point('statistics/%s' % name, value)
                         
                     last_save = time.time()
                     

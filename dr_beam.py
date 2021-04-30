@@ -26,7 +26,7 @@ from filewriter import HDF5Writer
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import BeamCommandProcessor
-from mcs import ImageMonitorPoint, Client
+from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -425,13 +425,9 @@ class StatisticsOp(object):
                     data_avg = numpy.mean(idata, axis=0)
                     
                     ## Save
-                    for i,p in enumerate(data_pols):
-                        self.client.write_monitor_point('statistics/%s/min' % p,
-                                                        float(data_min[i]), timestamp=ts)
-                        self.client.write_monitor_point('statistics/%s/avg' % p,
-                                                        float(data_avg[i]), timestamp=ts)
-                        self.client.write_monitor_point('statistics/%s/max' % p,
-                                                        float(data_max[i]), timestamp=ts)
+                    for data,name in zip((data_min,data_avg,data_max), ('min','avg','max')):
+                        value = MultiMonitorPoint(data.tolist(), timestamp=ts, field=data_pols)
+                        self.client.write_monitor_point('statistics/%s' % name, value)
                         
                     last_save = time.time()
                     
@@ -493,6 +489,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             first_gulp = True 
             was_active = False
