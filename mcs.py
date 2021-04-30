@@ -162,7 +162,7 @@ class MultiMonitorPoint(MonitorPoint):
         
     def __str__(self):
         output = ', '.join(["%s=%s%s" % v for v in zip(self.field, self.value, self.unit)])
-        output += " at %s" % datetime.utcfromtimestamp(self.timestamp))
+        output += " at %s" % datetime.utcfromtimestamp(self.timestamp)
         return output
         
     def as_list(self):
