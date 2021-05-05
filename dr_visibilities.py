@@ -302,7 +302,7 @@ class SpectraOp(object):
         im = PIL.Image.new('RGB', (width * 65 + 1, height * 65 + 21), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
-        
+       
         # Axes boxes
         for i in range(width + 1):
             draw.line([i * 65, 0, i * 65, height * 65], fill = '#000000')
@@ -320,23 +320,23 @@ class SpectraOp(object):
             ## XX
             c = '#1F77B4'
             y = ((54.0 / (maxval - minval)) * (specs[s,:,0] - minval)).clip(0, 54)
-            draw.line(list(zip(x0 + x, y0 - y)), fill=c)
+            draw.point(list(zip(x0 + x, y0 - y)), fill=c)
             
             ## YY
             c = '#FF7F0E'
             y = ((54.0 / (maxval - minval)) * (specs[s,:,1] - minval)).clip(0, 54)
-            draw.line(list(zip(x0 + x, y0 - y)), fill=c)
+            draw.point(list(zip(x0 + x, y0 - y)), fill=c)
             
         # Summary
         ySummary = height * 65 + 2
-        timeStr = datetime.utcfromtimestamp(time_tag / fS)
+        timeStr = datetime.utcfromtimestamp(time_tag / FS)
         timeStr = timeStr.strftime("%Y/%m/%d %H:%M:%S UTC")
         draw.text((5, ySummary), timeStr, font = font, fill = '#000000')
         rangeStr = 'range shown: %.3f to %.3f dB' % (minval, maxval)
         draw.text((210, ySummary), rangeStr, font = font, fill = '#000000')
         x = im.size[0] + 15
-        for label, c in reversed(zip(('good XX','good YY','flagged XX','flagged YY'),
-                                     ('#1F77B4','#FF7F0E','#799CB4',   '#FFC28C'))):
+        for label, c in reversed(list(zip(('XX',     'YY'),
+                                          ('#1F77B4','#FF7F0E')))):
             x -= draw.textsize(label, font = font)[0] + 20
             draw.text((x, ySummary), label, font = font, fill = c)
             
