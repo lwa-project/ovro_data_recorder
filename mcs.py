@@ -419,8 +419,6 @@ class Client(object):
         """
        
         with self.client.lock(self.id, ttl=5) as lock:
-            lock.acquire()
-            
             # Is it alread in the local manifest?
             updated = False
             value = None
@@ -457,10 +455,9 @@ class Client(object):
             # If there is an update, push it out
             if updated and value is not None:
                 value.timestamp = time.time()
-                self.write_monitor_point('manifest', value)
+                value = value.as_json()
+                self.client.put('/mon/%s/%s' % (self.id, 'manifest'), value)
                 
-            lock.release()
-            
         return updated
         
     def remove_monitor_point(self, name):
