@@ -27,6 +27,7 @@ from filewriter import MeasurementSetWriter
 from operations import OperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
+from lwams import get_zenith_uvw
 from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
@@ -405,7 +406,7 @@ class SpectraOp(object):
                         mjd, dt = tt.mjd, tt.datetime
                         mjd = int(mjd)
                         h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
+                        filename = '%06i_%02i%02i%02i_spectra.png' % (mjd, h, m, s)
                         mp.to_file(filename)
                         
                     last_save = time.time()
@@ -420,6 +421,166 @@ class SpectraOp(object):
                                           'process_time': process_time,})
                 
         self.log.info("SpectraOp - Done")
+
+
+class BaselineOp(object):
+    def __init__(self, log, id, station, iring, ntime_gulp=1, guarantee=True, core=-1):
+        self.log        = log
+        self.station    = station
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
+        
+    def _plot_baselines(self, time_tag, freq, dist, baselines, valid):
+        # Plotting setup
+        nchan = freq.size
+        nbl = baselines.shape[0]
+        freq = freq[0]
+        baselines = baselines[valid,0,:]
+        baselines = numpy.abs(baselines[:,[0,1,3])
+        minval = numpy.min(baselines)
+        maxval = numpy.max(baselines)
+        if minval == maxval:
+            maxval = minval + 1.0
+            
+        mindst = 0.0
+        maxdst = numpy.max(dist)
+        
+        # Image setup
+        width, height = 1, 1
+        im = PIL.Image.new('RGB', (width*300 + 1, height*300 + 21), '#FFFFFF')
+        draw = PIL.ImageDraw.Draw(im)
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        
+        # Axes boxes
+        for i in range(width + 1):
+            draw.line([i * 300, 0, i * 300, height * 300], fill = '#000000')
+        for i in range(height + 1):
+            draw.line([(0, i * 300), (im.size[0], i * 300)], fill = '#000000')
+            
+        # Visiblity amplitudes as a function of (x,y) distance
+        x0, y0 = 1, 300
+        draw.text((x0 + 5, y0 - 295), '%.3f MHz' % (freq[c]/1e6,), font=font, fill='#000000')
+        
+        ## (u,v) distance
+        x = ((299.0 / (maxdst - mindst)) * (dist - mindst)).clip(0, 499)
+        
+        ## XX
+        y = ((299.0 / (maxval - minval)) * (baselines[:,0] - minval)).clip(0, 299)
+        draw.point(list(zip(x0 + x, y0 - y)), fill='#1F77B4')
+        
+        ## YY
+        y = ((299.0 / (maxval - minval)) * (baselines[:,2] - minval)).clip(0, 299)
+        draw.point(list(zip(x0 + x, y0 - y)), fill='#FF7F0E')
+        
+        ### XY
+        #y = ((299.0 / (maxval - minval)) * (baselines[:,1] - minval)).clip(0, 299)
+        #draw.point(list(zip(x0 + x, y0 - y)), fill='#A00000')
+        
+        # Details and labels
+        ySummary = height * 300 + 2
+        timeStr = datetime.utcfromtimestamp(time_tag / FS)
+        timeStr = timeStr.strftime("%Y/%m/%d %H:%M:%S UTC")
+        draw.text((5, ySummary), timeStr, font = font, fill = '#000000')
+        rangeStr = 'range shown: %.6f - %.6f' % (minval, maxval)
+        draw.text((210, ySummary), rangeStr, font = font, fill = '#000000')
+        x = im.size[0] + 15
+        #for label, c in reversed(list(zip(('XX','XY','YY'), ('#1F77B4','#A00000','#FF7F0E')))):
+        for label, c in reversed(list(zip(('XX','YY'), ('#1F77B4','#FF7F0E')))):
+            x -= draw.textsize(label, font = font)[0] + 20
+            draw.text((x, ySummary), label, font = font, fill = c)
+            
+        return im
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Baseline: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbl      = ihdr['nbl']
+            nstand   = ihdr['nstand']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
+            self.iring.resize(igulp_size)
+            
+            # Setup the arrays for the frequencies and baseline lenghts
+            freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
+            uvw = get_zenith_uvw(self.station, LWATime(time_tag, format='timetag'))
+            uvw[:,2] = 0
+            dist = numpy.sqrt((uvw**2).sum())
+            valid = numpy.where(dist > 0.1)[0]
+            last_save = 0.0
+            
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Plot
+                    im = self._plot_baselines(time_tag, freq, dist, idata[0,...], valid)
+                    
+                    ## Save
+                    mp = ImageMonitorPoint.from_image(im)
+                    self.client.write_monitor_point('diagnostics/baselines',
+                                                    mp, timestamp=ts)
+                    
+                    if True:
+                        ## Save again, this time to disk
+                        mjd, dt = tt.mjd, tt.datetime
+                        mjd = int(mjd)
+                        h, m, s = dt.hour, dt.minute, dt.second
+                        filename = '%06i_%02i%02i%02i_baselines.png' % (mjd, h, m, s)
+                        mp.to_file(filename)
+                        
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': 0.0, 
+                                          'process_time': process_time,})
+                
+        self.log.info("BaselineOp - Done")
 
 
 class StatisticsOp(object):
@@ -631,7 +792,7 @@ def main(argv):
                         help='run in offline using the specified file to read from')
     parser.add_argument('--filename', type=str,
                         help='filename containing packets to read from in offline mode')
-    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1,
                         help='gulp size for ring buffers')
@@ -723,6 +884,8 @@ def main(argv):
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
+        ops.append(BaselineOp(log, mcs_id, station, capture_ring
+                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,
