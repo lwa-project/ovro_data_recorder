@@ -458,38 +458,37 @@ class BaselineOp(object):
         maxdst = numpy.max(dist)
         
         # Image setup
-        width, height = 1, 1
-        im = PIL.Image.new('RGB', (width*300 + 1, height*300 + 21), '#FFFFFF')
+        im = PIL.Image.new('RGB', (601, 421), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
         
         # Axes boxes
-        for i in range(width + 1):
-            draw.line([i * 300, 0, i * 300, height * 300], fill = '#000000')
-        for i in range(height + 1):
-            draw.line([(0, i * 300), (im.size[0], i * 300)], fill = '#000000')
+        for i in range(2):
+            draw.line([i * 600, 0, i * 600, 400], fill = '#000000')
+        for i in range(2):
+            draw.line([(0, i * 400), (im.size[0], i * 400)], fill = '#000000')
             
         # Visiblity amplitudes as a function of (x,y) distance
-        x0, y0 = 1, 300
-        draw.text((x0 + 5, y0 - 295), '%.3f MHz' % (freq/1e6,), font=font, fill='#000000')
+        x0, y0 = 1, 400
+        draw.text((x0 + 500, y0 - 395), '%.3f MHz' % (freq/1e6,), font=font, fill='#000000')
         
         ## (u,v) distance
-        x = ((299.0 / (maxdst - mindst)) * (dist - mindst)).clip(0, 299)
+        x = ((599.0 / (maxdst - mindst)) * (dist - mindst)).clip(0, 599)
         
         ## XX
-        y = ((299.0 / (maxval - minval)) * (baselines[:,0] - minval)).clip(0, 299)
+        y = ((399.0 / (maxval - minval)) * (baselines[:,0] - minval)).clip(0, 399)
         draw.point(list(zip(x0 + x, y0 - y)), fill='#1F77B4')
         
         ## YY
-        y = ((299.0 / (maxval - minval)) * (baselines[:,2] - minval)).clip(0, 299)
+        y = ((399.0 / (maxval - minval)) * (baselines[:,2] - minval)).clip(0, 399)
         draw.point(list(zip(x0 + x, y0 - y)), fill='#FF7F0E')
         
         ### XY
-        #y = ((299.0 / (maxval - minval)) * (baselines[:,1] - minval)).clip(0, 299)
+        #y = ((399.0 / (maxval - minval)) * (baselines[:,1] - minval)).clip(0, 399)
         #draw.point(list(zip(x0 + x, y0 - y)), fill='#A00000')
         
         # Details and labels
-        ySummary = height * 300 + 2
+        ySummary = 402
         timeStr = datetime.utcfromtimestamp(time_tag / FS)
         timeStr = timeStr.strftime("%Y/%m/%d %H:%M:%S UTC")
         draw.text((5, ySummary), timeStr, font = font, fill = '#000000')
