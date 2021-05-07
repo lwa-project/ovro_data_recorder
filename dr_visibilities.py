@@ -446,8 +446,8 @@ class BaselineOp(object):
         # Plotting setup
         nchan = freq.size
         nbl = baselines.shape[0]
-        freq = freq[0]
-        baselines = baselines[valid,0,:]
+        freq = freq[nchan//2]
+        baselines = baselines[valid,nchan//2,:]
         baselines = numpy.abs(baselines[:,[0,1,3]])
         minval = numpy.min(baselines)
         maxval = numpy.max(baselines)
@@ -468,7 +468,7 @@ class BaselineOp(object):
         for i in range(2):
             draw.line([(0, i * 400), (im.size[0], i * 400)], fill = '#000000')
             
-        # Visiblity amplitudes as a function of (x,y) distance
+        # Visiblity amplitudes as a function of (u,v) distance
         x0, y0 = 1, 400
         draw.text((x0 + 500, y0 - 395), '%.3f MHz' % (freq/1e6,), font=font, fill='#000000')
         
