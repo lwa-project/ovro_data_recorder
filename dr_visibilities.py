@@ -448,7 +448,7 @@ class BaselineOp(object):
         nbl = baselines.shape[0]
         freq = freq[0]
         baselines = baselines[valid,0,:]
-        baselines = numpy.abs(baselines[:,[0,1,3])
+        baselines = numpy.abs(baselines[:,[0,1,3]])
         minval = numpy.min(baselines)
         maxval = numpy.max(baselines)
         if minval == maxval:
@@ -471,10 +471,10 @@ class BaselineOp(object):
             
         # Visiblity amplitudes as a function of (x,y) distance
         x0, y0 = 1, 300
-        draw.text((x0 + 5, y0 - 295), '%.3f MHz' % (freq[c]/1e6,), font=font, fill='#000000')
+        draw.text((x0 + 5, y0 - 295), '%.3f MHz' % (freq/1e6,), font=font, fill='#000000')
         
         ## (u,v) distance
-        x = ((299.0 / (maxdst - mindst)) * (dist - mindst)).clip(0, 499)
+        x = ((299.0 / (maxdst - mindst)) * (dist - mindst)).clip(0, 299)
         
         ## XX
         y = ((299.0 / (maxval - minval)) * (baselines[:,0] - minval)).clip(0, 299)
@@ -533,7 +533,7 @@ class BaselineOp(object):
             freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
             uvw = get_zenith_uvw(self.station, LWATime(time_tag, format='timetag'))
             uvw[:,2] = 0
-            dist = numpy.sqrt((uvw**2).sum())
+            dist = numpy.sqrt((uvw**2).sum(axis=1))
             valid = numpy.where(dist > 0.1)[0]
             last_save = 0.0
             
@@ -884,7 +884,7 @@ def main(argv):
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
-        ops.append(BaselineOp(log, mcs_id, station, capture_ring
+        ops.append(BaselineOp(log, mcs_id, station, capture_ring,
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
