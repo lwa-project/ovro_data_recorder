@@ -135,7 +135,8 @@ class HDF5Record(CommandBase):
     Command to schedule a recording of a beam to an HDF5 file.  The input data 
     should have:
      * id - a MCS command id
-     * start_mjd - the MJD for the start of the recording
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
      * start_mpm - the MPM for the start of the recording
      * duration_ms - the duration of the recording in ms
     """
@@ -146,7 +147,11 @@ class HDF5Record(CommandBase):
     def action(self, sequence_id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
             filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
-            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            if start_mjd == "now":
+                start = LWATime.now().datetime
+                start = start + timedelta(seconds=15)
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -178,23 +183,27 @@ class HDF5Record(CommandBase):
         return True, {'filename': filename}
 
 
-class MSRecord(CommandBase):
+class MSStart(CommandBase):
     """
-    Command to schedule a recording of visibility data to a measurement set.
+    Command to schedule a recording start of visibility data to a measurement set.
     The input data should have:
      * id - a MCS command id
-     * start_mjd - the MJD for the start of the recording
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
      * start_mpm - the MPM for the start of the recording
-     * duration_ms - the duration of the recording in ms
     """
     
-    _required = ('sequence_id', 'start_mjd', 'start_mpm', 'duration_ms')
+    _required = ('sequence_id', 'start_mjd', 'start_mpm')
     
-    def action(self, sequence_id, start_mjd, start_mpm, duration_ms):
+    def action(self, sequence_id, start_mjd, start_mpm):
         try:
-            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
-            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
+            filename = os.path.join(self.directory, '')
+            if start_mjd == "now":
+                start = LWATime.now().datetime
+                start = start + timedelta(seconds=15)
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            duration = timedelta(days=365)
             stop = start + duration
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
@@ -204,10 +213,10 @@ class MSRecord(CommandBase):
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
-            self.log_error("Failed to schedule recording: %s", str(e))
-            return False, "Failed to schedule recording: %s" % str(e)
+            self.log_error("Failed to schedule recording start: %s", str(e))
+            return False, "Failed to schedule recording start: %s" % str(e)
             
-        self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
+        self.log_info("Scheduled recording start for %s to %s to %s", start, stop, filename)
         return True, {'filename': filename}
 
 
@@ -216,7 +225,8 @@ class RawRecord(CommandBase):
     Command to schedule a recording of a voltage beam to a raw DRX file.  The
     input data should have:
      * id - a MCS command id
-     * start_mjd - the MJD for the start of the recording
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
      * start_mpm - the MPM for the start of the recording
      * duration_ms - the duration of the recording in ms
     """
@@ -226,7 +236,11 @@ class RawRecord(CommandBase):
     def action(self, id, beam, start_mjd, start_mpm, duration_ms):
         try:
             filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
-            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            if start_mjd == "now":
+                start = LWATime.now().datetime
+                start = start + timedelta(seconds=15)
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -251,19 +265,73 @@ class Cancel(CommandBase):
      * queue_number - scheduled recording queue number of cancel
     """
     
-    _required = ('sequence_id', 'queue_number')
+    _required = ('sequence_id',)
+    _optional = ('queue_number', 'filename',)
     
-    def action(self, sequence_id, queue_number):
+    def action(self, sequence_id, queue_number=None, filename=None):
+        if queue_number is None and filename is None:
+            self.log_error("Must specify a queue number or filename")
+            return False, "Must specify a queue number or filename"
+            
+        if filename is not None:
+            op = self.queue.find_entry_by_filename(filename)
+        else:
+            try:
+                op = self.queue[queue_number]
+            except IndexError as e:
+                self.log_error("Invalid queue entry number")
+                return False, "Invalid queue entry number"
+                
         try:
             filename = self.queue[queue_number].filename
             start = self.queue[queue_number].start_time
             stop = self.queue[queue_number].stop_time
             self.queue[queue_number].cancel()
-        except IndexError as e:
+        except Exception as e:
             self.log_error("Failed to cancel recording: %s", str(e))
             return False, "Failed to cancel recording: %s" % str(e)
             
         self.log_info("Canceled recording for %s to %s to %s", start, stop, filename)
+        return True, {'filename': filename}
+
+
+class MSStop(CommandBase):
+    """
+    Command to schedule a recording stop of visibility data to a measurement set.
+    The input data should have:
+     * id - a MCS command id
+     * stop_mjd - the MJD for the start of the recording or "now" to stop the
+       recording 15 s from when the command is received
+     * stop_mpm - the MPM for the start of the recording
+    """
+    
+    _required = ('sequence_id', 'stop_mjd', 'stop_mpm')
+    
+    def action(self, sequence_id, stop_mjd, stop_mpm):
+        try:
+            if stop_mjd == "now":
+                stop = LWATime.now().datetime
+                stop = stop + timedelta(seconds=15)
+            else:
+                stop = LWATime(stop_mjd, stop_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+        except (TypeError, ValueError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        try:
+            op = self.queue.find_entry_active_at_datetime(stop)
+            if op is not None:
+                filename = op.filename
+                start = op.start_time
+                op.cancel()
+            else:
+                self.log_error("Failed to find operation active at the specified stop time")
+                return False, "Failed to find operation active at the specified stop time"
+        except Exception as e:
+            self.log_error("Failed to stop recording: %s", str(e))
+            return False, "Failed to stop recording: %s" % str(e)
+            
+        self.log_info("Stopped recording started at %s to %s", start, filename)
         return True, {'filename': filename}
 
 
@@ -389,12 +457,11 @@ class PowerBeamCommandProcessor(CommandProcessorBase):
 class VisibilityCommandProcessor(CommandProcessorBase):
     """
     Command processor for visibility data.  Supports:
-     * record
-     * cancel
-     * delete
+     * start
+     * stop
     """
     
-    _commands = (MSRecord, Cancel, Delete)
+    _commands = (MSStart, MSStop)
     
     def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,

@@ -24,23 +24,27 @@ Control Commands
 The ``dr_visibilities.py`` pipeline supports three commands: ``record``, ``cancel``, 
 and ``delete``.
 
- * ``record`` - This schedules a recording to take place.  The required arguments to
-   this command are:
+ * ``record`` - This schedules when to start a recording.  The required arguments
+   to this command are:
    
-    * ``start_mjd`` - an integer MJD value for when the recording will start,
+    * ``start_mjd`` - an integer MJD value for when the recording will start or
+      "now" to start the recording 15 s after the command is received and
     * ``start_mpm`` - an integer number of milliseconds past midnight value on the
-      MJD specified in ``start_mjd`` for when the recording will start, and
-    * ``duration_ms`` - the number of milliseconds to record data for.
+      MJD specified in ``start_mjd`` for when the recording will start.
     
   There are no optional arguments.  The command returns a dictionary of the base
   name for the files from each managed pipeline.
- * ``cancel`` - This cancels are previously scheduled or active recording.  The
-    required arguments to this command are:
-    
-     * `queue_id` - an entry number in the recording queue to cancel.
-     
+ * ``stop`` - This schedules when to stop a recording.  The required arguments to
+   this command are:
+   
+    * `stop_mjd` - an integer MJD value for when the recording will stop or
+      "now" to stop the recording 15 s after the command is received and
+    * ``stop_mpm`` - an integer number of milliseconds past midnight value on the
+      MJD specified in ``stop_mjd`` for when the recording will stop.
+      
    There are no optional arguments.  The command returns a dictionary of the base
-   name for the files from each managed pipeline assoiated with the queue entry.
+   name for the files from each managed pipeline associated with the stopped
+   recording.
 
 Monitoring Points
 -----------------

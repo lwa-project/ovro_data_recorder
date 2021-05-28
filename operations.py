@@ -68,6 +68,32 @@ class FileOperationsQueue(OperationsQueueBase):
     Class to queue file writing operations.
     """
     
+    def find_entry_by_filename(self, filename):
+        """
+        Find the queue entry associated with the specified filename.  Returns the
+        operation if found, None otherwise.
+        """
+        
+        by_filename = None
+        for op in self._queue:
+            if os.path.basename(op.filename) == filename:
+                by_filename = op
+                break
+        return by_filename
+        
+    def find_entry_active_at_datetime(self, dt):
+        """
+        Find which queue entry would be active at the specified datetime instance.
+        Returns the operation if found, None otherwise.
+        """
+        
+        active_at = None
+        for op in self._queue:
+            if dt >= op.start_time and dt <= op.stop_time:
+                active_at = op
+                break
+        return active_at
+        
     def append(self, fileop):
         """
         Add a new sub-class of :py:class:`FileWriterBase` to the queue.  In the
