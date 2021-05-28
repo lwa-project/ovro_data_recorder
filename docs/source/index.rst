@@ -14,8 +14,10 @@ array.  The software consists of two main parts: ``dr_visibilities.py`` and ``dr
    
    install
    visibilities
+   manager
    pbeam
    vbeam
+   using
    modules
 
 

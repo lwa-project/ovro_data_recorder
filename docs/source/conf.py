@@ -50,3 +50,18 @@ html_theme = 'alabaster'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+# -- Auto-extract some help --------------------------------------------------
+
+import glob
+import subprocess
+for script in glob.glob('../../dr_*.py'):
+    outname = os.path.basename(script)
+    outname = os.path.splitext(outname)[0]
+    outname += '.help'
+    with open(outname, 'w') as fh:
+        try:
+            output = subprocess.check_output([script,])
+            fh.write(output)
+        except (OSError, subprocess.CalledProcessError):
+            fh.write("Failed to extract help message")

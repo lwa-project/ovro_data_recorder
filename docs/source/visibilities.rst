@@ -1,5 +1,5 @@
-``dr_visibilities.py``
-======================
+dr_visibilities.py
+==================
 
 ``dr_visibilities.py`` is the recording pipeline for both the fast and slow
 visibility modes.  This pipeline captures packetized X-engine data from the
@@ -43,8 +43,6 @@ and ``delete``.
  * ``record`` - This schedules a recording to take place.  The required arguments to
    this command are:
    
-    * ``sequence_id`` - a monitor and control system command ID (used for naming
-      the output files),
     * ``start_mjd`` - an integer MJD value for when the recording will start,
     * ``start_mpm`` - an integer number of milliseconds past midnight value on the
       MJD specified in ``start_mjd`` for when the recording will start, and
@@ -55,7 +53,6 @@ and ``delete``.
  * ``cancel`` - This cancels are previously scheduled or active recording.  The
     required arguments to this command are:
     
-     * `sequence_id`` - a monitor and control system command ID and
      * `queue_id` - an entry number in the recording queue to cancel.
      
    There are no optional arguments.  The command returns the base name for the files
@@ -64,7 +61,6 @@ and ``delete``.
  * ``delete`` - This deletes a file from the recording directory.  The required
    arguments to this command are:
    
-    * ``sequence_id`` - a monitor and control system command ID and 
     * ``file_number`` - an entry number in the file list of the recording directory.
     
   There are no optional arguments.  The command returns the name of the file that

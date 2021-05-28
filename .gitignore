@@ -4,6 +4,9 @@
 *.tar.gz
 *.tar
 
+# Help files
+docs/source/*.help
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
