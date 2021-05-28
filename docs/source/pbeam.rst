@@ -102,17 +102,6 @@ recorded.
      recording directory.
    * active_directory_count - The number of files in the
      recording directory.
-   * files
-   
-     * files/name_# - The filename of the #-th entry in the
-       recording directory.
-     * files/size_# - The size of the #-th entry in the
-       recording directory.
-       
-   * active_file - The name of the most recently created file
-     in the recording directory.
-   * active_file_size - The size of the most recently created
-     file in the recording directory.
      
   * /mon/dr#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".

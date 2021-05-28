@@ -154,7 +154,7 @@ class StorageLogger(object):
         self._files = []
         
     def _update(self):
-        self._files = glob.glob('./*')
+        self._files = glob.glob(os.path.join(self.directory, '*'))
         self._files.sort(key=lambda x: os.path.getmtime(x))
         
     def main(self, once=False):
@@ -188,31 +188,6 @@ class StorageLogger(object):
             self.client.write_monitor_point('storage/active_directory_count',
                                             len(self._files), timestamp=ts)
             
-            # Log the last 100 files
-            subfiles = self._files[-100:]
-            nsubfile = len(subfiles)
-            for i,subfile in enumerate(subfiles):
-                self.client.write_monitor_point('storage/files/name_%i' % i,
-                                                subfile, timestamp=ts)
-                self.client.write_monitor_point('storage/files/size_%i' % i,
-                                                os.path.getsize(subfile), timestamp=ts, unit='B')
-            for i in range(nsubfile, 100):
-                self.client.remove_monitor_point('storage/files/name_%i' % i)
-                self.client.remove_monitor_point('storage/files/size_%i' % i)
-                
-            # Find the most recent file
-            ts = time.time()
-            try:
-                latest = self._files[-1]
-                latest_size = os.path.getsize(latest)
-            except IndexError:
-                latest = None
-                latest_size = 0
-            self.client.write_monitor_point('storage/active_file',
-                                            latest, timestamp=ts)
-            self.client.write_monitor_point('storage/active_file_size',
-                                            latest_size, timestamp=ts, unit='B')
-            
             # Report
             self.log.debug("=== Storage Report ===")
             self.log.debug(" directory: %s", self.directory)
@@ -220,9 +195,6 @@ class StorageLogger(object):
             self.log.debug(" disk free: %i B", disk_free)
             self.log.debug(" file count: %i", len(self._files))
             self.log.debug(" total size: %i B", total_size)
-            self.log.debug(" most recent file: %s", latest)
-            if latest is not None:
-                self.log.debug(" most recent file size: %i B", latest_size)
             self.log.debug("===   ===")
             
             # Sleep

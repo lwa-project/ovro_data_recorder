@@ -93,18 +93,7 @@ and # is the GPU pipeline that is being recorded.
      recording directory.
    * active_directory_count - The number of files in the
      recording directory.
-   * files
    
-     * files/name_# - The filename of the #-th entry in the
-       recording directory.
-     * files/size_# - The size of the #-th entry in the
-       recording directory.
-       
-   * active_file - The name of the most recently created file
-     in the recording directory.
-   * active_file_size - The size of the most recently created
-     file in the recording directory.
-     
   * /mon/drv[sf]#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".
   * /mon/drv[sf]#/info - A more detailed explanation of the summary condition.
