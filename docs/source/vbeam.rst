@@ -74,17 +74,17 @@ The ``dr_tengine.py`` pipeline supports four commands: ``record``, ``cancel``,
      * ``gain`` - an integer for the quantization gain.
      
     There is a single optional argument of ``subslot`` which controls when the
-    command is implemneted within the second.  If not specified the default of 0
+    command is implemented within the second.  If not specified the default of 0
     is used.
     
 Monitoring Points
 -----------------
 
 There are several monitoring points for the pipeline.  All monitoring points live
-under the etcd key "/mon/dr#", where # is the power beam number that is being
+under the etcd key "/mon/drt#", where # is the power beam number that is being
 recorded.
   
-  * /mon/dr#/bifrost
+  * /mon/drt#/bifrost
   
    * pipeline_lag - The lag between the system time and the
      timestamps for data in the pipeline.
@@ -97,7 +97,7 @@ recorded.
    * rx_rate - Packet capture rate for the pipeline.
    * rx_missing - Fraction of missing packets for the pipeline.
    
-  * /mon/dr#/storage
+  * /mon/drt#/storage
  
    * active_disk_size - The size of the disk where the
      recording directory resides.
@@ -120,9 +120,9 @@ recorded.
    * active_file_size - The size of the most recently created
      file in the recording directory.
      
-  * /mon/dr#/summary - An overall status of the pipeline.  Possible values
+  * /mon/drt#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".
-  * /mon/dr#/info - A more detailed explanation of the summary condition.
+  * /mon/drt#/info - A more detailed explanation of the summary condition.
      
 
 
