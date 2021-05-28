@@ -3,6 +3,7 @@ import sys
 import glob
 import time
 import numpy
+import shutil
 import threading
 from collections import deque
 
@@ -138,13 +139,15 @@ class PerformanceLogger(object):
 
 class StorageLogger(object):
     """
-    Monitoring class for logging how storage is used by a pipeline.
+    Monitoring class for logging how storage is used by a pipeline and for enforcing
+    a directory quota, if needed.
     """
     
-    def __init__(self, log, id, directory, shutdown_event=None):
+    def __init__(self, log, id, directory, quota=None, shutdown_event=None):
         self.log = log
         self.id = id
         self.directory = directory
+        self.quota = quota
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
@@ -152,11 +155,42 @@ class StorageLogger(object):
         self.client = Client(id)
         
         self._files = []
+        self._file_sizes = []
         
     def _update(self):
         self._files = glob.glob(os.path.join(self.directory, '*'))
         self._files.sort(key=lambda x: os.path.getmtime(x))
+        self._file_sizes = [os.path.getsize(filename) for filename in self._files]
         
+    def _manage_quota(self):
+        total_size = sum(self._file_sizes)
+        
+        removed = []
+        i = 0
+        while total_size > self.quota and len(self._files) > 1:
+            to_remove = self._files[i]
+            
+            try:
+                if os.path.isdir(to_remove):
+                    shutil.rmtree(to_remove)
+                else:
+                    os.unlink(to_remove)
+                    
+                removed.append(to_remove)
+                del self._files[i]
+                del self._file_sizes[i]
+                i = 0
+            except Exception as e:
+                self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
+                i += 1
+                
+            total_size = sum(self._file_sizes)
+            
+        if removed:
+            self.log.debug("=== Quota Report ===")
+            self.log.debug("Removed %i files", len(removed))
+            self.log.debug("===   ===")
+            
     def main(self, once=False):
         """
         Main logging loop.  May be run only once with the "once" keyword set to
@@ -167,6 +201,10 @@ class StorageLogger(object):
             # Update the state
             self._update()
             
+            # Quota management, if needed
+            if self.quota is not None:
+                self._manage_quota()
+                
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
@@ -180,7 +218,7 @@ class StorageLogger(object):
             
             # Find the total size of all files
             ts = time.time()
-            total_size = sum([os.path.getsize(f) for f in self._files])
+            total_size = sum([self._file_sizes)
             self.client.write_monitor_point('storage/active_directory',
                                             self.directory, timestamp=ts)
             self.client.write_monitor_point('storage/active_directory_size',
@@ -285,7 +323,12 @@ class StatusLogger(object):
 
     
 class GlobalLogger(object):
-    def __init__(self, log, id, args, queue, shutdown_event=None):
+    """
+    Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`StorageLogger`,
+    and :py:class:`StatusLogger` and runs their main methods as a unit.
+    """
+    
+    def __init__(self, log, id, args, queue, quota=None, shutdown_event=None):
         self.log = log
         self.args = args
         self.queue = queue
@@ -295,7 +338,8 @@ class GlobalLogger(object):
         
         self.id = id
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event)
-        self.storage = StorageLogger(log, id, args.record_directory, shutdown_event=shutdown_event)
+        self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
+                                     shutdown_event=shutdown_event)
         self.status = StatusLogger(log, id, queue, shutdown_event=shutdown_event)
         
     @property
