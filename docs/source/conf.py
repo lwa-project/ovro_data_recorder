@@ -53,15 +53,16 @@ html_static_path = ['_static']
 
 # -- Auto-extract some help --------------------------------------------------
 
+import sys
 import glob
 import subprocess
 for script in glob.glob('../../dr_*.py'):
     outname = os.path.basename(script)
     outname = os.path.splitext(outname)[0]
     outname += '.help'
-    with open(outname, 'w') as fh:
+    with open(outname, 'wb') as fh:
         try:
-            output = subprocess.check_output([script,])
+            output = subprocess.check_output([sys.executable, script, '--help'])
             fh.write(output)
         except (OSError, subprocess.CalledProcessError):
             fh.write("Failed to extract help message")
