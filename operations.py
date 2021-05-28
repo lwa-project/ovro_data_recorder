@@ -70,9 +70,9 @@ class FileOperationsQueue(OperationsQueueBase):
     
     def append(self, fileop):
         """
-        Add a new sub-class of FileWriterBase to the queue.  In the process,
-        check for conflicts with existing queue entries and purge the queue of
-        anything that has expired.
+        Add a new sub-class of :py:class:`FileWriterBase` to the queue.  In the
+        process, check for conflicts with existing queue entries and purge the
+        queue of anything that has expired.
         """
         
         if not isinstance(fileop, FileWriterBase):

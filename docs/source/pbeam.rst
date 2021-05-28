@@ -46,12 +46,13 @@ and ``delete``.
       what polarization products are to be recorded.  If not provided the native
       XXYYCRCI products are recorded.  `Note:  For IQUV and IV the quantities computed
       are psuedo-Stokes parameters.`
-    * ``time_avg`` - an integer of the power beam spectra to average.  Must
-      be a power of two between 1 and 1024.  If not specified no averaging in 
-      time is performed.
-    * ``chan_avg`` - an integer of the number of channels in the power beam spectra
-      to average together.  Must be an even divisor of 184, i.e., ``184 % chan_avg = 0``.
-      If not specified no averaging in frequency is performed.
+    * ``time_avg`` - an integer of the number of consecutive power beam spectra to
+      average together when writing to the file.  Must be a power of two between 1
+      and 1024.  If not specified no averaging in time is performed.
+    * ``chan_avg`` - an integer of the number of consecutive channels in the power
+      beam spectra to average together when writing to the file.  Must be an even
+      divisor of 184, i.e., ``184 % chan_avg = 0``.  If not specified no averaging
+      in frequency is performed.
     
   The command returns the base name for the files that will be written.
  * ``cancel`` - This cancels are previously scheduled or active recording.  The

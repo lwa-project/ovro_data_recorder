@@ -7,7 +7,8 @@ __all__ = ['ReductionOperation', 'XXYYCRCI', 'XXYY', 'CRCI', 'IQUV', 'IV']
 class ReductionOperation(object):
     """
     Base reduction operations that does not change the polarization basis or
-    outputs but can average in time and/or frequency.
+    outputs but can average in time and/or frequency.  The averaging is values
+    
     """
     
     def __init__(self, time_avg=1, chan_avg=1):
@@ -50,7 +51,7 @@ XXYYCRCI = ReductionOperation
 
 class XXYY(ReductionOperation):
     """
-    Sub-class of ReductionOperation that reduces the output to only XX and YY.
+    Sub-class of :py:class:`ReductionOperation` that reduces the output to only XX and YY.
     """
     
     def __init__(self, time_avg=1, chan_avg=1):
@@ -66,7 +67,7 @@ class XXYY(ReductionOperation):
 
 class CRCI(ReductionOperation):
     """
-    Sub-class of ReductionOperation that reduces the output to only CR
+    Sub-class of :py:class:`ReductionOperation` that reduces the output to only CR
     (real(XY) = "cross-hands - real") and CI (imag(XY) = "cross-hands - imaginary").
     """
     
@@ -83,8 +84,8 @@ class CRCI(ReductionOperation):
 
 class IQUV(ReductionOperation):
     """
-    Sub-class of ReductionOperation that computes and outputs the psuedo-Stokes
-    I, Q, U, and V.
+    Sub-class of :py:class:`ReductionOperation` that computes and outputs
+    psuedo-Stokes I, Q, U, and V.
     """
     
     def __init__(self, time_avg=1, chan_avg=1):
@@ -107,8 +108,8 @@ class IQUV(ReductionOperation):
 
 class IV(ReductionOperation):
     """
-    Sub-class of ReductionOperation that computes and outputs the psuedo-Stokes
-    I and V.
+    Sub-class of :py:class:`ReductionOperation` that computes and outputs 
+    psuedo-Stokes I and V.
     """
     
     def __init__(self, time_avg=1, chan_avg=1):

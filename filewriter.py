@@ -164,6 +164,10 @@ class FileWriterBase(object):
 
 
 class DRXWriter(FileWriterBase):
+    """
+    Sub-class of :py:class:`FileWriterBase` that writes data to a raw DRX file.
+    """
+    
     def __init__(self, filename, beam, start_time, stop_time):
         FileWriterBase.__init__(self, filename, start_time, stop_time)
         self.beam = beam
@@ -181,7 +185,7 @@ class DRXWriter(FileWriterBase):
 
 class HDF5Writer(FileWriterBase):
     """
-    Sub-class of FileWriterBase that writes data to a HDF5 file.
+    Sub-class of :py:class:`FileWriterBase` that writes data to a HDF5 file.
     """
     
     def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, **kwds):
@@ -262,8 +266,8 @@ class HDF5Writer(FileWriterBase):
 
 class MeasurementSetWriter(FileWriterBase):
     """
-    Sub-class of FileWriterBase that writes data to a measurement set.  Each
-    call to write leads to a new measurement set.
+    Sub-class of :py:class:`FileWriterBase` that writes data to a measurement
+    set.  Each call to write leads to a new measurement set.
     """
     
     def __init__(self, filename, start_time, stop_time, nint_per_file=1, is_tarred=True):

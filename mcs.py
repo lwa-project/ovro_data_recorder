@@ -93,7 +93,7 @@ class MonitorPoint(object):
     @classmethod
     def from_json(cls, json_value):
         """
-        Return a new MonitorPoint instance based on a JSON-packed dictionary.
+        Return a new :py:class:`MonitorPoint` instance based on a JSON-packed dictionary.
         """
         
         value = json.loads(json_value)
@@ -121,8 +121,9 @@ class MonitorPoint(object):
 
 class MultiMonitorPoint(MonitorPoint):
     """
-    Object for representing a multiple monitoring points updated at the same
-    time within the MCS framework.  At a minimum this includes:
+    Sub-class of :py:class`MonitorPoint` for representing a multiple monitoring
+    points updated at the same time within the MCS framework.  At a minimum this
+    includes:
      * a UNIX timestamp of when the monitoring point was updated,
      * a list of values of the monitoring points themselves,
      * a list of field names for each monitoring point, and
@@ -176,8 +177,8 @@ class MultiMonitorPoint(MonitorPoint):
 
 class ImageMonitorPoint(MonitorPoint):
     """
-    Object for representing a monitoring point image within the MCS framework.
-    At a minimum this includes:
+    Sub-class of :py:class:`MonitorPoint` for representing a monitoring point
+    image within the MCS framework.  At a minimum this includes:
      * a UNIX timestamp of when the monitoring point was updated,
      * the base64-encoded monitoring point image itself,
      * the MIME-type of the encoded image, and
@@ -207,7 +208,7 @@ class ImageMonitorPoint(MonitorPoint):
     @classmethod
     def from_figure(cls, fig):
         """
-        Return a new ImageMonitorPoint instance based on a matplotlib Figure.
+        Return a new :py:class:`ImageMonitorPoint` instance based on a matplotlib Figure.
         """
         
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
@@ -224,7 +225,7 @@ class ImageMonitorPoint(MonitorPoint):
     @classmethod
     def from_image(cls, im):
         """
-        Return a new ImageMonitorPoint instance based on a PIL.Image.
+        Return a new :py:class:`ImageMonitorPoint` instance based on a PIL.Image.
         """
         
         image = BytesIO()
@@ -240,8 +241,8 @@ class ImageMonitorPoint(MonitorPoint):
     @classmethod
     def from_file(cls, name_or_handle):
         """
-        Return a new ImageMonitorPoint instance based the contents of a filename
-        or open file handle.
+        Return a new :py:class:`ImageMonitorPoint` instance based the contents
+        of a filename or open file handle.
         """
         
         try:
@@ -510,7 +511,8 @@ class Client(object):
         """
         Read the current value of a monitoring point.  If 'id' of 'None' is
         interpretted as that monitoring point on the current subsystem.  Returns
-        the monitoring point as a MonitorPoint if successful, None otherwise.
+        the monitoring point as a :py:class:`MonitorPoint` if successful, None
+        otherwise.
         """
         
         if name.startswith('/'):
@@ -531,10 +533,11 @@ class Client(object):
     def set_monitor_point_callback(self, name, callback, id=None):
         """
         Watch the specified monitoring point and execute the callback when its
-        value is updated.  If 'id' of 'None' is interpretted as that monitoring
-        point on the current subsystem.  Return True is successful, False other-
-        wise.  This watch...callback behavior continues until the appropriate
-        cancel_monitor_point_callback() is called.
+        value is updated.  The callback should be a sub-class of
+        :py:class:`MonitorPointCallbackBase`.  If 'id' of 'None' is interpretted
+        as that monitoring point on the current subsystem.  Return True is
+        successful, False otherwise.  This watch...callback behavior continues
+        until the appropriate :py:meth:`cancel_monitor_point_callback` is called.
         """
         
         if name.startswith('/'):
@@ -584,7 +587,8 @@ class Client(object):
         Read the current value of all keys in a monitoring point branch.  If
         'id' of 'None' is interpretted as that monitoring point branch on the
         current subsystem.  Returns the monitoring point branch as a list of
-        two-element tuples of (key, MonitorPoint) if successful, None otherwise.
+        two-element tuples of (key, :py:class:`MonitorPoint`) if successful, None
+        otherwise.
         """
         
         if name.startswith('/'):
@@ -606,11 +610,12 @@ class Client(object):
     def set_monitor_point_branch_callback(self, name, callback, id=None):
         """
         Watch the specified monitoring point branch and execute the callback
-        when any key within that branch is updated.  If 'id' of 'None' is
+        when any key within that branch is updated.  The callback should be a
+        sub-class of :py:class:`MonitorPointCallbackBase`.  If 'id' of 'None' is
         interpretted as that monitoring point branch on the current subsystem.
         Return True is successful, False otherwise.  This watch...callback
         behavior continues until the appropriate
-        cancel_monitor_point_branch_callback() is called.
+        :py:meth:`cancel_monitor_point_branch_callback` is called.
         """
         
         if name.startswith('/'):
@@ -637,17 +642,19 @@ class Client(object):
     def cancel_monitor_point_branch_callback(self, name, id=None):
         """
         Cancel watching a monitoring point branch setup with
-        set_monitor_point_branch_callback.  Return True if successful, False
-        otherwise.
+        :py:meth:`set_monitor_point_branch_callback`.  Return True if successful,
+        False otherwise.
         """
         
         return self.canel_monitor_point_callback(name, id)
         
     def set_command_callback(self, command, callback):
         """
-        Process a command by executing the callback when it is received.  Return
+        Process a command by executing the callback when it is received.  The
+        callback should be a sub-class of :py:class:`CommandCallbackBase`.  Return
         True is successful, False otherwise.  This watch...callback behavior
-        continues until the appropriate cancel_command_callback() is called.
+        continues until the appropriate :py:meth:`cancel_command_callback` is
+        called.
         """
         
         if self.id is None:
@@ -671,7 +678,7 @@ class Client(object):
             
     def cancel_command_callback(self, command):
         """
-        Cancel command processing setup with set_command_callback.  Return True
+        Cancel command processing setup with :py:meth:`set_command_callback`.  Return True
         if successful, False otherwise.
         """
         

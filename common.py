@@ -14,18 +14,29 @@ __all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
            'LogFileHandler', 'setup_signal_handling', 'synchronize_time']
 
 
+#: Sample rate that is the basis for LWA time tags
 FS               = 196.0e6
+
+#: Sample rate for the ADCs
 CLOCK            = 196.0e6
+
+#: Total number of channels computed by the F-engine
 NCHAN            = 4096
+
+#: Channel bandwidth coming out of the F-Engine
 CHAN_BW          = CLOCK / (2*NCHAN)
+
+#: Total number of GPU pipelines
 NPIPELINE        = 16
+
+#: Epoch that is the basis for LWA time tags
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
 
 
 class LWATime(AstroTime):
     """
-    Subclass of astropy.time.Time that accept a LWA timetag as an input.  It
-    also attributes for accessing a (seconds, fraction seconds) tuple ("tuple")
+    Subclass of :py:class:`astropy.time.Time` that accept a LWA timetag as an input.
+    It also attributes for accessing a (seconds, fraction seconds) tuple ("tuple")
     and a LWA timetag ("timetag").
     """
     
