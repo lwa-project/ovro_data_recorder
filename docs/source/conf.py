@@ -65,4 +65,4 @@ for script in glob.glob('../../dr_*.py'):
             output = subprocess.check_output([sys.executable, script, '--help'])
             fh.write(output)
         except (OSError, subprocess.CalledProcessError):
-            fh.write("Failed to extract help message")
+            fh.write(b"Failed to extract help message")
