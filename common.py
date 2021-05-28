@@ -183,6 +183,11 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
 
 
 class LogFileHandler(TimedRotatingFileHandler):
+    """
+    Sub-class of TimedRotatingFileHandler that rolls over files daily and keeps
+    the last 21 days.
+    """
+    
     def __init__(self, filename, rollover_callback=None):
         days_per_file =  1
         file_count    = 21
@@ -220,6 +225,12 @@ def setup_signal_handling(threads, log=None, signals=[signal.SIGHUP,
                                                       signal.SIGQUIT,
                                                       signal.SIGTERM,
                                                       signal.SIGTSTP]):
+    """
+    Setup signal handling for a Bifrost pipeline given a list of block threads.
+    This catches a collection of signals and then calls the `shutdown` method of
+    the first thread.
+    """
+    
     shutdown_event = threading.Event()
     def handler(signum, frame):
         _handle_signal(signum, frame, log=log, threads=threads, event=shutdown_event)
@@ -229,6 +240,11 @@ def setup_signal_handling(threads, log=None, signals=[signal.SIGHUP,
 
 
 def synchronize_time(server='ntp.ubuntu.com'):
+    """
+    Call `ntpdate` with the specified NTP server to update the system time.  Returns
+    a Boolean of whether or not the operation was successful.
+    """
+    
     success = False
     try:
         subprocess.check_call(['ntpdate', server],

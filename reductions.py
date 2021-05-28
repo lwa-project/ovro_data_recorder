@@ -7,8 +7,8 @@ __all__ = ['ReductionOperation', 'XXYYCRCI', 'XXYY', 'CRCI', 'IQUV', 'IV']
 class ReductionOperation(object):
     """
     Base reduction operations that does not change the polarization basis or
-    outputs but can average in time and/or frequency.  The averaging is values
-    
+    outputs but can average in time and/or frequency.  The averaging values are
+    treated as decimation factors for their respective data axes.
     """
     
     def __init__(self, time_avg=1, chan_avg=1):
