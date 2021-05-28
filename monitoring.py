@@ -14,6 +14,12 @@ __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
 
 class PerformanceLogger(object):
+    """
+    Monitoring class for logging how a Bifrost pipeline is performing.  This
+    captures the maximum acquire/process/reserve times for the pipeline as well
+    as the RX rate and missing packet fraction.
+    """
+    
     def __init__(self, log, id, queue=None, shutdown_event=None):
         self.log = log
         self.id = id
@@ -35,6 +41,11 @@ class PerformanceLogger(object):
         self._state.append((new_state_time,new_state))
         
     def main(self, once=False):
+        """
+        Main logging loop.  May be run only once with the "once" keyword set to
+        True.
+        """
+        
         while not self.shutdown_event.is_set():
             # Update the state
             self._update()
@@ -126,6 +137,10 @@ class PerformanceLogger(object):
 
 
 class StorageLogger(object):
+    """
+    Monitoring class for logging how storage is used by a pipeline.
+    """
+    
     def __init__(self, log, id, directory, shutdown_event=None):
         self.log = log
         self.id = id
@@ -143,6 +158,11 @@ class StorageLogger(object):
         self._files.sort(key=lambda x: os.path.getmtime(x))
         
     def main(self, once=False):
+        """
+        Main logging loop.  May be run only once with the "once" keyword set to
+        True.
+        """
+        
         while not self.shutdown_event.is_set():
             # Update the state
             self._update()
@@ -212,6 +232,12 @@ class StorageLogger(object):
 
 
 class StatusLogger(object):
+    """
+    Monitoring class for logging the overall status of a pipeline.  This aggregates
+    other monitoring points of the pipeline and uses that information to compute
+    an overall state of the pipeline.
+    """
+    
     def __init__(self, log, id, queue, shutdown_event=None):
         self.log = log
         self.id = id
@@ -226,6 +252,11 @@ class StatusLogger(object):
         pass
         
     def main(self, once=False):
+        """
+        Main logging loop.  May be run only once with the "once" keyword set to
+        True.
+        """
+        
         while not self.shutdown_event.is_set():
             # Active operation
             ts = time.time()
@@ -309,6 +340,10 @@ class GlobalLogger(object):
             logger.shutdown_event = event
             
     def main(self):
+        """
+        Main logging loop that calls the main methods of all child loggers.
+        """
+        
         t_status = 0.0
         t_perf = 0.0
         t_storage = 0.0
