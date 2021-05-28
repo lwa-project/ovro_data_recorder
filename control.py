@@ -6,10 +6,11 @@ from datetime import datetime, timedelta
 
 from common import LWATime
 from reductions import *
-from filewriter import HDF5Writer, MeasurementSetWriter
+from filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
 from mcs import MonitorPoint, CommandCallbackBase, Client
 
-__all__ = ['BeamCommandProcessor', 'VisibilityCommandProcessor']
+__all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
+           'VoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -34,7 +35,7 @@ class CommandBase(object):
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
                   processor.filewriter_base, processor.filewriter_kwds)
-        name = kls.command_name.replace('HDF5', '').replace('MS', '')
+        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('Raw', '')
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
         def wrapper(**kwargs):
@@ -210,6 +211,39 @@ class MSRecord(CommandBase):
         return True, {'filename': filename}
 
 
+class RawRecord(CommandBase):
+    """
+    Command to schedule a recording of a voltage beam to a raw DRX file.  The
+    input data should have:
+     * id - a MCS command id
+     * start_mjd - the MJD for the start of the recording
+     * start_mpm - the MPM for the start of the recording
+     * duration_ms - the duration of the recording in ms
+    """
+    
+    _required = ('id', 'beam', 'start_mjd', 'start_mpm', 'duration_ms')
+    
+    def action(self, id, beam, start_mjd, start_mpm, duration_ms):
+        try:
+            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
+            stop = start + duration
+        except (TypeError, ValueError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False
+            
+        op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
+        try:
+            self.queue.append(op)
+        except (TypeError, RuntimeError) as e:
+            self.log_error("Failed to schedule recording: %s", str(e))
+            return False
+            
+        self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
+        return True
+
+
 class Cancel(CommandBase):
     """
     Cancel a previously scheduled recording.  The input data should have:
@@ -263,6 +297,52 @@ class Delete(CommandBase):
         return True, {'filename': filename}
 
 
+class DRX(CommandBase):
+    """
+    Command to the tuning/filter/gain for a voltage beam.  The input data should
+    have:
+     * id - a MCS command id
+     * beam - beam number (1 or 2)
+     * tuning - tuning number (1 or 2)
+     * central_freq - central frequency in Hz
+     * filter - filter code (0-7; 7 = 19.6 MHz)
+     * gain - gain value (0-15)
+    """
+    
+    _required = ('id', 'beam', 'tuning', 'central_freq', 'filter', 'gain')
+    _optional = ('subslot')
+    
+    _bandwidths = {1:   250000, 
+                   2:   500000, 
+                   3:  1000000, 
+                   4:  2000000, 
+                   5:  4900000, 
+                   6:  9800000, 
+                   7: 19600000}
+    
+    def action(self, id, beam, tuning, central_freq, bandwidth, gain, subslot=0):
+        try:
+            assert(beam in (1,2))
+            assert(tuning in (1,2))
+            assert(filer in self._bandwidths.keys())
+            assert(central_freq > self._bandwidths[filter]/2)
+            assert(gain >= 0 and gain <= 15)
+            assert(subslot >=0 and subslot <= 99)
+        except AssertionError:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False
+            
+        # Do something
+        
+        
+        self.log_info("Beam %i, tuning %i to %.3f MHz at filter %i and gain %i" % (beam,
+                                                                                   tuning,
+                                                                                   central_freq/1e6,
+                                                                                   filter,
+                                                                                   gain))
+        return True
+
+
 class CommandProcessorBase(object):
     """
     Base class for a command processor.
@@ -291,7 +371,7 @@ class CommandProcessorBase(object):
         pass
 
 
-class BeamCommandProcessor(CommandProcessorBase):
+class PowerBeamCommandProcessor(CommandProcessorBase):
     """
     Command processor for power beam data.  Supports:
      * record
@@ -308,7 +388,7 @@ class BeamCommandProcessor(CommandProcessorBase):
 
 class VisibilityCommandProcessor(CommandProcessorBase):
     """
-    Command processor for visibilitye data.  Supports:
+    Command processor for visibility data.  Supports:
      * record
      * cancel
      * delete
@@ -321,3 +401,20 @@ class VisibilityCommandProcessor(CommandProcessorBase):
                                       filewriter_kwds={'nint_per_file': nint_per_file,
                                                        'is_tarred': is_tarred},
                                       shutdown_event=shutdown_event)
+
+
+class VoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for voltage beam data.  Supports:
+     * record
+     * cancel
+     * delete
+     * drx
+    """
+    
+    _commands = (RawRecord, Cancel, Delete, DRX)
+    
+    def __init__(self, log, directory, queue, drx_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, directory, queue, DRXWriterBase,
+                                      shutdown_event=shutdown_event)
+        self.drx.queue = drx_queue

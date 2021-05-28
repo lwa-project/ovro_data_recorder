@@ -6,12 +6,12 @@ from collections import deque
 
 from filewriter import FileWriterBase
 
-__all__ = ['OperationsQueue',]
+__all__ = ['OperationsQueueBase', 'FileOperationsQueue', 'DrxOperationsQueue']
 
 
-class OperationsQueue(object):
+class OperationsQueueBase(object):
     """
-    Class to queue file writing operations.
+    Base class for queuing operations.
     """
     
     def __init__(self):
@@ -54,6 +54,20 @@ class OperationsQueue(object):
         
         return len(self) == 0
         
+    def append(self, op):
+        """
+        Method to call when adding a new entry to the queue.  To
+        be overridden by sub-classes.
+        """
+        
+        raise NotImplementedError
+
+
+class FileOperationsQueue(OperationsQueueBase):
+    """
+    Class to queue file writing operations.
+    """
+    
     def append(self, fileop):
         """
         Add a new sub-class of FileWriterBase to the queue.  In the process,
@@ -132,3 +146,37 @@ class OperationsQueue(object):
         """
         
         return self._last
+
+
+class DrxOperationsQueue(OperationsQueueBase):
+    """
+    Class to queue changes to the voltage data streams.
+    """
+    
+    def append(self, beam, tuning, central_freq, filter, gain):
+        op = (beam, tuning, central_freq, filter, gain)
+        self._queue.append(op)
+        
+    @property
+    def active(self):
+        """
+        The active DRX command or None if there is not one.
+        """
+        
+        activeop = None
+        try:
+            activeop = self._queue[0]
+        except IndexError:
+            pass
+        return activeop
+        
+    def set_active_accepted(self):
+        """
+        Set the active command as accepted.
+        """
+        
+        try:
+            self._queue.popleft()
+        except IndexError:
+            return False
+        return True

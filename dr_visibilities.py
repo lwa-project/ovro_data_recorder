@@ -23,8 +23,7 @@ from datetime import datetime, timedelta
 from common import *
 from station import ovro
 from reductions import *
-from filewriter import MeasurementSetWriter
-from operations import OperationsQueue
+from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
@@ -49,7 +48,7 @@ import PIL.Image, PIL.ImageDraw, PIL.ImageFont
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
-QUEUE = OperationsQueue()
+QUEUE = FileOperationsQueue()
 
 
 class CaptureOp(object):
