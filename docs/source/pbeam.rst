@@ -1,12 +1,11 @@
 ``dr_beam.py``
 ==============
 
-``dr_beam.py`` is the recording pipeline for both the the power beam mode.  This
-pipeline captures packetized power beam data from the digital system and writes
-the data to HDF5 files.  It can also perform on-the-fly transformations of the
-power beam data to reduce the time or frequency or change the polarization products
-being recorded.  In addition, the pipeline also generates diagnostic plots of
-the spectra.
+``dr_beam.py`` is the recording pipeline for the power beam mode.  This pipeline
+captures packetized power beam data from the digital system and writes the data
+to HDF5 files.  It can also perform on-the-fly transformations of the power beam
+data to reduce the time or frequency or change the polarization products being
+recorded.  In addition, the pipeline also generates diagnostic plots of the spectra.
 
 Structure
 ---------
