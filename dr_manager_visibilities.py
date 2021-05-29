@@ -98,7 +98,7 @@ def main(argv):
     
     c = Client(mcs_id)
     
-    for cmd in ('start', 'stop):
+    for cmd in ('sync', 'start', 'stop'):
         cb = CommandCallbackBase(c.client)
         def wrapper(value):
             status = True

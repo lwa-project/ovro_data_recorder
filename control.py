@@ -4,7 +4,7 @@ import shutil
 import threading
 from datetime import datetime, timedelta
 
-from common import LWATime
+from common import LWATime, synchronize_time
 from reductions import *
 from filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
 from mcs import MonitorPoint, CommandCallbackBase, Client
@@ -128,6 +128,23 @@ class CommandBase(object):
             
         # Action and return
         return self.action(*args, **kwds)
+
+
+class Sync(CommandBase):
+    """
+    Command to force a time sync on the subsystem using `ntddate`.  The input data
+    should have:
+     * id - a MCS command id
+     * server - the NTP server to use
+    """
+    
+    _required = ('sequence_id', 'server')
+    
+    def action(self, sequence_id, server):
+        status = synchronize_time(server)
+        if not status:
+            self.log_error("Failed to set time against %s", server)
+        return status, {'status': status}
 
 
 class HDF5Record(CommandBase):
@@ -442,12 +459,13 @@ class CommandProcessorBase(object):
 class PowerBeamCommandProcessor(CommandProcessorBase):
     """
     Command processor for power beam data.  Supports:
+     * sync
      * record
      * cancel
      * delete
     """
     
-    _commands = (HDF5Record, Cancel, Delete)
+    _commands = (Sync, HDF5Record, Cancel, Delete)
     
     def __init__(self, log, id, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, HDF5Writer,
@@ -457,11 +475,12 @@ class PowerBeamCommandProcessor(CommandProcessorBase):
 class VisibilityCommandProcessor(CommandProcessorBase):
     """
     Command processor for visibility data.  Supports:
+     * sync
      * start
      * stop
     """
     
-    _commands = (MSStart, MSStop)
+    _commands = (Sync, MSStart, MSStop)
     
     def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,
@@ -473,13 +492,14 @@ class VisibilityCommandProcessor(CommandProcessorBase):
 class VoltageBeamCommandProcessor(CommandProcessorBase):
     """
     Command processor for voltage beam data.  Supports:
+     * sync
      * record
      * cancel
      * delete
      * drx
     """
     
-    _commands = (RawRecord, Cancel, Delete, DRX)
+    _commands = (Sync, RawRecord, Cancel, Delete, DRX)
     
     def __init__(self, log, directory, queue, drx_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, directory, queue, DRXWriterBase,

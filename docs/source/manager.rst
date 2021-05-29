@@ -21,9 +21,16 @@ Thus, there will be two manager instances.
 Control Commands
 ----------------
 
-The ``dr_visibilities.py`` pipeline supports three commands: ``record``, ``cancel``, 
-and ``delete``.
+The ``dr_visibilities.py`` pipeline supports three commands: ``sync``, ``start``, 
+and ``stop``.
 
+ * ``sync`` - This command sets the system time via NTP.  The required arguments to
+   this command are:
+   
+    * ``server`` - a NTP server name or IP address to sync against.
+    
+    There are no optional arguments.  The command returns a dictionary of the sync
+    status from each managed pipeline.
  * ``record`` - This schedules when to start a recording.  The required arguments
    to this command are:
    

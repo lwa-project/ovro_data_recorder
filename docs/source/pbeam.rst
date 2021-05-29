@@ -29,9 +29,15 @@ pipeline instances.
 Control Commands
 ----------------
 
-The ``dr_beam.py`` pipeline supports three commands: ``record``, ``cancel``, 
-and ``delete``.
+The ``dr_beam.py`` pipeline supports three commands: ``sync``, ``record``,
+``cancel``, and ``delete``.
 
+ * ``sync`` - This command sets the system time via NTP.  The required arguments to
+   this command are:
+
+    * ``server`` - a NTP server name or IP address to sync against.
+ 
+   There are no optional arguments.  The command returns the sync status.
  * ``record`` - This schedules a recording to take place.  The required arguments to
    this command are:
    
