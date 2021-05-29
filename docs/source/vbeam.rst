@@ -45,8 +45,8 @@ The ``dr_tengine.py`` pipeline supports four commands: ``sync``, ``record``,
        MJD specified in ``start_mjd`` for when the recording will start, and
      * ``duration_ms`` - the number of milliseconds to record data for.
      
-    There are no optional arguments.  The command returns the base name for the
-    files that will be written.
+    There are no optional arguments.  The command returns the name of the file that
+    will be written.  The name will be of the format "<mjd>_<MCS sequence id>".
   * ``cancel`` - This cancels are previously scheduled or active recording.  The
      required arguments to this command are:
      

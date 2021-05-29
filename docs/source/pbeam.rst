@@ -46,7 +46,7 @@ The ``dr_beam.py`` pipeline supports three commands: ``sync``, ``record``,
       MJD specified in ``start_mjd`` for when the recording will start, and
     * ``duration_ms`` - the number of milliseconds to record data for.
     
-  The optional arguments are:
+   The optional arguments are:
   
     * ``stokes_mode`` - a string of "XXYY", "CRCI", "IQUV", or "IV" that specifies
       what polarization products are to be recorded.  If not provided the native
@@ -60,9 +60,10 @@ The ``dr_beam.py`` pipeline supports three commands: ``sync``, ``record``,
       divisor of 184, i.e., ``184 % chan_avg = 0``.  If not specified no averaging
       in frequency is performed.
     
-  The command returns the base name for the files that will be written.
+   The command returns the name of the file that will be written.  The name will be
+   of the format "<mjd>_<MCS sequence id>".
  * ``cancel`` - This cancels are previously scheduled or active recording.  The
-    required arguments to this command are:
+   required arguments to this command are:
     
      * `queue_id` - an entry number in the recording queue to cancel.
      

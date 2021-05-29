@@ -55,7 +55,8 @@ and ``stop``.
       MJD specified in ``start_mjd`` for when the recording will start.
     
   There are no optional arguments.  The command returns the base name for the files
-  that will be written.
+  that will be written.  The names of the individual files will follow the format
+  "<year><month><day>_<hour><minute><second>_<lowest frequency in MHz>MHz.ms".
  * ``stop`` - This schedules when to stop a recording.  The required arguments to
    this command are:
     
