@@ -36,6 +36,7 @@ class MonitorPoint(object):
     """
     Object for representing a monitoring point within the MCS framework.  At a
     minimum this includes:
+    
      * a UNIX timestamp of when the monitoring point was updated,
      * the value of the monitoring point itself, and
      * the units of the monitoring point value or '' if there are none.
@@ -124,6 +125,7 @@ class MultiMonitorPoint(MonitorPoint):
     Sub-class of :py:class`MonitorPoint` for representing a multiple monitoring
     points updated at the same time within the MCS framework.  At a minimum this
     includes:
+    
      * a UNIX timestamp of when the monitoring point was updated,
      * a list of values of the monitoring points themselves,
      * a list of field names for each monitoring point, and
@@ -179,6 +181,7 @@ class ImageMonitorPoint(MonitorPoint):
     """
     Sub-class of :py:class:`MonitorPoint` for representing a monitoring point
     image within the MCS framework.  At a minimum this includes:
+    
      * a UNIX timestamp of when the monitoring point was updated,
      * the base64-encoded monitoring point image itself,
      * the MIME-type of the encoded image, and
