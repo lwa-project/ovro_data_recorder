@@ -62,7 +62,7 @@ The ``dr_beam.py`` pipeline supports three commands: ``sync``, ``record``,
     
    The command returns the name of the file that will be written.  The name will be
    of the format "<mjd>_<MCS sequence id>".
- * ``cancel`` - This cancels are previously scheduled or active recording.  The
+ * ``cancel`` - This cancels a previously scheduled or active recording.  The
    required arguments to this command are:
     
      * `queue_id` - an entry number in the recording queue to cancel.
