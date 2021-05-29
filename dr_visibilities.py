@@ -798,6 +798,8 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
+    parser.add_argument('-t', '--record-directory-quota', type=int, default=0,
+                        help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-q', '--quick', action='store_true',
                         help='run in fast visibiltiy mode')
     parser.add_argument('-i', '--nint-per-file', type=int, default=1,
@@ -888,7 +890,7 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, mcs_id, args, QUEUE))
+    ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))

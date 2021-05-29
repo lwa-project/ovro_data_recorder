@@ -147,6 +147,8 @@ class StorageLogger(object):
         self.log = log
         self.id = id
         self.directory = directory
+        if quota == 0:
+            quota = None
         self.quota = quota
         if shutdown_event is None:
             shutdown_event = threading.Event()
