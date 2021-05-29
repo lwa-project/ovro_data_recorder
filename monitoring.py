@@ -220,7 +220,7 @@ class StorageLogger(object):
             
             # Find the total size of all files
             ts = time.time()
-            total_size = sum([self._file_sizes)
+            total_size = sum(self._file_sizes)
             self.client.write_monitor_point('storage/active_directory',
                                             self.directory, timestamp=ts)
             self.client.write_monitor_point('storage/active_directory_size',
