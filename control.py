@@ -130,6 +130,18 @@ class CommandBase(object):
         return self.action(*args, **kwds)
 
 
+class Ping(Command):
+    """
+    Command to simply reply to.  The input data should have:
+     * id - a MCS command id
+    """
+    
+    _required = ('sequence_id',)
+    
+    def action(self, sequence_id):
+        return True, {'reply': 'pong'}
+
+
 class Sync(CommandBase):
     """
     Command to force a time sync on the subsystem using `ntddate`.  The input data
@@ -459,13 +471,14 @@ class CommandProcessorBase(object):
 class PowerBeamCommandProcessor(CommandProcessorBase):
     """
     Command processor for power beam data.  Supports:
+     * ping
      * sync
      * record
      * cancel
      * delete
     """
     
-    _commands = (Sync, HDF5Record, Cancel, Delete)
+    _commands = (Ping, Sync, HDF5Record, Cancel, Delete)
     
     def __init__(self, log, id, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, HDF5Writer,
@@ -475,12 +488,13 @@ class PowerBeamCommandProcessor(CommandProcessorBase):
 class VisibilityCommandProcessor(CommandProcessorBase):
     """
     Command processor for visibility data.  Supports:
+     * ping
      * sync
      * start
      * stop
     """
     
-    _commands = (Sync, MSStart, MSStop)
+    _commands = (Ping, Sync, MSStart, MSStop)
     
     def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,
@@ -492,6 +506,7 @@ class VisibilityCommandProcessor(CommandProcessorBase):
 class VoltageBeamCommandProcessor(CommandProcessorBase):
     """
     Command processor for voltage beam data.  Supports:
+     * ping
      * sync
      * record
      * cancel
@@ -499,7 +514,7 @@ class VoltageBeamCommandProcessor(CommandProcessorBase):
      * drx
     """
     
-    _commands = (Sync, RawRecord, Cancel, Delete, DRX)
+    _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
     
     def __init__(self, log, directory, queue, drx_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, directory, queue, DRXWriterBase,

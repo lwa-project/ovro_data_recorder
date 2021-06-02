@@ -29,9 +29,12 @@ pipeline instances.
 Control Commands
 ----------------
 
-The ``dr_beam.py`` pipeline supports three commands: ``sync``, ``record``,
+The ``dr_beam.py`` pipeline supports five commands: ``ping``, ``sync``, ``record``,
 ``cancel``, and ``delete``.
 
+ * ``ping`` - This command simply replies which is helpful to see if the pipeline
+   is responsive.  There are no required or optional arguments.  Returns a response
+   of "pong".
  * ``sync`` - This command sets the system time via NTP.  The required arguments to
    this command are:
 

@@ -37,9 +37,12 @@ equates to 32 pipeline instances.
 Control Commands
 ----------------
 
-The ``dr_visibilities.py`` pipeline supports three commands: ``sync``, ``start``,
+The ``dr_visibilities.py`` pipeline supports four commands: ``ping``, ``sync``, ``start``,
 and ``stop``.
 
+ * ``ping`` - This command simply replies which is helpful to see if the pipeline
+   is responsive.  There are no required or optional arguments.  Returns a response
+   of "pong".
  * ``sync`` - This command sets the system time via NTP.  The required arguments to
    this command are:
 

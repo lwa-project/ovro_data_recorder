@@ -28,9 +28,12 @@ The pipeline is written in the Bifrost framework and has four blocks:
 Control Commands
 ----------------
 
-The ``dr_tengine.py`` pipeline supports four commands: ``sync``, ``record``,
+The ``dr_tengine.py`` pipeline supports six commands: ``ping``, ``sync``, ``record``,
 ``cancel``, ``delete``, and ``drx``.
 
+  * ``ping`` - This command simply replies which is helpful to see if the pipeline
+    is responsive.  There are no required or optional arguments.  Returns a response
+    of "pong".
   * ``sync`` - This command sets the system time via NTP.  The required arguments to
     this command are:
   

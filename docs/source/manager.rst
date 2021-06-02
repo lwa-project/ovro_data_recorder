@@ -21,9 +21,12 @@ Thus, there will be two manager instances.
 Control Commands
 ----------------
 
-The ``dr_visibilities.py`` pipeline supports three commands: ``sync``, ``start``, 
+The ``dr_manager_visibilities.py`` supports four commands: ``ping``, ``sync``, ``start``, 
 and ``stop``.
-
+ 
+ * ``ping`` - This command simply replies which is helpful to see if the pipeline
+   is responsive.  There are no required or optional arguments.  Returns a dictionary
+   of the ping response from each managed pipeline.
  * ``sync`` - This command sets the system time via NTP.  The required arguments to
    this command are:
    
