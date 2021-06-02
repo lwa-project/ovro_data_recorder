@@ -518,7 +518,7 @@ class VoltageBeamCommandProcessor(CommandProcessorBase):
     
     _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
     
-    def __init__(self, log, directory, queue, drx_queue, shutdown_event=None):
-        CommandProcessorBase.__init__(self, log, directory, queue, DRXWriterBase,
+    def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
                                       shutdown_event=shutdown_event)
         self.drx.queue = drx_queue
