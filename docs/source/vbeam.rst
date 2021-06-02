@@ -119,4 +119,79 @@ recorded.
 Data Format
 -----------
 
-Is the DRX format.  What more is there to say?
+The DRX format is a
+`Mark 5C <http://www.haystack.mit.edu/tech/vlbi/mark5/mark5_memos/057.pdf>`_-based
+packetized format for storing complex voltage timeseries data.  The header for
+these packets are defined as:
+
+.. image:: DRX.png
+   :alt: DRX packet header
+
+The only portion of this header that is saved to disk by ``dr_tengine.py`` is the
+yellow Mark 5C portion in the above image.  Each data frame will contain data of
+one polarization (X or Y), one DRX tuning, and 4096 samples stored as 4+4 bit
+complex integers (signed two's complement).  The total size of a data packet is 4128
+bytes.  The Mark 5C header will include an ID field that identifies which
+polarization and tuning is associated with the data, as described in the table
+below.
+
+The Mark 5C header will include Frame Count and Seconds Count fields for
+compatibility purposes but both of these fields will always be set to zero. The
+Data Frame header will include a Decimation Factor field that describes the
+decimation factor used in producing the output data. The output sample rate is
+`fs`/Decimation Factor. The Data Frame header will also include a Time Offset field
+that provides the known time offset (Tnom in
+`LWA Memo 151 <https://leo.phys.unm.edu/~lwa/memos/memo/lwa0151.pdf>`_), in units of 1/`fs`
+since the beginning of the second. The Data Frame will include a Time field (t1 in
+`LWA Memo 151 <https://leo.phys.unm.edu/~lwa/memos/memo/lwa0151.pdf>`_) in units of
+1/`fs` since 1970 January 1 00:00 UTC. For the i-th sample of the frame, the time
+at that sample is related to the frame time tag through:
+
+.. math::
+  t_i = \mbox{time} + (i-1) \times \frac{\mbox{DecimationFactor}}{f_s}.
+  
+The Data Frame will also include a tuning word, a unsigned 32-bit integer, which
+specifies the central tuning of the DRX data. This tuning word, `w`, can be
+converted to a frequency in Hz via:
+
+.. math::
+  f = \frac{w}{2^{32}} f_s,
+
+where `fs` is defined as 196 MHz. The status/flags field in the Data Frame is
+currently unimplemented in the DRX firmware and is set to zero for all frames.
+
+Each sample is 8 bits total (4 bits I and 4 bits Q). Therefore 4096 samples
+require 4096 bytes. Inside each 32-bit word, the data will be arranged in the
+following order (from MSB to LSB)::
+
+    I0 (bits 31-28), Q0 (bits 27-24), I1 (bits 23-20), Q1 (bits 19-16), 
+    I2 (bits 15-12), Q2 (bits 11-8), I3 (bits 7-4), Q3 (bits 3-0).
+
+The numbers in paraphrases are the bits within each sample such that 0 is the LSB.
+
+.. csv-table:: DRX_ID Numbering
+  :header: DRX_BEAM,DRX_TUNING,Polarization, DRX_ID
+  
+  1, 1, X, 9
+  1, 1, Y, 137
+  1, 2, X, 17
+  1, 2, Y, 145
+  2, 1, X, 10
+  2, 1, Y, 138
+  2, 2, X, 18
+  2, 2, Y, 146
+  3, 1, X, 11
+  3, 1, Y, 139
+  3, 2, X, 19
+  3, 2, Y, 147
+  4, 1, X, 12
+  4, 1, Y, 140
+  4, 2, X, 20
+  4, 2, Y, 148
+
+DRX Numbering is as follows:  DRX_ID is an unsigned 8-bit integer.
+
+ * Bits 0-2 are used to represent DRX_BEAM,
+ * bits 3-5 are used to represent DRX_TUNING,
+ * bit 6 is reserved for future use, and
+ * bit 7 is used to represent polarization.
