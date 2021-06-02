@@ -31,7 +31,7 @@ and ``stop``.
     
     There are no optional arguments.  The command returns a dictionary of the sync
     status from each managed pipeline.
- * ``record`` - This schedules when to start a recording.  The required arguments
+ * ``start`` - This schedules when to start a recording.  The required arguments
    to this command are:
    
     * ``start_mjd`` - an integer MJD value for when the recording will start or
