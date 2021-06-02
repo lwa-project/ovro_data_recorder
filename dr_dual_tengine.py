@@ -24,6 +24,7 @@ from common import *
 from operations import FileOperationsQueue, DrxOperationsQueue
 from monitoring import GlobalLogger
 from control import VoltageBeamCommandProcessor
+from mcs import MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -546,7 +547,8 @@ class TEngineOp(object):
             if beam != self.beam0:
                 self.log.info("TEngine: Not for this beam, skipping")
                 return False
-                
+            tuning = tuning - 1
+            
             self.rFreq[tuning] = freq
             self.filt = filt
             self.nchan_out = FILTER2CHAN[filt]
@@ -569,7 +571,6 @@ class TEngineOp(object):
             phaseRot = phaseRot.astype(numpy.complex64)
             copy_array(self.phaseState, phaseState)
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
-            ACTIVE_DRX_CONFIG.set()
             
             return True
             
@@ -819,6 +820,120 @@ class TEngineOp(object):
                         break
 
 
+class StatisticsOp(object):
+    def __init__(self, log, id, iring, beam0=1, ntime_gulp=1, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.beam0      = beam0
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            cfreq0   = ihdr['cfreq0']
+            cfreq1   = ihdr['cfreq1']
+            bw       = ihdr['bw']
+            gain0    = ihdr['gain0']
+            gain1    = ihdr['gain1']
+            filt     = ihdr['filter']
+            nbeam    = ihdr['nbeam']
+            ntune    = ihdr['ntune']
+            npol     = ihdr['npol']
+            fdly     = (ihdr['fir_size'] - 1) / 2.0
+            time_tag0 = iseq.time_tag
+            time_tag  = time_tag0
+            
+            igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
+            ishape = (self.ntime_gulp,nbeam,ntune*npol)
+            
+            ticksPerSample = int(FS) // int(bw)
+            
+            data_pols = ['X1', 'Y1', 'X2', 'Y2']
+            last_save = 0.0
+            
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view('ci4').reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.unix
+                    
+                    ## ci4 -> cf32
+                    try:
+                        udata = udate.reshape(idata.shape)
+                        Unpack(idata, udata)
+                    except NameError:
+                        udata = BFArray(shape=idata.shape, dtype='cf32', space=idata.bf.space)
+                        Unpack(idata, udata)
+                        
+                    ## Run the statistics over all times/tunings/polarizations
+                    ##  * only really works for nbeam=1
+                    udata = udata.reshape(self.ntime_gulp,ntune*npol)
+                    pdata = numpy.abs(udata)**2
+                    data_avg = numpy.mean(pdata, axis=0)
+                    data_sat = numpy.where(pdata >= 49, 1, 0)
+                    data_sat = numpy.mean(data_sat, axis=0)
+                    
+                    ## Save
+                    for data,name in zip((data_avg,data_sat), ('avg','sat')):
+                        value = MultiMonitorPoint(data.tolist(),
+                                                  timestamp=ts, field=data_pols)
+                        self.client.write_monitor_point('statistics/%s' % name, value)
+                        
+                    last_save = time.time()
+                    
+                time_tag += int(self.ntime_gulp)*ticksPerSample
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+                
+            try:
+                del udata
+            except NameError:
+                pass
+                
+        self.log.info("StatisticsOp - Done")
+
+
 class WriterOp(object):
     def __init__(self, log, iring, beam0=1, npkt_gulp=128, nbeam_max=1, ntune_max=2, guarantee=True, core=None):
         self.log        = log
@@ -977,7 +1092,7 @@ def main(argv):
                         help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='beam to receive data for')
-    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4,5,6,7,8',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4,5,6,7,8,9,10',
                         help='comma separated list of cores to bind to')
     parser.add_argument('--gpus', type=str, default='0,1',
                         help='comma separated list of GPUs to bind to')
@@ -1069,6 +1184,10 @@ def main(argv):
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine1_ring, write1_ring, beam0=2,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
+    ops.append(StatisticsOp(log, mcs_id_0, write_ring, beam0=1,
+                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0))
+    ops.append(StatisticsOp(log, mcs_id_1, write_ring, beam0=2,
+                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0))
     ops.append(WriterOp(log, write0_ring, beam0=1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(WriterOp(log, write1_ring, beam0=2,

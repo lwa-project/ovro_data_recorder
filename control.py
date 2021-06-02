@@ -408,7 +408,7 @@ class DRX(CommandBase):
      * gain - gain value (0-15)
     """
     
-    _required = ('id', 'beam', 'tuning', 'central_freq', 'filter', 'gain')
+    _required = ('sequence_id', 'beam', 'tuning', 'central_freq', 'filter', 'gain')
     _optional = ('subslot')
     
     _bandwidths = {1:   250000, 
@@ -419,27 +419,27 @@ class DRX(CommandBase):
                    6:  9800000, 
                    7: 19600000}
     
-    def action(self, id, beam, tuning, central_freq, bandwidth, gain, subslot=0):
+    def action(self, sequence_id, beam, tuning, central_freq, filter, gain, subslot=0):
         try:
             assert(beam in (1,2))
             assert(tuning in (1,2))
-            assert(filer in self._bandwidths.keys())
+            assert(filter in self._bandwidths.keys())
             assert(central_freq > self._bandwidths[filter]/2)
             assert(gain >= 0 and gain <= 15)
             assert(subslot >=0 and subslot <= 99)
-        except AssertionError:
+        except AssertionError as e:
             self.log_error("Failed to unpack command data: %s", str(e))
-            return False
+            return False, "Failed to unpack command data: %s" % str(e)
             
-        # Do something
+        # Put it in the queue
+        self.queue.append(beam, tuning, central_freq, filter, gain)
         
-        
-        self.log_info("Beam %i, tuning %i to %.3f MHz at filter %i and gain %i" % (beam,
-                                                                                   tuning,
-                                                                                   central_freq/1e6,
-                                                                                   filter,
-                                                                                   gain))
-        return True
+        self.log_info("Beam %i, tuning %i to %.3f MHz at filter %i and gain %i", beam,
+                                                                                 tuning,
+                                                                                 central_freq/1e6,
+                                                                                 filter,
+                                                                                 gain)
+        return True, "success"
 
 
 class CommandProcessorBase(object):
