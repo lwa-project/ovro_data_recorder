@@ -11,6 +11,7 @@ import time
 import uuid
 import etcd3
 import base64
+import signal
 try:
     from io import BytesIO
 except ImportError:
@@ -724,7 +725,13 @@ class Client(object):
                    'kwargs': kwargs}
         payload = json.dumps(payload)
         
+        def _timeout(signum, frame):
+            raise RuntimeError("timeout")
+        signal.signal(signal.SIGALRM, _timeout)
+
         try:
+            if self.timeout > 0:
+                signal.alarm(int(round(self.timeout)))
             events_iterator, cancel = self.client.watch(resp_name)
             
             self.client.put(full_name, payload)
@@ -738,6 +745,7 @@ class Client(object):
                         found = value
                         break
             cancel()
+            signal.alarm(0)
             
             return True, found
         except Exception as e:
