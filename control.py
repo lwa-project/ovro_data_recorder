@@ -260,9 +260,9 @@ class RawRecord(CommandBase):
      * duration_ms - the duration of the recording in ms
     """
     
-    _required = ('id', 'beam', 'start_mjd', 'start_mpm', 'duration_ms')
+    _required = ('sequence_id', 'beam', 'start_mjd', 'start_mpm', 'duration_ms')
     
-    def action(self, id, beam, start_mjd, start_mpm, duration_ms):
+    def action(self, sequence_id, beam, start_mjd, start_mpm, duration_ms):
         try:
             filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
             if start_mjd == "now":
@@ -274,17 +274,17 @@ class RawRecord(CommandBase):
             stop = start + duration
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
-            return False
+            return False, "Failed to unpack command data: %s" % str(e)
             
         op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
-            return False
+            return False, "Failed to schedule recording start: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {'filename': filename}
 
 
 class Cancel(CommandBase):
