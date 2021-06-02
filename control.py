@@ -130,7 +130,7 @@ class CommandBase(object):
         return self.action(*args, **kwds)
 
 
-class Ping(Command):
+class Ping(CommandBase):
     """
     Command to simply reply to.  The input data should have:
      * id - a MCS command id
@@ -139,7 +139,7 @@ class Ping(Command):
     _required = ('sequence_id',)
     
     def action(self, sequence_id):
-        return True, {'reply': 'pong'}
+        return True, 'pong'
 
 
 class Sync(CommandBase):
@@ -156,7 +156,7 @@ class Sync(CommandBase):
         status = synchronize_time(server)
         if not status:
             self.log_error("Failed to set time against %s", server)
-        return status, {'status': status}
+        return status, str(status)
 
 
 class HDF5Record(CommandBase):
