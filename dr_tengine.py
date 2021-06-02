@@ -891,6 +891,8 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
+    parser.add_argument('-q', '--record-directory-quota', type=int, default=0,
+                        help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
@@ -918,6 +920,9 @@ def main(argv):
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
         
+    # Setup the subsystem ID
+    mcs_id = 'drt%i' % args.beam
+    
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
     gpus = [args.gpu for c in cores]
@@ -954,32 +959,27 @@ def main(argv):
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(WriterOp(log, write_ring,
                         npkt_gulp=32, core=cores.pop(0)))
-    #ops.append(GlobalLogger(log, args, FILE_QUEUE))
-    #ops.append(VoltageBeamCommandProcessor(log, args.record_directory, FILE_QUEUE, DRX_QUEUE))
+    ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota))
+    ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
+    
+    # Setup the threads
+    threads = [threading.Thread(target=op.main) for op in ops]
     
     """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    ops[-1].record(json.dumps({'id': 234343423,
-                               'start_mjd': mjd_now,
-                               'start_mpm': mpm_now,
-                               'duration_ms': 30*1000}))
-    
-    try:
-        os.unlink(FILE_QUEUE[0].filename)
-    except OSError:
-        pass
+    c = Client()
+    r = c.send_command(mcs_id, 'record',
+                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+    print('III', r)
     """
-    
-    # Setup the threads
-    threads = [threading.Thread(target=op.main) for op in ops]
     
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
-    #ops[-2].shutdown_event = shutdown_event
-    #ops[-1].shutdown_event = shutdown_event
+    ops[-2].shutdown_event = shutdown_event
+    ops[-1].shutdown_event = shutdown_event
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))

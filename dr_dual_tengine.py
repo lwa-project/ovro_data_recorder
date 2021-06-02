@@ -63,8 +63,10 @@ FILTER2CHAN = {1:   250000//int(INT_CHAN_BW),
 DRX_NSAMPLE_PER_PKT = 4096
 
 
-FILE_QUEUE = FileOperationsQueue()
-DRX_QUEUE = DrxOperationsQueue()
+FILE_QUEUE_0 = FileOperationsQueue()
+FILE_QUEUE_1 = FileOperationsQueue()
+DRX_QUEUE_0 = DrxOperationsQueue()
+DRX_QUEUE_1 = DrxOperationsQueue()
 
 
 class CaptureOp(object):
@@ -484,8 +486,13 @@ class TEngineOp(object):
         self.sampleCount = BFArray(sampleCount, space='cuda')
         
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
-        global DRX_QUEUE
-        
+        global DRX_QUEUE_0
+        global DRX_QUEUE_1
+        if args.beam0 == 1:
+            DRX_QUEUE = DRX_QUEUE_0
+        else:
+            DRX_QUEUE = DRX_QUEUE_1
+            
         # Get the current pipeline time to figure out if we need to shelve a command or not
         pipeline_time = time_tag / FS
         
@@ -832,8 +839,13 @@ class WriterOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         
     def main(self):
-        global FILE_QUEUE
-        
+        global FILE_QUEUE_0
+        global FILE_QUEUE_1
+        if args.beam0 == 1:
+            FILE_QUEUE = FILE_QUEUE_0
+        else:
+            FILE_QUEUE = FILE_QUEUE_1
+            
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
@@ -975,6 +987,8 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
+    parser.add_argument('-q', '--record-directory-quota', type=int, default=0,
+                        help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
@@ -1002,6 +1016,10 @@ def main(argv):
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
         
+    # Setup the subsystem ID
+    mcs_id_0 = 'drt%i' % args.beam
+    mcd_id_1 = 'drt%i' % (args.beams+1,)
+    
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
     gpus = [int(v, 10) for v in args.gpus.split(',')]
@@ -1055,32 +1073,33 @@ def main(argv):
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(WriterOp(log, write1_ring, beam0=2,
                         npkt_gulp=32, core=cores.pop(0)))
-    #ops.append(GlobalLogger(log, args, FILE_QUEUE))
-    #ops.append(VoltageBeamCommandProcessor(log, args.record_directory, FILE_QUEUE, DRX_QUEUE))
+    ops.append(GlobalLogger(log, mcs_id_0, args, FILE_QUEUE_0, quota=args.record_directory_quota))
+    ops.append(GlobalLogger(log, mcs_id_1, args, FILE_QUEUE_1, quota=args.record_directory_quota))
+    ops.append(VoltageBeamCommandProcessor(log, mcs_id_0, args.record_directory, FILE_QUEUE_0, DRX_QUEUE_0))
+    ops.append(VoltageBeamCommandProcessor(log, mcs_id_1, args.record_directory, FILE_QUEUE_1, DRX_QUEUE_1))
+    
+    # Setup the threads
+    threads = [threading.Thread(target=op.main) for op in ops]
     
     """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    ops[-1].record(json.dumps({'id': 234343423,
-                               'start_mjd': mjd_now,
-                               'start_mpm': mpm_now,
-                               'duration_ms': 30*1000}))
-    
-    try:
-        os.unlink(FILE_QUEUE[0].filename)
-    except OSError:
-        pass
+    c = Client()
+    r0 = c.send_command(mcs_id_0, 'record',
+                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+    r1 = c.send_command(mcs_id_1, 'record',
+                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+    print('III', r0, '&', r1)
     """
-    
-    # Setup the threads
-    threads = [threading.Thread(target=op.main) for op in ops]
     
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
-    #ops[-2].shutdown_event = shutdown_event
-    #ops[-1].shutdown_event = shutdown_event
+    ops[-4].shutdown_event = shutdown_event
+    ops[-3].shutdown_event = shutdown_event
+    ops[-2].shutdown_event = shutdown_event
+    ops[-1].shutdown_event = shutdown_event
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))
