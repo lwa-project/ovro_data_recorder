@@ -590,7 +590,10 @@ class Client(object):
         the list if successful, None otherwise.
         """
         
-        return self.read_monitor_point('manifest/monitoring', id=id)
+        res = self.read_monitor_point('manifest/monitoring', id=id)
+        if res is not None:
+            res = res.value
+        return res
         
     def set_monitor_point_callback(self, name, callback, id=None):
         """
@@ -716,7 +719,10 @@ class Client(object):
         Returns the list if successful, None otherwise.
         """
         
-        return self.read_monitor_point('manifest/commands', id=subsystem)
+        res = self.read_monitor_point('manifest/commands', id=subsystem)
+        if res is not None:
+            res = res.value
+        return res
             
     def set_command_callback(self, command, callback):
         """
