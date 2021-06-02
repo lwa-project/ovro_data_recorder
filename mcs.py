@@ -590,7 +590,7 @@ class Client(object):
         the list if successful, None otherwise.
         """
         
-        return self.read_monitor_point('manifest/monitor', id=id)
+        return self.read_monitor_point('manifest/monitoring', id=id)
         
     def set_monitor_point_callback(self, name, callback, id=None):
         """
