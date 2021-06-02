@@ -312,10 +312,10 @@ class Cancel(CommandBase):
                 return False, "Invalid queue entry number"
                 
         try:
-            filename = self.queue[queue_number].filename
-            start = self.queue[queue_number].start_time
-            stop = self.queue[queue_number].stop_time
-            self.queue[queue_number].cancel()
+            filename = op.filename
+            start = op.start_time
+            stop = op.stop_time
+            op.cancel()
         except Exception as e:
             self.log_error("Failed to cancel recording: %s", str(e))
             return False, "Failed to cancel recording: %s" % str(e)

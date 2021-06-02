@@ -160,7 +160,9 @@ class FileWriterBase(object):
         
         if self.is_active:
             self.stop()
-        self.stop = datetime.utcnow() - 2*self._margin
+        else:
+            self.start_time = datetime.utcnow() - 2*self._margin
+        self.stop_time = datetime.utcnow() - 2*self._margin
 
 
 class DRXWriter(FileWriterBase):
