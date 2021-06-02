@@ -316,6 +316,7 @@ class Cancel(CommandBase):
             start = op.start_time
             stop = op.stop_time
             op.cancel()
+            self.queue.clean()
         except Exception as e:
             self.log_error("Failed to cancel recording: %s", str(e))
             return False, "Failed to cancel recording: %s" % str(e)
@@ -353,6 +354,7 @@ class MSStop(CommandBase):
                 filename = op.filename
                 start = op.start_time
                 op.cancel()
+                self.queue.clean()
             else:
                 self.log_error("Failed to find operation active at the specified stop time")
                 return False, "Failed to find operation active at the specified stop time"

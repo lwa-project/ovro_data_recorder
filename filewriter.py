@@ -163,7 +163,7 @@ class FileWriterBase(object):
         else:
             self.start_time = datetime.utcnow() - 2*self._margin
             self._padded_start_time  = self.start_time - self._margin
-        self.stop_time = datetime.utcnow() - 2*self._margin
+        self.stop_time = datetime.utcnow() - 4*self._margin
         self._padded_stop_time = self.stop_time + self._margin
 
 
