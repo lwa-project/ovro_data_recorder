@@ -406,7 +406,8 @@ class Client(object):
         self.timeout = timeout
         
         self.client = etcd3.client()
-        self._manifest = ['manifest',]
+        self._mon_manifest = ['manifest/monitoring', 'manifest/commands']
+        self._cmd_manifest = []
         self._watchers = {}
         
     def __del__(self):
@@ -417,7 +418,7 @@ class Client(object):
                 pass
         self.client.close()
         
-    def _update_manifest(self, name, drop=False):
+    def _update_mon_manifest(self, name, drop=False):
         """
         Update the monitoring point manifest as needed.  Returns a Boolean of
         whether or not an update was made.
@@ -430,12 +431,12 @@ class Client(object):
             if drop:
                 ## Remove from the local manifest
                 try:
-                    del self._manifest[self._manifest.index(name)]
+                    del self._mon_manifest[self._mon_manifest.index(name)]
                 except ValueError:
                     pass
                     
                 ## Check the published manifest
-                value = self.read_monitor_point('manifest')
+                value = self.read_monitor_point('manifest/monitoring')
                 if value is None:
                     value = MonitorPoint([])
                 try:
@@ -444,15 +445,15 @@ class Client(object):
                 except ValueError:
                     pass
                     
-            elif name not in self._manifest:
+            elif name not in self._mon_manifest:
                 ## Not in the local manifest
-                self._manifest.append(name)
+                self._mon_manifest.append(name)
                 
                 ## Check the published manifest
-                value = self.read_monitor_point('manifest')
+                value = self.read_monitor_point('manifest/monitoring')
                 if value is None:
                     value = MonitorPoint([])
-                for entry in self._manifest:
+                for entry in self._mon_manifest:
                     if entry not in value.value:
                         value.value.append(entry)
                         updated = True
@@ -461,7 +462,55 @@ class Client(object):
             if updated and value is not None:
                 value.timestamp = time.time()
                 value = value.as_json()
-                self.client.put('/mon/%s/%s' % (self.id, 'manifest'), value)
+                self.client.put('/mon/%s/%s' % (self.id, 'manifest/monitoring'), value)
+                
+        return updated
+        
+    def _update_cmd_manifest(self, name, drop=False):
+        """
+        Update the command manifest as needed.  Returns a Boolean of whether or
+        not an update was made.
+        """
+       
+        with self.client.lock(self.id, ttl=5) as lock:
+            # Is it alread in the local manifest?
+            updated = False
+            value = None
+            if drop:
+                ## Remove from the local manifest
+                try:
+                    del self._cmd_manifest[self._cmd_manifest.index(name)]
+                except ValueError:
+                    pass
+                    
+                ## Check the published manifest
+                value = self.read_monitor_point('manifest/commands')
+                if value is None:
+                    value = MonitorPoint([])
+                try:
+                    del value.value[value.value.index(name)]
+                    updated = True
+                except ValueError:
+                    pass
+                    
+            elif name not in self._cmd_manifest:
+                ## Not in the local manifest
+                self._cmd_manifest.append(name)
+                
+                ## Check the published manifest
+                value = self.read_monitor_point('manifest/commands')
+                if value is None:
+                    value = MonitorPoint([])
+                for entry in self._cmd_manifest:
+                    if entry not in value.value:
+                        value.value.append(entry)
+                        updated = True
+                        
+            # If there is an update, push it out
+            if updated and value is not None:
+                value.timestamp = time.time()
+                value = value.as_json()
+                self.client.put('/mon/%s/%s' % (self.id, 'manifest/commands'), value)
                 
         return updated
         
@@ -478,7 +527,7 @@ class Client(object):
             
         try:
             self.client.delete('/mon/%s/%s' % (self.id, name))
-            self._update_manifest(name, drop=True)
+            self._update_mon_manifest(name, drop=True)
             return True
         except Exception as e:
             return False
@@ -506,14 +555,14 @@ class Client(object):
         
         try:
             self.client.put('/mon/%s/%s' % (self.id, name), value)
-            self._update_manifest(name)
+            self._update_mon_manifest(name)
             return True
         except Exception:
             return False
             
     def read_monitor_point(self, name, id=None):
         """
-        Read the current value of a monitoring point.  If 'id' of 'None' is
+        Read the current value of a monitoring point.  An 'id' of 'None' is
         interpretted as that monitoring point on the current subsystem.  Returns
         the monitoring point as a :py:class:`MonitorPoint` if successful, None
         otherwise.
@@ -534,11 +583,20 @@ class Client(object):
             print('ERROR2:', str(e))
             return None
             
+    def list_monitor_points(self, id=None):
+        """
+        Return the contents of the monitoring point manifest.  An 'id' of 'None'
+        is interpretted as that monitoring point on the current subsystem.  Returns
+        the list if successful, None otherwise.
+        """
+        
+        return self.read_monitor_point('manifest/monitor', id=id)
+        
     def set_monitor_point_callback(self, name, callback, id=None):
         """
         Watch the specified monitoring point and execute the callback when its
         value is updated.  The callback should be a sub-class of
-        :py:class:`MonitorPointCallbackBase`.  If 'id' of 'None' is interpretted
+        :py:class:`MonitorPointCallbackBase`.  An 'id' of 'None' is interpretted
         as that monitoring point on the current subsystem.  Return True is
         successful, False otherwise.  This watch...callback behavior continues
         until the appropriate :py:meth:`cancel_monitor_point_callback` is called.
@@ -588,7 +646,7 @@ class Client(object):
             
     def read_monitor_point_branch(self, name, id=None):
         """
-        Read the current value of all keys in a monitoring point branch.  If
+        Read the current value of all keys in a monitoring point branch.  An
         'id' of 'None' is interpretted as that monitoring point branch on the
         current subsystem.  Returns the monitoring point branch as a list of
         two-element tuples of (key, :py:class:`MonitorPoint`) if successful, None
@@ -615,7 +673,7 @@ class Client(object):
         """
         Watch the specified monitoring point branch and execute the callback
         when any key within that branch is updated.  The callback should be a
-        sub-class of :py:class:`MonitorPointCallbackBase`.  If 'id' of 'None' is
+        sub-class of :py:class:`MonitorPointCallbackBase`.  An 'id' of 'None' is
         interpretted as that monitoring point branch on the current subsystem.
         Return True is successful, False otherwise.  This watch...callback
         behavior continues until the appropriate
@@ -652,6 +710,14 @@ class Client(object):
         
         return self.canel_monitor_point_callback(name, id)
         
+    def list_commands(self, subsystem):
+        """
+        Return the contents of the command manifest for the specified subsystem.
+        Returns the list if successful, None otherwise.
+        """
+        
+        return self.read_monitor_point('manifest/commands', id=subsystem)
+            
     def set_command_callback(self, command, callback):
         """
         Process a command by executing the callback when it is received.  The
@@ -676,6 +742,7 @@ class Client(object):
             except KeyError:
                 pass
             self._watchers[command] = (watch_id, callback)
+            self._update_cmd_manifest(command)
             return True
         except Exception as e:
             return False
@@ -695,6 +762,7 @@ class Client(object):
         try:
             self.client.cancel_watch(self._watchers[full_name][0])
             del self._watchers[full_name]
+            self._update_cmd_manifest(command, drop=True)
             return True
         except KeyError:
             return False
