@@ -53,7 +53,7 @@ The ``dr_tengine.py`` pipeline supports six commands: ``ping``, ``sync``, ``reco
   * ``cancel`` - This cancels a previously scheduled or active recording.  The
      required arguments to this command are:
      
-      * `queue_id` - an entry number in the recording queue to cancel.
+      * `queue_number` - an entry number in the recording queue to cancel.
       
     There are no optional arguments.  The command returns the base name for the files
     that were to have been written/were written that is associated with the queue
