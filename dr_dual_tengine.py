@@ -1091,7 +1091,7 @@ def main(argv):
     parser.add_argument('--filename', type=str,
                         help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
-                        help='beam to receive data for')
+                        help='first beam to receive data for')
     parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4,5,6,7,8,9,10',
                         help='comma separated list of cores to bind to')
     parser.add_argument('--gpus', type=str, default='0,1',
@@ -1189,17 +1189,17 @@ def main(argv):
                                ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(ReChannelizerOp(log, split1_ring, tengine1_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(TEngineOp(log, tengine0_ring, write0_ring, beam0=1,
+    ops.append(TEngineOp(log, tengine0_ring, write0_ring, beam0=args.beam,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(TEngineOp(log, tengine1_ring, write1_ring, beam0=2,
+    ops.append(TEngineOp(log, tengine1_ring, write1_ring, beam0=args.beam+1,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(StatisticsOp(log, mcs_id_0, write_ring, beam0=1,
+    ops.append(StatisticsOp(log, mcs_id_0, write_ring, beam0=args.beam,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
-    ops.append(StatisticsOp(log, mcs_id_1, write_ring, beam0=2,
+    ops.append(StatisticsOp(log, mcs_id_1, write_ring, beam0=arg.beam+1,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
-    ops.append(WriterOp(log, write0_ring, beam0=1,
+    ops.append(WriterOp(log, write0_ring, beam0=args.beam,
                         npkt_gulp=32, core=cores.pop(0)))
-    ops.append(WriterOp(log, write1_ring, beam0=2,
+    ops.append(WriterOp(log, write1_ring, beam0=args.beam+1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id_0, args, FILE_QUEUE_0, quota=args.record_directory_quota))
     ops.append(GlobalLogger(log, mcs_id_1, args, FILE_QUEUE_1, quota=args.record_directory_quota))

@@ -1083,7 +1083,7 @@ def main(argv):
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, write_ring,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
-    ops.append(WriterOp(log, write_ring,
+    ops.append(WriterOp(log, write_ring, beam0=args.beam,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota))
     ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
