@@ -33,6 +33,13 @@ NPIPELINE        = 16
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
 
 
+#: etcd hostname
+ETCD_HOST = '10.42.0.64'# '127.0.0.1'
+
+#: etcd port
+ETCD_PORT = 2379
+
+
 class LWATime(AstroTime):
     """
     Subclass of :py:class:`astropy.time.Time` that accept a LWA timetag as an input.

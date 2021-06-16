@@ -23,6 +23,8 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
+from common import ETCD_HOST, ETCD_PORT
+
 
 __all__ = ['MonitorPoint', 'MultiMonitorPoint', 'ImageMonitorPoint',
            'MonitorPointCallbackBase', 'CommandCallbackBase', 'Client']
@@ -405,7 +407,7 @@ class Client(object):
             timeout = 1e9
         self.timeout = timeout
         
-        self.client = etcd3.client()
+        self.client = etcd3.client(host=ETCD_HOST, port=ETCD_PORT)
         self._mon_manifest = ['manifest/monitoring', 'manifest/commands']
         self._cmd_manifest = []
         self._watchers = {}
