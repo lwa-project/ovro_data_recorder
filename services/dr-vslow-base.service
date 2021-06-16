@@ -1,0 +1,37 @@
+[Unit]
+Description=OVRO-LWA Slow Visibilties Recorder - Band {{ band }}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Run as the specified user
+User=ubuntu
+
+# Allow unlimited locked memory
+LimitMEMLOCK=infinity
+
+# Have a safety net to kill off recalcitrant pipelines
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Logging
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dr-vslow-{{ band }}
+
+# Run before process
+ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+
+# Setup the environment
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/bin/bash -ec '\
+python /home/ubuntu/ovro_data_recorder/dr_visibilities.py \
+         --address                {{ address }} \
+         --port                   {{ port }} \
+         --record-directory       {{ directory }} \
+         --record-directory-quota {{ quota }}
+	 --logfile                /home/ubuntu/log/dr-vslow-{{ band }}.%H.log'
+
+[Install]
+WantedBy=multi-user.target
