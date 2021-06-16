@@ -9,18 +9,19 @@ import argparse
 # Setup
 ## Power beam setup
 rdir = '/home/ubuntu/data/beam'
-beams = { 1: ('enp216s0', 10000, rdir+'01'),
-          2: ('enp216s0', 10001, rdir+'02'),
-          3: ('enp216s0', 10002, rdir+'03'),
-          4: ('enp216s0', 10003, rdir+'04'),
-          5: ('enp216s0', 10004, rdir+'05'),
-          6: ('enp216s0', 10005, rdir+'06'),
-          7: ('enp216s0', 10006, rdir+'07'),
-          8: ('enp216s0', 10007, rdir+'08'),
-          9: ('enp216s0', 10008, rdir+'09'),
-         10: ('enp216s0', 10009, rdir+'10'),
-         11: ('enp216s0', 10010, rdir+'11'),
-         12: ('enp216s0', 10011, rdir+'12'),
+quota = 0
+beams = { 1: ('enp216s0', 10000, rdir+'01', quota),
+          2: ('enp216s0', 10001, rdir+'02', quota),
+          3: ('enp216s0', 10002, rdir+'03', quota),
+          4: ('enp216s0', 10003, rdir+'04', quota),
+          5: ('enp216s0', 10004, rdir+'05', quota),
+          6: ('enp216s0', 10005, rdir+'06', quota),
+          7: ('enp216s0', 10006, rdir+'07', quota),
+          8: ('enp216s0', 10007, rdir+'08', quota),
+          9: ('enp216s0', 10008, rdir+'09', quota),
+         10: ('enp216s0', 10009, rdir+'10', quota),
+         11: ('enp216s0', 10010, rdir+'11', quota),
+         12: ('enp216s0', 10011, rdir+'12', quota),
         }
 
 ## Slow visibilities setup
@@ -85,8 +86,9 @@ def main(args):
         else:
             template = env.get_template('dr-beam-base.service')
             for beam in beams:
-                address, port, directory = beams[beam] 
-                service = template.render(beam=beam, address=address, port=port, directory=directory)
+                address, port, directory, quota = beams[beam] 
+                service = template.render(beam=beam, address=address, port=port,
+                                          directory=directory, quota=quota)
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -102,7 +104,8 @@ def main(args):
             template = env.get_template('dr-vslow-base.service')
             for band in vslow:
                 address, port, directory, quota = vslow[band]
-                service = template.render(band=band, address=address, port=port, directory=directory, quota=quota)
+                service = template.render(band=band, address=address, port=port,
+                                          directory=directory, quota=quota)
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
@@ -126,7 +129,8 @@ def main(args):
             emplate = env.get_template('dr-vfast-base.service')
             for band in vfast:
                 address, port, directory, quota = vfast[band]
-                service = template.render(band=band, address=address, port=port, directory=directory, quota=quota)
+                service = template.render(band=band, address=address, port=port,
+                                          directory=directory, quota=quota)
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
