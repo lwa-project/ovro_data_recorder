@@ -1194,9 +1194,9 @@ def main(argv):
     ops.append(TEngineOp(log, tengine1_ring, write1_ring, beam0=2,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(StatisticsOp(log, mcs_id_0, write_ring, beam0=1,
-                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0))
+                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id_1, write_ring, beam0=2,
-                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0))
+                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
     ops.append(WriterOp(log, write0_ring, beam0=1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(WriterOp(log, write1_ring, beam0=2,
