@@ -1056,6 +1056,15 @@ def main(argv):
     tengine_ring = Ring(name="tengine", space='cuda_host')
     write_ring   = Ring(name="write", space='cuda_host')
     
+    # Setup the recording directory, if needed
+    if not os.path.exists(args.record_directory):
+        status = os.system('mkdir -p %s' % args.record_directory)
+        if status != 0:
+            raise RuntimeError("Unable to create directory: %s" % args.record_directory)
+    else:
+        if not os.path.isdir(os.path.realpath(args.record_directory)):
+            raise RuntimeError("Cannot record to a non-directory: %s" % args.record_directory)
+            
     # Setup the blocks
     ops = []
     if args.offline:
