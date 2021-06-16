@@ -18,39 +18,14 @@ from common import *
 from mcs import MonitorPoint, CommandCallbackBase, Client
 
 
-def address_range(start, stop):
-    """
-    Generate to return all of the IP address, minus 0 and 255, between the start
-    and stop values.
-    """
-    
-    start = [int(v, 10) for v in start.split('.')]
-    stop = [int(v, 10) for v in stop.split('.')]
-    
-    while start <= stop:
-        current = '.'.join([str(v) for v in start])
-        yield current
-        
-        start[3] += 1
-        if start[3] == 255:
-            start[3] = 1
-            start[2] += 1
-        if start[2] == 255:
-            start[2] = 1
-            start[1] += 1
-        if start[1] == 255:
-            start[1] = 1
-            start[0] += 1
-
-
 def main(argv):
     parser = argparse.ArgumentParser(
                  description="Data recorder manager for slow/fast visibility data"
                  )
-    parser.add_argument('-b', '--begin-address', type=str, default='127.0.0.1',
-                        help='beginning dr_visibility.py IP address to manage')
-    parser.add_argument('-e', '--end-address', type=str, default='127.0.0.1',
-                        help='ending dr_visibility.py IP address to manage')
+    parser.add_argument('-b', '--begin-band', type=int, default=1,
+                        help='beginning dr_visibility.py band number to manage')
+    parser.add_argument('-e', '--end-band', type=int, default=16,
+                        help='ending dr_visibility.py IP band number to manage')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('-q', '--quick', action='store_true',
@@ -89,8 +64,8 @@ def main(argv):
     else:
         mcs_id += 's'
     MANAGE_ID = []
-    for addr in address_range(args.begin_address, args.end_address):
-        sub_id = mcs_id+addr.split('.')[-1]
+    for band in range(args.begin_band, args.end_band+1):
+        sub_id = mcs_id+str(band)
         MANAGE_ID.append(sub_id)
         
     # Setup signal handling

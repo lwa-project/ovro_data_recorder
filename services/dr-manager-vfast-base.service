@@ -27,9 +27,9 @@ Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
 python /home/ubuntu/ovro_data_recorder/dr_manager_visibilites.py \
-         --begin-address {{ begin_address }} \
-         --end-address   {{ end_address }} \
-	 --logfile       /home/ubuntu/log/dr-manager-vslow.%H.log'
+         --begin-band {{ begin_band }} \
+         --end-band   {{ end_band }} \
+         --logfile    /home/ubuntu/log/dr-manager-vslow.%H.log'
 
 [Install]
 WantedBy=multi-user.target

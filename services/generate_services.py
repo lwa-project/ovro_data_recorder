@@ -108,9 +108,9 @@ def main(args):
 
             ### Manager
             template = env.get_template('dr-manager-vslow-base.service')
-            begin_address = min([vslow[band][0] for band in vslow])
-            end_address = max([vslow[band][0] for band in vslow])
-            service = template.render(begin_address=begin_address, end_address=end_address)
+            begin_band = min([band for band in vslow])
+            end_band = max([band for band in vslow])
+            service = template.render(begin_band=begin_band, end_band=end_band)
             with open('dr-manager-vslow.service', 'w') as fh:
                 fh.write(service)
 
@@ -132,9 +132,9 @@ def main(args):
                     
             ### Manager
             template = env.get_template('dr-manager-vfast-base.service')
-            begin_address = min([vfast[band][0] for band in vslow])
-            end_address = max([vfast[band][0] for band in vslow])
-            service = template.render(begin_address=begin_address, end_address=end_address)
+            begin_band = min([band for band in vfast])
+            end_band = max([band for band in vfast])
+            service = template.render(begin_band=begin_band, end_band=end_band)
             with open('dr-manager-vfast.service', 'w') as fh:
                 fh.write(service)
 
