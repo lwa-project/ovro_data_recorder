@@ -32,7 +32,7 @@ python /home/ubuntu/ovro_data_recorder/dr_visibilities.py \
          --quick \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }}
-	 --logfile                /home/ubuntu/log/dr-vfast-{{ band }}.%H.log'
+         --logfile                /home/ubuntu/log/dr-vfast-{{ band }}.%H.log'
 
 [Install]
 WantedBy=multi-user.target
