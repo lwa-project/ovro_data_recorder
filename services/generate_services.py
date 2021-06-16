@@ -2,7 +2,9 @@
 
 import os
 import sys
+import glob
 import jinja2
+import argparse
 
 # Setup
 ## Power beam setup
@@ -63,48 +65,96 @@ vfast = { 1: ('10.41.0.17', 11000, rdir, quota),
          16: ('10.41.0.40', 11000, rdir, quota),
         }
 
-# Render
-loader = jinja2.FileSystemLoader(searchpath='./')
-env = jinja2.Environment(loader=loader)
+def main(args):
+    # Pre-process
+    if (not args.power_beams \
+        and not args.slow_visibilities \
+        and not args.fast_visibilities):
+       args.power_beams = args.slow_visibilities = args.fast_visibilities = True
+       
+    # Render
+    loader = jinja2.FileSystemLoader(searchpath='./')
+    env = jinja2.Environment(loader=loader)
 
-## Power beams
-template = env.get_template('dr-beam-base.service')
-for beam in beams:
-    address, port, directory = beams[beam] 
-    service = template.render(beam=beam, address=address, port=port, directory=directory)
-    with open('dr-beam-%s.service' % beam, 'w') as fh:
-        fh.write(service)
+    ## Power beams
+    if args.power_beams:
+        if args.clean:
+            filenames = glob.glob('./dr-beam-[0-9]*.service')
+            for filename in filenames:
+                os.unlink(filename)
+        else:
+            template = env.get_template('dr-beam-base.service')
+            for beam in beams:
+                address, port, directory = beams[beam] 
+                service = template.render(beam=beam, address=address, port=port, directory=directory)
+                with open('dr-beam-%s.service' % beam, 'w') as fh:
+                    fh.write(service)
 
-## Slow visibilities
-### Recorders
-template = env.get_template('dr-vslow-base.service')
-for band in vslow:
-    address, port, directory, quota = vslow[band]
-    service = template.render(band=band, address=address, port=port, directory=directory, quota=quota)
-    with open('dr-vslow-%s.service' % band, 'w') as fh:
-        fh.write(service)
+    ## Slow visibilities
+    if args.slow_visibilities:
+        if args.clean:
+            filenames = glob.glob('./dr-vslow-[0-9]*.service')
+            filenames.extend(glob.glob('./dr-manager-vslow.service'))
+            for filename in filenames:
+                os.unlink(filename)
+        else:
+            ### Recorders
+            template = env.get_template('dr-vslow-base.service')
+            for band in vslow:
+                address, port, directory, quota = vslow[band]
+                service = template.render(band=band, address=address, port=port, directory=directory, quota=quota)
+                with open('dr-vslow-%s.service' % band, 'w') as fh:
+                    fh.write(service)
 
-### Manager
-template = env.get_template('dr-manager-vslow-base.service')
-begin_address = min([vslow[band][0] for band in vslow])
-end_address = max([vslow[band][0] for band in vslow])
-service = template.render(begin_address=begin_address, end_address=end_address)
-with open('dr-manager-vslow.service', 'w') as fh:
-    fh.write(service)
+            ### Manager
+            template = env.get_template('dr-manager-vslow-base.service')
+            begin_address = min([vslow[band][0] for band in vslow])
+            end_address = max([vslow[band][0] for band in vslow])
+            service = template.render(begin_address=begin_address, end_address=end_address)
+            with open('dr-manager-vslow.service', 'w') as fh:
+                fh.write(service)
 
-## Fast visibilities
-### Recorders
-emplate = env.get_template('dr-vfast-base.service')
-for band in vfast:
-    address, port, directory, quota = vfast[band]
-    service = template.render(band=band, address=address, port=port, directory=directory, quota=quota)
-    with open('dr-vfast-%s.service' % band, 'w') as fh:
-        fh.write(service)
-        
-### Manager
-template = env.get_template('dr-manager-vfast-base.service')
-begin_address = min([vfast[band][0] for band in vslow])
-end_address = max([vfast[band][0] for band in vslow])
-service = template.render(begin_address=begin_address, end_address=end_address)
-with open('dr-manager-vfast.service', 'w') as fh:
-    fh.write(service)
+    ## Fast visibilities
+    if args.fast_visibilities:
+        if args.clean:
+            filenames = glob.glob('./dr-vfast-[0-9]*.service')
+            filenames.extend(glob.glob('./dr-manager-vfast.service'))
+            for filename in filenames:
+                os.unlink(filename)
+        else:
+            ### Recorders
+            emplate = env.get_template('dr-vfast-base.service')
+            for band in vfast:
+                address, port, directory, quota = vfast[band]
+                service = template.render(band=band, address=address, port=port, directory=directory, quota=quota)
+                with open('dr-vfast-%s.service' % band, 'w') as fh:
+                    fh.write(service)
+                    
+            ### Manager
+            template = env.get_template('dr-manager-vfast-base.service')
+            begin_address = min([vfast[band][0] for band in vslow])
+            end_address = max([vfast[band][0] for band in vslow])
+            service = template.render(begin_address=begin_address, end_address=end_address)
+            with open('dr-manager-vfast.service', 'w') as fh:
+                fh.write(service)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+            description='generate systemd service files for the data recorder pipelines', 
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            )
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('-b', '--power-beams', action='store_true',
+                       help='only generate/clean the power beam services')
+    group.add_argument('-s', '--slow-visibilities', action='store_true',
+                       help='only generate/clean the slow visibitlies services')
+    group.add_argument('-f', '--fast-visibilities', action='store_true',
+                       help='only generate/clean the fast visibilities services')
+    group.add_argument('-a', '--all', action='store_false',
+                       help='generate/clean all services')
+    parser.add_argument('-c', '--clean', action='store_true',
+                        help='delete the generated services')
+    args = parser.parse_args()
+    main(args)
+    
