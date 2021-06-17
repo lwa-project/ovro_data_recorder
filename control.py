@@ -175,12 +175,14 @@ class HDF5Record(CommandBase):
     
     def action(self, sequence_id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
-            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
             if start_mjd == "now":
-                start = LWATime.now().datetime
+                start = LWATime.now()
+                start_mjd = int(start.mjd)
+                start = start.datetime
                 start = start + timedelta(seconds=15)
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -264,12 +266,14 @@ class RawRecord(CommandBase):
     
     def action(self, sequence_id, beam, start_mjd, start_mpm, duration_ms):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
             if start_mjd == "now":
-                start = LWATime.now().datetime
+                start = LWATime.now()
+                start_mjd = int(start.mjd)
+                start = start.datetime
                 start = start + timedelta(seconds=15)
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
