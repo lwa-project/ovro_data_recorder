@@ -3,6 +3,7 @@ import sys
 import signal
 import logging
 import threading
+import subprocess
 from datetime import datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
 
@@ -258,6 +259,6 @@ def synchronize_time(server='ntp.ubuntu.com'):
                               stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
         success = True
-    except subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         pass
     return sucess
