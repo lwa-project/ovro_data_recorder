@@ -931,7 +931,7 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     r = c.send_command(mcs_id, 'stop',
-                       stop_mjd=mjd_now, stop_mjd_mpm=mpm_now)
+                       stop_mjd=mjd_now, stop_mpm=mpm_now)
     print('III', r)
     
     while not shutdown_event.is_set():
