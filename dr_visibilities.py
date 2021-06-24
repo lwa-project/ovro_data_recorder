@@ -160,7 +160,7 @@ class ReaderOp(object):
         tgulp = tint * self.ntime_gulp
         
         with open(self.filename, 'rb') as fh:
-            with DiskReader("cor_%i" % (184//4 if self.fast else 184), fh, self.oring, self.nbl, 0,  
+            with DiskReader("cor_%i" % (192//4 if self.fast else 192), fh, self.oring, self.nbl, 0,  
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
                 prev_time = time.time()
@@ -210,7 +210,7 @@ class DummyOp(object):
             nsrc  = self.nbl
             nbl   = self.nbl
             chan0 = 1234
-            nchan = 184 // (4 if self.fast else 1)
+            nchan = 192 // (4 if self.fast else 1)
             npol = 4
             
             # Try to load model visibilities

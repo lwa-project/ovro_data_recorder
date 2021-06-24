@@ -158,7 +158,7 @@ class DummyOp(object):
             print('III', tint, '*', self.ntime_gulp, '=>', tgulp)
             nbeam = 2
             chan0 = 600
-            nchan = 16*184
+            nchan = 16*192
             npol = 2
             
             ohdr = {'time_tag': int(int(time.time())*FS),

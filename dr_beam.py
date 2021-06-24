@@ -146,7 +146,7 @@ class ReaderOp(object):
         seq_callback.set_pbeam(self.seq_callback)
         
         with open(self.filename, 'rb') as fh:
-            with DiskReader("pbeam_184", fh, self.oring, self.nserver, self.beam0,
+            with DiskReader("pbeam_192", fh, self.oring, self.nserver, self.beam0,
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
                 while not self.shutdown_event.is_set():
@@ -189,7 +189,7 @@ class DummyOp(object):
             tgulp = tint * self.ntime_gulp
             nbeam = 1
             chan0 = 1234
-            nchan = 16*184
+            nchan = 16*192
             npol = 4
             
             ohdr = {'time_tag': int(int(time.time())*FS),
