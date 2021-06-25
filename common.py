@@ -19,7 +19,7 @@ __all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
 FS               = 196.0e6
 
 #: Sample rate for the ADCs
-CLOCK            = 196.0e6
+CLOCK            = 196.608e6
 
 #: Total number of channels computed by the F-engine
 NCHAN            = 4096
