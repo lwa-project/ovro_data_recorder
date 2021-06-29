@@ -211,7 +211,7 @@ class DummyOp(object):
             nbl   = self.nbl
             chan0 = 1234
             nchan = 192 // (4 if self.fast else 1)
-            npol = 4
+            npol  = 4
             
             # Try to load model visibilities
             try:
@@ -224,6 +224,11 @@ class DummyOp(object):
             assert(vis_base.shape[2] == npol)
             
             vis_base = vis_base[:self.nbl,::(4 if self.fast else 1),:]
+            vis_base_r = (vis_base.real*1000).astype(numpy.int32)
+            vis_base_i = (vis_base.imag*1000).astype(numpy.int32)
+            vis_base = numpy.zeros((nbl, nchan, npol, 2), dtype=numpy.int32)
+            vis_base[...,0] = vis_base_r
+            vis_base[...,1] = vis_base_i
             
             ohdr = {'time_tag': int(int(time.time())*FS),
                     'seq0':     0, 
@@ -251,9 +256,9 @@ class DummyOp(object):
                         reserve_time = curr_time - prev_time
                         prev_time = curr_time
                         
-                        odata = ospan.data_view('ci32').reshape(oshape)
-                        temp = vis_base + 0.01*numpy.random.randn(*oshape)
-                        odata[...] = (temp*1000).astype(numpy.int32)
+                        odata = ospan.data_view(numpy.int32).reshape(oshape+(2,))
+                        temp = vis_base + (1000*0.01*numpy.random.randn(*odata.shape)).astype(numpy.int32)
+                        odata[...] = temp
                         
                         curr_time = time.time()
                         while curr_time - prev_time < tgulp:
