@@ -418,7 +418,7 @@ class SpectraOp(object):
                         
                         ## Save the raw spectra for comparison purposes
                         filename = '%06i_%02i%02i%02i_spectra.npy' % (mjd, h, m, s)
-                        numpy.savez(filename, adata)
+                        numpy.save(filename, adata)
                         
                     last_save = time.time()
                     
