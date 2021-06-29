@@ -69,12 +69,19 @@ vfast = { 1: ('10.41.0.17', 11000, rdir, quota),
          16: ('10.41.0.40', 11000, rdir, quota),
         }
 
+## T-engine setup
+rdir = '/home/ubuntu/data/tengine'
+quota = 0
+tengines = {1: ('enp216s0', 10000, rdir, quota),
+           }
+
 def main(args):
     # Pre-process
     if (not args.power_beams \
         and not args.slow_visibilities \
-        and not args.fast_visibilities):
-       args.power_beams = args.slow_visibilities = args.fast_visibilities = True
+        and not args.fast_visibilities \
+        and not args.t_engines):
+       args.power_beams = args.slow_visibilities = args.fast_visibilities = args.t_engines = True
        
     # Render
     loader = jinja2.FileSystemLoader(searchpath='./')
@@ -129,7 +136,7 @@ def main(args):
                 os.unlink(filename)
         else:
             ### Recorders
-            emplate = env.get_template('dr-vfast-base.service')
+            template = env.get_template('dr-vfast-base.service')
             for band in vfast:
                 address, port, directory, quota = vfast[band]
                 service = template.render(path=path, band=band, address=address,
@@ -144,6 +151,21 @@ def main(args):
             service = template.render(path=path, begin_band=begin_band, end_band=end_band)
             with open('dr-manager-vfast.service', 'w') as fh:
                 fh.write(service)
+                
+    ## T-engines
+    if args.t_engines:
+        if args.clean:
+            filenames = glob.glob('./dr-tengine.service')
+            for filename in filenames:
+                os.unlink(filename)
+        else:
+            template = env.get_template('dr-tengine-base.service')
+            for beam in tengines:
+                address, port, directory, quota = tengines[beam]
+                service = template.render(path=path, address=address, port=port,
+                                          directory=directory, quota=quota)
+                with open('dr-tengine.service', 'w') as fh:
+                    fh.write(service)
 
 
 if __name__ == '__main__':
@@ -158,6 +180,8 @@ if __name__ == '__main__':
                        help='only generate/clean the slow visibitlies services')
     group.add_argument('-f', '--fast-visibilities', action='store_true',
                        help='only generate/clean the fast visibilities services')
+    group.add_argument('-t', '--t-engines', action='store_true',
+                       help='only generate/clean the T-engine services')
     group.add_argument('-a', '--all', action='store_false',
                        help='generate/clean all services')
     parser.add_argument('-c', '--clean', action='store_true',
