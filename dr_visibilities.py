@@ -98,7 +98,7 @@ class CaptureOp(object):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
         
-        with UDPCapture("cor", self.sock, self.oring, self.nbl, 0, 9000, 
+        with UDPCapture("cor", self.sock, self.oring, self.nbl, 1, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
             while not self.shutdown_event.is_set():
@@ -160,7 +160,7 @@ class ReaderOp(object):
         tgulp = tint * self.ntime_gulp
         
         with open(self.filename, 'rb') as fh:
-            with DiskReader("cor_%i" % (192//4 if self.fast else 192), fh, self.oring, self.nbl, 0,  
+            with DiskReader("cor_%i" % (192//4 if self.fast else 192), fh, self.oring, self.nbl, 1,  
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
                 prev_time = time.time()
@@ -562,8 +562,8 @@ class BaselineOp(object):
                     ## Plot
                     bdata = idata[0,...]
                     bdata = bdata.view(numpy.int32)
-                    bdata = bdata.reshape(ishape+(2,))
-                    bdata = bdata[...,0] + 1j*bdata[...,1]
+                    bdata = bdata.reshape(bdata+(2,))
+                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
                     bdata = bdata.astype(numpy.complex64)
                     im = self._plot_baselines(time_tag, freq, dist, bdata, valid)
                     
