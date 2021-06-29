@@ -562,7 +562,7 @@ class BaselineOp(object):
                     ## Plot
                     bdata = idata[0,...]
                     bdata = bdata.view(numpy.int32)
-                    bdata = bdata.reshape(bdata+(2,))
+                    bdata = bdata.reshape(ishape+(2,))
                     bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
                     bdata = bdata.astype(numpy.complex64)
                     im = self._plot_baselines(time_tag, freq, dist, bdata, valid)
