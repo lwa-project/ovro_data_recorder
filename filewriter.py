@@ -324,7 +324,7 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Make a copy of the template
         if self._counter == 0:
-            self.tagname = "%s_%s_%.0fMHz.ms" % (os.path.basename(self.filename), tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
+            self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
             self.tempname = os.path.join(self._tempdir, self.tagname)
             with open('/dev/null', 'wb') as dn:
                 subprocess.check_call(['cp', '-r', self._template, self.tempname],
@@ -346,10 +346,10 @@ class MeasurementSetWriter(FileWriterBase):
         self._counter += 1
         if self._counter == self._nint:
             if self.is_tarred:
-                filename = os.path.join(os.path.dirname(self.filename), "%s.tar" % self.tagname)
+                filename = os.path.join(self.filename, "%s.tar" % self.tagname)
                 save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
             else:
-                filename = os.path.join(os.path.dirname(self.filename), self.tagname)
+                filename = os.path.join(self.filename, self.tagname)
                 save_cmd = ['cp', '-rf', self.tempname, filename]
             with open('/dev/null', 'wb') as dn:
                 subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
