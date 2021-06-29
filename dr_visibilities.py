@@ -236,7 +236,7 @@ class DummyOp(object):
                     'cfreq':    chan0*CHAN_BW,
                     'nchan':    nchan,
                     'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
-                    'navg':     navg,
+                    'navg':     navg*8192,
                     'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
                     'npol':     npol,
                     'nbl':      nbl,
@@ -422,7 +422,7 @@ class SpectraOp(object):
                         
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -586,7 +586,7 @@ class BaselineOp(object):
                         
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -684,7 +684,7 @@ class StatisticsOp(object):
                         
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -787,7 +787,7 @@ class WriterOp(object):
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time

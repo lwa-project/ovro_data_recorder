@@ -357,7 +357,11 @@ class MSStop(CommandBase):
             if op is not None:
                 filename = op.filename
                 start = op.start_time
-                op.cancel()
+                if op.is_started:
+                    op.cancel()
+                else:
+                    op.stop_time = stop
+                    op._padded_stop_time = op.stop_time + op._margin
                 self.queue.clean()
             else:
                 self.log_error("Failed to find operation active at the specified stop time")
