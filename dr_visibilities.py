@@ -143,7 +143,7 @@ class ReaderOp(object):
                'complex':  True,
                'nbit':     32}
         print("******** CFREQ:", hdr['cfreq'])
-        hdr_str = json.dumps(hdr).ecnode()
+        hdr_str = json.dumps(hdr).encode()
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
         #hdr_str = json.dumps(hdr).ljust(4096, ' ')
