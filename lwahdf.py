@@ -24,7 +24,7 @@ def create_hdf5(filename, beam, overwrite=False):
             os.unlink(filename)
             
     # Open the file
-    f = h5py.File(filename)
+    f = h5py.File(filename, mode='w')
     
     # Top level attributes
     ## Observer and Project Info.

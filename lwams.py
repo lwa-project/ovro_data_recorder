@@ -1,13 +1,16 @@
 import os
 import sys
+import glob
 import numpy
 import shutil
 
 from casacore.measures import measures
 from casacore.tables import table, tableutil
 
-__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'create_ms',
-           'update_time', 'update_pointing', 'update_data']
+from common import LWATime
+
+__all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'get_zenith_uvw',
+           'create_ms', 'update_time', 'update_pointing', 'update_data']
 
 
 # Measurement set stokes name -> number
@@ -38,6 +41,43 @@ def get_zenith(station, lwatime):
     dm.doframe(epoch)
     pointing = dm.measure(zenith, 'J2000')
     return pointing['m0']['value'], pointing['m1']['value']
+
+
+def get_zenith_uvw(station, lwatime):
+    """
+    Given a Station instance and a LWATime instance, return the (u,v,w)
+    coordinates of the baselines.
+    """
+    
+    # This should be compatible with what data2ms does/did.
+    dm = measures()
+    zenith = dm.direction('AZEL', '0deg', '90deg')
+    position = dm.position(*station.casa_position)
+    epoch = dm.epoch(*lwatime.casa_epoch)
+    dm.doframe(zenith)
+    dm.doframe(position)
+    dm.doframe(epoch)
+    
+    nant = len(station.antennas)
+    nbl = nant*(nant+1)//2
+    pos = numpy.zeros((nant,3), dtype=numpy.float64)
+    for i in range(nant):
+        ant = station.antennas[i]
+        position = dm.position('ITRF', *['%.6fm' % v for v in ant.ecef])
+        baseline = dm.as_baseline(position)
+        uvw = dm.to_uvw(baseline)
+        pos[i,:] = uvw['xyz'].get_value()
+        
+    uvw = numpy.zeros((nbl,3), dtype=numpy.float64)
+    k = 0
+    for i in range(nant):
+        a1 = pos[i,:]
+        for j in range(i, nant):
+            a2 = pos[j,:]
+            uvw[k,:] = a1 - a2
+            k += 1
+            
+    return uvw
 
 
 class _MSConfig(object):
@@ -122,7 +162,22 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
     _write_antenna_table(filename, config)
     _write_polarization_table(filename, config)
     _write_observation_table(filename, config)
+    _write_spectralwindow_table(filename, config)
     _write_misc_required_tables(filename, config)
+    
+    # Fixup the info and keywords for the main table
+    tb = table(filename, readonly=False, ack=False)
+    tb.putinfo({'type':'Measurement Set', 
+               'readme':'This is a MeasurementSet Table holding measurements from a Telescope'})
+    tb.putkeyword('MS_VERSION', numpy.float32(2.0))
+    for tablename in sorted(glob.glob('%s/*' % filename)):
+        if os.path.isdir(tablename):
+            tname = os.path.basename(tablename)
+            stb = table("%s/%s" % (filename, tname), ack=False)
+            tb.putkeyword(tname, stb)
+            stb.close()
+    tb.flush()
+    tb.close()
 
 
 def update_time(filename, scan, start_time, centroid_time, stop_time):
@@ -133,36 +188,37 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
     # Main table
     tb = table(filename, readonly=False, ack=False)
     nrow = tb.nrows()
+    first_scan = tb.getcell('SCAN_NUMBER', 0)
     last_scan = tb.getcell('SCAN_NUMBER', nrow-1)
-    nbl = nrow // (last_scan + 1)
-    tb.putcol('TIME', [start_time.mjd,]*nbl, scan*nbl, nbl)
-    tb.putcol('TIME_CENTROID', [centroid_time.mjd,]*nbl, scan*nbl, nbl)
+    nbl = nrow // (last_scan - first_scan + 1)
+    tb.putcol('TIME', [start_time.measurementset,]*nbl, scan*nbl, nbl)
+    tb.putcol('TIME_CENTROID', [centroid_time.measurementset,]*nbl, scan*nbl, nbl)
     tb.flush()
     tb.close()
     
     # Feed table
     if scan == 0:
         tb = table(os.path.join(filename, "FEED"), readonly=False, ack=False)
-        tb.putcell('TIME', 0, start_time.mjd)
+        tb.putcell('TIME', 0, start_time.measurementset)
         tb.flush()
         tb.close()
         
     # Observation table
     tb = table(os.path.join(filename, "OBSERVATION"), readonly=False, ack=False)
-    tb.putcell('TIME_RANGE', scan, [start_time.mjd,stop_time.mjd])
-    tb.putcell('RELEASE_DATE', scan, start_time.mjd)
+    tb.putcell('TIME_RANGE', scan, [start_time.measurementset, stop_time.measurementset])
+    tb.putcell('RELEASE_DATE', scan, start_time.measurementset)
     tb.flush()
     tb.close()
     
     # Source table
     tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
-    tb.putcell('TIME', scan, start_time.mjd)
+    tb.putcell('TIME', scan, start_time.measurementset)
     tb.flush()
     tb.close()
     
     # Field table
     tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
-    tb.putcell('TIME', scan, start_time.mjd)
+    tb.putcell('TIME', scan, start_time.measurementset)
     tb.flush()
     tb.close()
 
@@ -281,7 +337,6 @@ def _write_main_table(filename, config):
                                   col17, col18, col19, col20, col21, col22])
     tb = table("%s" % filename, desc, nrow=nint*nbl, ack=False)
     
-    
     fg = numpy.zeros((nint*nbl,npol,nchan), dtype=numpy.bool)
     fc = numpy.zeros((nint*nbl,npol,nchan,1), dtype=numpy.bool)
     uv = numpy.zeros((nint*nbl,3), dtype=numpy.float64)
@@ -292,15 +347,15 @@ def _write_main_table(filename, config):
     sg = numpy.ones((nint*nbl,npol))*9999
     
     k = 0
+    base_uvw = get_zenith_uvw(station, LWATime.now())   # Kind of an interesting choice
     for t in range(nint):
+        uv[t*nbl:(t+1)*nbl,:] = base_uvw
+        
         for i in range(nant):
-            l1 = station.antennas[i].ecef
             for j in range(i, nant):
-                l2 = station.antennas[j].ecef
-                
-                uv[k,:] = (l1[0]-l2[0], l1[1]-l2[1], l1[2]-l2[2])
                 a1[k] = i
                 a2[k] = j
+                k += 1
                 
     tb.putcol('UVW', uv, 0, nint*nbl)
     tb.putcol('FLAG', fg.transpose(0,2,1), 0, nint*nbl)

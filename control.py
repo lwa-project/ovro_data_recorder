@@ -4,11 +4,13 @@ import shutil
 import threading
 from datetime import datetime, timedelta
 
-from common import LWATime
+from common import LWATime, synchronize_time
 from reductions import *
-from filewriter import HDF5Writer, MeasurementSetWriter
+from filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
+from mcs import MonitorPoint, CommandCallbackBase, Client
 
-__all__ = ['BeamCommandProcessor', 'VisibilityCommandProcessor']
+__all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
+           'VoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -17,7 +19,7 @@ class CommandBase(object):
     idea right now.
     """
     
-    _required = ('id',)
+    _required = ('sequence_id',)
     _optional = ()
     
     def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None):
@@ -33,8 +35,13 @@ class CommandBase(object):
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
                   processor.filewriter_base, processor.filewriter_kwds)
-        name = kls.command_name.replace('HDF5', '').replace('MS', '')
+        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('Raw', '')
         setattr(processor, name.lower(), kls)
+        callback = CommandCallbackBase(processor.client.client)
+        def wrapper(**kwargs):
+            return kls(**kwargs)
+        callback.action = wrapper
+        processor.client.set_command_callback(name.lower(), callback)
         return kls
         
     @property
@@ -89,25 +96,22 @@ class CommandBase(object):
         """
         Action to be called when the command is processed.  It should accept
         only arguments in the same order as self._required.  It should also
-        return a boolean of whether or not the command succeeded.
+        two-element tuple of (boolean of whether or not the command succeeded, 
+        an info message or an empty dictionary).
         """
         
         raise NotImplementedError("Must be overridden by the subclass.")
         
-    def __call__(self, data):
+    def __call__(self, **kwargs):
         """
         Execute the command.  This first takes in the JSON-encoded string, 
         unpacks it to a dictionary, validates that all of the requied keywords
         are present, and then passes them to the self.action() method.
         """
         
-        # Try to unpack if it isn't already a dictionary
-        if not isinstance(data, dict):
-            try:
-                data = json.loads(data)
-            except (TypeError, ValueError) as e:
-                self.log_error("Failed to parse JSON: %s", str(e))
-                
+        # Gather it up
+        data = kwargs
+        
         # Build up the argments requested of die trying
         try:
             args = [data[key] for key in self._required]
@@ -120,10 +124,39 @@ class CommandBase(object):
         except KeyError:
             missing = [key for key in self._required if key not in data]
             self.log_error("Missing required keywords - %s", ' '.join(missing))
-            return False
+            return False, "Missing required keywords - %s" % (' '.join(missing),)
             
         # Action and return
         return self.action(*args, **kwds)
+
+
+class Ping(CommandBase):
+    """
+    Command to simply reply to.  The input data should have:
+     * id - a MCS command id
+    """
+    
+    _required = ('sequence_id',)
+    
+    def action(self, sequence_id):
+        return True, 'pong'
+
+
+class Sync(CommandBase):
+    """
+    Command to force a time sync on the subsystem using `ntddate`.  The input data
+    should have:
+     * id - a MCS command id
+     * server - the NTP server to use
+    """
+    
+    _required = ('sequence_id', 'server')
+    
+    def action(self, sequence_id, server):
+        status = synchronize_time(server)
+        if not status:
+            self.log_error("Failed to set time against %s", server)
+        return status, str(status)
 
 
 class HDF5Record(CommandBase):
@@ -131,23 +164,30 @@ class HDF5Record(CommandBase):
     Command to schedule a recording of a beam to an HDF5 file.  The input data 
     should have:
      * id - a MCS command id
-     * start_mjd - the MJD for the start of the recording
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
      * start_mpm - the MPM for the start of the recording
      * duration_ms - the duration of the recording in ms
     """
     
-    _required = ('id', 'start_mjd', 'start_mpm', 'duration_ms')
+    _required = ('sequence_id', 'start_mjd', 'start_mpm', 'duration_ms')
     _optional = ('stokes_mode', 'time_avg', 'chan_avg')
     
-    def action(self, id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
+    def action(self, sequence_id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
-            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            if start_mjd == "now":
+                start = LWATime.now()
+                start_mjd = int(start.mjd)
+                start = start.datetime
+                start = start + timedelta(seconds=15)
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
-            return False
+            return False, "Failed to unpack command data: %s" % str(e)
             
         if stokes_mode in (None, 'XXYYCRCI'):
             reduction_op = XXYYCRCI(time_avg=time_avg, chan_avg=chan_avg)
@@ -161,50 +201,94 @@ class HDF5Record(CommandBase):
             reduction_op = IV(time_avg=time_avg, chan_avg=chan_avg)
         else:
             self.log_error("Unknown Stokes mode: %s", stokes_mode)
-            return False
+            return False, "Unknown Stokes mode: %s" % stokes_mode
             
         op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
-            return False
+            return False, "Failed to schedule recording: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {'filename': filename}
 
 
-class MSRecord(CommandBase):
+class MSStart(CommandBase):
     """
-    Command to schedule a recording of visibility data to a measurement set.
+    Command to schedule a recording start of visibility data to a measurement set.
     The input data should have:
      * id - a MCS command id
-     * start_mjd - the MJD for the start of the recording
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
      * start_mpm - the MPM for the start of the recording
-     * duration_ms - the duration of the recording in ms
     """
     
-    _required = ('id', 'start_mjd', 'start_mpm', 'duration_ms')
+    _required = ('sequence_id', 'start_mjd', 'start_mpm')
     
-    def action(self, id, start_mjd, start_mpm, duration_ms):
+    def action(self, sequence_id, start_mjd, start_mpm):
         try:
-            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
-            start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
+            filename = os.path.join(self.directory, '')
+            if start_mjd == "now":
+                start = LWATime.now().datetime
+                start = start + timedelta(seconds=15)
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            duration = timedelta(days=365)
             stop = start + duration
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
-            return False
+            return False, "Failed to unpack command data: %s" % str(e)
             
         op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
         try:
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
+            self.log_error("Failed to schedule recording start: %s", str(e))
+            return False, "Failed to schedule recording start: %s" % str(e)
+            
+        self.log_info("Scheduled recording start for %s to %s to %s", start, stop, filename)
+        return True, {'filename': filename}
+
+
+class RawRecord(CommandBase):
+    """
+    Command to schedule a recording of a voltage beam to a raw DRX file.  The
+    input data should have:
+     * id - a MCS command id
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
+     * start_mpm - the MPM for the start of the recording
+     * duration_ms - the duration of the recording in ms
+    """
+    
+    _required = ('sequence_id', 'beam', 'start_mjd', 'start_mpm', 'duration_ms')
+    
+    def action(self, sequence_id, beam, start_mjd, start_mpm, duration_ms):
+        try:
+            if start_mjd == "now":
+                start = LWATime.now()
+                start_mjd = int(start.mjd)
+                start = start.datetime
+                start = start + timedelta(seconds=15)
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
+            stop = start + duration
+        except (TypeError, ValueError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
+        try:
+            self.queue.append(op)
+        except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
-            return False
+            return False, "Failed to schedule recording start: %s" % str(e)
             
         self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {'filename': filename}
 
 
 class Cancel(CommandBase):
@@ -214,20 +298,76 @@ class Cancel(CommandBase):
      * queue_number - scheduled recording queue number of cancel
     """
     
-    _required = ('id', 'queue_number')
+    _required = ('sequence_id',)
+    _optional = ('queue_number', 'filename',)
     
-    def action(self, id, queue_number):
+    def action(self, sequence_id, queue_number=None, filename=None):
+        if queue_number is None and filename is None:
+            self.log_error("Must specify a queue number or filename")
+            return False, "Must specify a queue number or filename"
+            
+        if filename is not None:
+            op = self.queue.find_entry_by_filename(filename)
+        else:
+            try:
+                op = self.queue[queue_number]
+            except IndexError as e:
+                self.log_error("Invalid queue entry number")
+                return False, "Invalid queue entry number"
+                
         try:
-            filename = self.queue[queue_number].filename
-            start = self.queue[queue_number].start_time
-            stop = self.queue[queue_number].stop_time
-            self.queue[queue_number].cancel()
-        except IndexError as e:
+            filename = op.filename
+            start = op.start_time
+            stop = op.stop_time
+            op.cancel()
+            self.queue.clean()
+        except Exception as e:
             self.log_error("Failed to cancel recording: %s", str(e))
-            return False
+            return False, "Failed to cancel recording: %s" % str(e)
             
         self.log_info("Canceled recording for %s to %s to %s", start, stop, filename)
-        return True
+        return True, {'filename': filename}
+
+
+class MSStop(CommandBase):
+    """
+    Command to schedule a recording stop of visibility data to a measurement set.
+    The input data should have:
+     * id - a MCS command id
+     * stop_mjd - the MJD for the start of the recording or "now" to stop the
+       recording 15 s from when the command is received
+     * stop_mpm - the MPM for the start of the recording
+    """
+    
+    _required = ('sequence_id', 'stop_mjd', 'stop_mpm')
+    
+    def action(self, sequence_id, stop_mjd, stop_mpm):
+        try:
+            if stop_mjd == "now":
+                stop = LWATime.now().datetime
+                stop = stop + timedelta(seconds=15)
+            else:
+                stop = LWATime(stop_mjd, stop_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+        except (TypeError, ValueError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        try:
+            op = self.queue.find_entry_active_at_datetime(stop)
+            if op is not None:
+                filename = op.filename
+                start = op.start_time
+                op.cancel()
+                self.queue.clean()
+            else:
+                self.log_error("Failed to find operation active at the specified stop time")
+                return False, "Failed to find operation active at the specified stop time"
+        except Exception as e:
+            self.log_error("Failed to stop recording: %s", str(e))
+            return False, "Failed to stop recording: %s" % str(e)
+            
+        self.log_info("Stopped recording started at %s to %s", start, filename)
+        return True, {'filename': filename}
 
 
 class Delete(CommandBase):
@@ -237,26 +377,73 @@ class Delete(CommandBase):
      * file_number - scheduled recording queue number of cancel
     """
     
-    _required = ('id', 'file_number')
+    _required = ('sequence_id', 'file_number')
     
-    def action(self, id, file_number):
+    def action(self, sequence_id, file_number):
         if self.queue.active is not None:
             self.log_error("Cannot delete while recording is active")
-            return False
+            return False, "Cannot delete while recording is active"
             
         try:
             filenames = glob.glob(os.path.join(self.directory, '*'))
             filenames.sort(key=lambda x: os.path.getmtime(x))
-            if os.path.isdir(filenames[file_number]):
-                shutil.rmtree(filenames[file_number])
+            filename = filenames[file_number]
+            if os.path.isdir(filename):
+                shutil.rmtree(filename)
             else:
-                os.unlink(filenames[file_number])
+                os.unlink(filename)
         except (IndexError, OSError) as e:
             self.log_error("Failed to delete file: %s", str(e))
-            return False
+            return False, "Failed to delete file: %s" % str(e)
             
-        self.log_info("Deleted recording %s", filenames[file_number])
-        return True
+        self.log_info("Deleted recording %s", filename)
+        return True, {'filename': filename}
+
+
+class DRX(CommandBase):
+    """
+    Command to the tuning/filter/gain for a voltage beam.  The input data should
+    have:
+     * id - a MCS command id
+     * beam - beam number (1 or 2)
+     * tuning - tuning number (1 or 2)
+     * central_freq - central frequency in Hz
+     * filter - filter code (0-7; 7 = 19.6 MHz)
+     * gain - gain value (0-15)
+    """
+    
+    _required = ('sequence_id', 'beam', 'tuning', 'central_freq', 'filter', 'gain')
+    _optional = ('subslot')
+    
+    _bandwidths = {1:   250000, 
+                   2:   500000, 
+                   3:  1000000, 
+                   4:  2000000, 
+                   5:  4900000, 
+                   6:  9800000, 
+                   7: 19600000}
+    
+    def action(self, sequence_id, beam, tuning, central_freq, filter, gain, subslot=0):
+        try:
+            assert(beam in (1,2))
+            assert(tuning in (1,2))
+            assert(filter in self._bandwidths.keys())
+            assert(central_freq > self._bandwidths[filter]/2)
+            assert(gain >= 0 and gain <= 15)
+            assert(subslot >=0 and subslot <= 99)
+        except AssertionError as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        # Put it in the queue
+        self.queue.append(beam, tuning, central_freq, filter, gain)
+        
+        self.log_info("Beam %i, tuning %i to %.3f MHz at filter %i and gain %i", beam,
+                                                                                 tuning,
+                                                                                 central_freq/1e6,
+                                                                                 filter,
+                                                                                 gain)
+        return True, "success"
 
 
 class CommandProcessorBase(object):
@@ -266,7 +453,7 @@ class CommandProcessorBase(object):
     
     _commands = ()
     
-    def __init__(self, log, directory, queue, filewriter_base, filewriter_kwds=None, shutdown_event=None):
+    def __init__(self, log, id, directory, queue, filewriter_base, filewriter_kwds=None, shutdown_event=None):
         self.log = log
         self.directory = directory
         self.queue = queue
@@ -278,6 +465,8 @@ class CommandProcessorBase(object):
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
         
+        self.client = Client(id)
+        
         for cls in self._commands:
             cls.attach_to_processor(self)
             
@@ -285,32 +474,55 @@ class CommandProcessorBase(object):
         pass
 
 
-class BeamCommandProcessor(CommandProcessorBase):
+class PowerBeamCommandProcessor(CommandProcessorBase):
     """
     Command processor for power beam data.  Supports:
+     * ping
+     * sync
      * record
      * cancel
      * delete
     """
     
-    _commands = (HDF5Record, Cancel, Delete)
+    _commands = (Ping, Sync, HDF5Record, Cancel, Delete)
     
-    def __init__(self, log, directory, queue, shutdown_event=None):
-        CommandProcessorBase.__init__(self, log, directory, queue, HDF5Writer,
+    def __init__(self, log, id, directory, queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, HDF5Writer,
                                       shutdown_event=shutdown_event)
 
 
 class VisibilityCommandProcessor(CommandProcessorBase):
     """
-    Command processor for visibilitye data.  Supports:
+    Command processor for visibility data.  Supports:
+     * ping
+     * sync
+     * start
+     * stop
+    """
+    
+    _commands = (Ping, Sync, MSStart, MSStop)
+    
+    def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,
+                                      filewriter_kwds={'nint_per_file': nint_per_file,
+                                                       'is_tarred': is_tarred},
+                                      shutdown_event=shutdown_event)
+
+
+class VoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for voltage beam data.  Supports:
+     * ping
+     * sync
      * record
      * cancel
      * delete
+     * drx
     """
     
-    _commands = (MSRecord, Cancel, Delete)
+    _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
     
-    def __init__(self, log, directory, queue, is_tarred=False, shutdown_event=None):
-        CommandProcessorBase.__init__(self, log, directory, queue, MeasurementSetWriter,
-                                      filewriter_kwds={'is_tarred': is_tarred},
+    def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
                                       shutdown_event=shutdown_event)
+        self.drx.queue = drx_queue

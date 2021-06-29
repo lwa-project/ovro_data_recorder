@@ -4,6 +4,16 @@
 *.tar.gz
 *.tar
 
+# Help files
+docs/source/*.help
+
+# Generated service files
+services/dr-beam-[0-9]*.service
+services/dr-vslow-[0-9]*.service
+services/dr-vfast-[0-9]*.service
+services/dr-manager-vslow.service
+services/dr-manager-vfast.service
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

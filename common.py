@@ -3,6 +3,7 @@ import sys
 import signal
 import logging
 import threading
+import subprocess
 from datetime import datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
 
@@ -14,18 +15,36 @@ __all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
            'LogFileHandler', 'setup_signal_handling', 'synchronize_time']
 
 
+#: Sample rate that is the basis for LWA time tags
 FS               = 196.0e6
+
+#: Sample rate for the ADCs
 CLOCK            = 196.0e6
+
+#: Total number of channels computed by the F-engine
 NCHAN            = 4096
+
+#: Channel bandwidth coming out of the F-Engine
 CHAN_BW          = CLOCK / (2*NCHAN)
+
+#: Total number of GPU pipelines
 NPIPELINE        = 16
+
+#: Epoch that is the basis for LWA time tags
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
+
+
+#: etcd hostname
+ETCD_HOST = '10.42.0.64'# '127.0.0.1'
+
+#: etcd port
+ETCD_PORT = 2379
 
 
 class LWATime(AstroTime):
     """
-    Subclass of astropy.time.Time that accept a LWA timetag as an input.  It
-    also attributes for accessing a (seconds, fraction seconds) tuple ("tuple")
+    Subclass of :py:class:`astropy.time.Time` that accept a LWA timetag as an input.
+    It also attributes for accessing a (seconds, fraction seconds) tuple ("tuple")
     and a LWA timetag ("timetag").
     """
     
@@ -78,6 +97,15 @@ class LWATime(AstroTime):
         casa_time = '%i-%i-%i-%i:%i:%f' % (dt.year, dt.month, dt.day,
                                            dt.hour, dt.minute, dt.second+frac)
         return 'UTC', casa_time
+        
+    @property
+    def measurementset(self):
+        """
+        Returns a time value of MJD seconds that is compatible with how time is
+        stored in a measurement set.
+        """
+        
+        return self.utc.mjd*86400.0
 
 
 def chan_to_freq(chan):
@@ -163,6 +191,11 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
 
 
 class LogFileHandler(TimedRotatingFileHandler):
+    """
+    Sub-class of TimedRotatingFileHandler that rolls over files daily and keeps
+    the last 21 days.
+    """
+    
     def __init__(self, filename, rollover_callback=None):
         days_per_file =  1
         file_count    = 21
@@ -200,6 +233,12 @@ def setup_signal_handling(threads, log=None, signals=[signal.SIGHUP,
                                                       signal.SIGQUIT,
                                                       signal.SIGTERM,
                                                       signal.SIGTSTP]):
+    """
+    Setup signal handling for a Bifrost pipeline given a list of block threads.
+    This catches a collection of signals and then calls the `shutdown` method of
+    the first thread.
+    """
+    
     shutdown_event = threading.Event()
     def handler(signum, frame):
         _handle_signal(signum, frame, log=log, threads=threads, event=shutdown_event)
@@ -209,12 +248,17 @@ def setup_signal_handling(threads, log=None, signals=[signal.SIGHUP,
 
 
 def synchronize_time(server='ntp.ubuntu.com'):
+    """
+    Call `ntpdate` with the specified NTP server to update the system time.  Returns
+    a Boolean of whether or not the operation was successful.
+    """
+    
     success = False
     try:
         subprocess.check_call(['ntpdate', server],
                               stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
         success = True
-    except subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         pass
     return sucess

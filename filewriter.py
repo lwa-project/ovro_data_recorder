@@ -15,7 +15,7 @@ from lwahdf import *
 from lwams import *
 
 
-__all__ = ['FileWriterBase', 'HDF5Writer', 'MeasurementSetWriter']
+__all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
@@ -160,12 +160,36 @@ class FileWriterBase(object):
         
         if self.is_active:
             self.stop()
-        self.stop = datetime.utcnow() - 2*self._margin
+        else:
+            self.start_time = datetime.utcnow() - 2*self._margin
+            self._padded_start_time  = self.start_time - self._margin
+        self.stop_time = datetime.utcnow() - 4*self._margin
+        self._padded_stop_time = self.stop_time + self._margin
+
+
+class DRXWriter(FileWriterBase):
+    """
+    Sub-class of :py:class:`FileWriterBase` that writes data to a raw DRX file.
+    """
+    
+    def __init__(self, filename, beam, start_time, stop_time):
+        FileWriterBase.__init__(self, filename, start_time, stop_time)
+        self.beam = beam
+        
+    def start(self):
+        """
+        Start the file writer and return the open file handle.
+        """
+        
+        self._interface = open(self.filename, 'wb')
+        self._started = True
+        
+        return self._interface
 
 
 class HDF5Writer(FileWriterBase):
     """
-    Sub-class of FileWriterBase that writes data to a HDF5 file.
+    Sub-class of :py:class:`FileWriterBase` that writes data to a HDF5 file.
     """
     
     def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, **kwds):
@@ -246,23 +270,24 @@ class HDF5Writer(FileWriterBase):
 
 class MeasurementSetWriter(FileWriterBase):
     """
-    Sub-class of FileWriterBase that writes data to a measurement set.  Each
-    call to write leads to a new measurement set.
+    Sub-class of :py:class:`FileWriterBase` that writes data to a measurement
+    set.  Each call to write leads to a new measurement set.
     """
     
-    def __init__(self, filename, start_time, stop_time, is_tarred=True):
+    def __init__(self, filename, start_time, stop_time, nint_per_file=1, is_tarred=True):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
         # Setup
         self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
         if not os.path.exists(self._tempdir):
             os.mkdir(self._tempdir)
+        self.nint_per_file = nint_per_file
         self.is_tarred = is_tarred
         
         # Cleanup
         atexit.register(shutil.rmtree, self._tempdir)
         
-    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols, nint=1):
+    def start(self, station, chan0, navg, nchan, chan_bw, npol, pols):
         """
         Set the metadata for the measurement sets and create the template.
         """
@@ -276,7 +301,7 @@ class MeasurementSetWriter(FileWriterBase):
             
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
-        create_ms(self._template, station, tint, freq, pols, nint=nint)
+        create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
         
         # Save
         self._station = station
@@ -287,7 +312,7 @@ class MeasurementSetWriter(FileWriterBase):
         self._nchan = nchan
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
-        self._nint = nint
+        self._nint = self.nint_per_file
         self._nbl = self._nant*(self._nant + 1) // 2
         self._counter = 0
         self._started = True
@@ -299,36 +324,36 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Make a copy of the template
         if self._counter == 0:
-            tagname = "%.0fMHz_%s" % (self._freq[0]/1e6, tstart.datetime.strftime('%Y%m%d_%H%M%S'))
-            tempname = os.path.join(self._tempdir, tagname)
+            self.tagname = "%s_%s_%.0fMHz.ms" % (os.path.basename(self.filename), tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
+            self.tempname = os.path.join(self._tempdir, self.tagname)
             with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(['cp', '-r', self._template, tempname],
+                subprocess.check_call(['cp', '-r', self._template, self.tempname],
                                       stderr=dn)
                 
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
         # Update the time
-        update_time(tempname, self._counter, tstart, tcent, tstop)
+        update_time(self.tempname, self._counter, tstart, tcent, tstop)
         
         # Update the pointing direction
-        update_pointing(tempname, self._counter, *zen)
+        update_pointing(self.tempname, self._counter, *zen)
         
         # Fill in the main table
-        update_data(tempname, self._counter, data[0,...])
+        update_data(self.tempname, self._counter, data[0,...])
         
         # Save it to its final location
         self._counter += 1
         if self._counter == self._nint:
             if self.is_tarred:
-                filename = "%s_%s.tar" % (self.filename, tagname)
-                save_cmd = ['tar', 'cf', filename, tempname]
+                filename = os.path.join(os.path.dirname(self.filename), "%s.tar" % self.tagname)
+                save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
             else:
-                filename = "%s_%s" % (self.filename, tagname)
-                save_cmd = ['cp', '-rf', tempname, filename]
+                filename = os.path.join(os.path.dirname(self.filename), self.tagname)
+                save_cmd = ['cp', '-rf', self.tempname, filename]
             with open('/dev/null', 'wb') as dn:
                 subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
-            shutil.rmtree(tempname)
+            shutil.rmtree(self.tempname)
             self._counter = 0
             
     def stop(self):

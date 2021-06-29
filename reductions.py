@@ -5,6 +5,12 @@ __all__ = ['ReductionOperation', 'XXYYCRCI', 'XXYY', 'CRCI', 'IQUV', 'IV']
 
 
 class ReductionOperation(object):
+    """
+    Base reduction operations that does not change the polarization basis or
+    outputs but can average in time and/or frequency.  The averaging values are
+    treated as decimation factors for their respective data axes.
+    """
+    
     def __init__(self, time_avg=1, chan_avg=1):
         self.time_avg = time_avg
         self.chan_avg = chan_avg
@@ -44,6 +50,10 @@ XXYYCRCI = ReductionOperation
 
 
 class XXYY(ReductionOperation):
+    """
+    Sub-class of :py:class:`ReductionOperation` that reduces the output to only XX and YY.
+    """
+    
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
@@ -56,6 +66,11 @@ class XXYY(ReductionOperation):
 
 
 class CRCI(ReductionOperation):
+    """
+    Sub-class of :py:class:`ReductionOperation` that reduces the output to only CR
+    (real(XY) = "cross-hands - real") and CI (imag(XY) = "cross-hands - imaginary").
+    """
+    
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
@@ -68,6 +83,11 @@ class CRCI(ReductionOperation):
 
 
 class IQUV(ReductionOperation):
+    """
+    Sub-class of :py:class:`ReductionOperation` that computes and outputs
+    psuedo-Stokes I, Q, U, and V.
+    """
+    
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         
@@ -87,6 +107,11 @@ class IQUV(ReductionOperation):
 
 
 class IV(ReductionOperation):
+    """
+    Sub-class of :py:class:`ReductionOperation` that computes and outputs 
+    psuedo-Stokes I and V.
+    """
+    
     def __init__(self, time_avg=1, chan_avg=1):
         ReductionOperation.__init__(self, time_avg=time_avg, chan_avg=chan_avg)
         

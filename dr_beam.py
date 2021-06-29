@@ -1,4 +1,10 @@
-#!/usr/env python
+#!/usr/bin/env python
+
+from __future__ import division, print_function
+try:
+    range = xrange
+except NameError:
+    pass
 
 from __future__ import print_function, division
 
@@ -18,10 +24,10 @@ from datetime import datetime, timedelta
 
 from common import *
 from reductions import *
-from filewriter import HDF5Writer
-from operations import OperationsQueue
+from operations import FileOperationsQueue
 from monitoring import GlobalLogger
-from control import BeamCommandProcessor
+from control import PowerBeamCommandProcessor
+from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -36,7 +42,7 @@ from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
 
 
-QUEUE = OperationsQueue()
+QUEUE = FileOperationsQueue()
 
 
 class CaptureOp(object):
@@ -72,7 +78,7 @@ class CaptureOp(object):
                'complex':  False,
                'nbit':     32}
         #print("******** HDR:", hdr)
-        hdr_str = json.dumps(hdr)
+        hdr_str = json.dumps(hdr).encode()
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
         #hdr_str = json.dumps(hdr).ljust(4096, ' ')
@@ -128,7 +134,7 @@ class ReaderOp(object):
                'complex':  False,
                'nbit':     32}
         #print("******** HDR:", hdr)
-        hdr_str = json.dumps(hdr)
+        hdr_str = json.dumps(hdr).encode()
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
         #hdr_str = json.dumps(hdr).ljust(4096, ' ')
@@ -142,7 +148,7 @@ class ReaderOp(object):
         seq_callback.set_pbeam(self.seq_callback)
         
         with open(self.filename, 'rb') as fh:
-            with DiskReader("pbeam_184", fh, self.oring, self.nserver, self.beam0,
+            with DiskReader("pbeam_192", fh, self.oring, self.nserver, self.beam0,
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
                 while not self.shutdown_event.is_set():
@@ -185,7 +191,7 @@ class DummyOp(object):
             tgulp = tint * self.ntime_gulp
             nbeam = 1
             chan0 = 1234
-            nchan = 16*184
+            nchan = 16*192
             npol = 4
             
             ohdr = {'time_tag': int(int(time.time())*FS),
@@ -230,6 +236,214 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
+class SpectraOp(object):
+    def __init__(self, log, id, iring, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        # Setup the figure
+        ## Import
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
+        from matplotlib.ticker import MultipleLocator
+        
+        ## Create
+        fig = plt.Figure(figsize=(6,6))
+        ax = fig.gca()
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Spectra: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbeam    = ihdr['nbeam']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            pols     = ihdr['pols']
+            
+            igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+            ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            
+            frange = (numpy.arange(nchan) + chan0) * CHAN_BW
+            last_save = 0.0
+            
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.datetime.strftime('%y%m%d %H:%M:%S')
+                    
+                    ## Average over time
+                    sdata = idata.mean(axis=0)
+                    
+                    ## Create a diagnostic plot after suming the flags across polarization
+                    ax.cla()
+                    ax.plot(frange/1e6, numpy.log10(sdata[0,:,0])*10, color='#1F77B4')
+                    ax.plot(frange/1e6, numpy.log10(sdata[0,:,1])*10, color='#FF7F0E')
+                    ax.set_xlim((frange[0]/1e6,frange[-1]/1e6))
+                    ax.set_xlabel('Frequency [MHz]')
+                    ax.set_ylabel('Power [arb. dB]')
+                    ax.xaxis.set_major_locator(MultipleLocator(base=10.0))
+                    fig.tight_layout()
+                    
+                    ## Save
+                    tt = LWATime(time_tag, format='timetag')
+                    mp = ImageMonitorPoint.from_figure(fig)
+                    self.client.write_monitor_point('diagnostics/spectra',
+                                                    mp, timestamp=tt.unix)
+                    
+                    if True:
+                        ## Save again, this time to disk
+                        mjd, dt = tt.mjd, tt.datetime
+                        mjd = int(mjd)
+                        h, m, s = dt.hour, dt.minute, dt.second
+                        filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
+                        mp.to_file(filename)
+                        
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+                
+        self.log.info("SpectraOp - Done")
+
+
+class StatisticsOp(object):
+    def __init__(self, log, id, iring, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Statistics: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbeam    = ihdr['nbeam']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            pols     = ihdr['pols']
+            
+            igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
+            ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            
+            data_pols = pols.split(',')
+            last_save = 0.0
+            
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size)
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
+                idata = idata.reshape(-1, npol)
+                
+                if time.time() - last_save > 60:
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Run the statistics over all times/channels
+                    ##  * only really works for nbeam=1
+                    data_min = numpy.min(idata, axis=0)
+                    data_max = numpy.max(idata, axis=0)
+                    data_avg = numpy.mean(idata, axis=0)
+                    
+                    ## Save
+                    for data,name in zip((data_min,data_avg,data_max), ('min','avg','max')):
+                        value = MultiMonitorPoint(data.tolist(), timestamp=ts, field=data_pols)
+                        self.client.write_monitor_point('statistics/%s' % name, value)
+                        
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+                
+        self.log.info("StatisticsOp - Done")
+
+
 class WriterOp(object):
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
@@ -262,6 +476,7 @@ class WriterOp(object):
             
             self.log.info("Writer: Start of new sequence: %s", str(ihdr))
             
+            # Setup the ring metadata and gulp sizes
             time_tag = ihdr['time_tag']
             navg     = ihdr['navg']
             nbeam    = ihdr['nbeam']
@@ -275,6 +490,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             first_gulp = True 
             was_active = False
@@ -287,30 +503,35 @@ class WriterOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                ## On our first span, update the pipeline lag for the queue
+                ## so that we start recording at the right times
                 if first_gulp:
                     QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
                     self.log.info("Current pipeline lag is %s", QUEUE.lag)
                     first_gulp = False
                     
+                ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
+                ## Determine what to do
                 if QUEUE.active is not None:
-                    # Write the data
+                    ### Recording active - write
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
                         QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
                 elif was_active:
-                    # Clean the queue
+                    ### Recording just finished - clean
+                    #### Clean
                     was_active = False
                     QUEUE.clean()
                     
-                    # Close it out
+                    #### Close
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) / int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -318,6 +539,8 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+        self.log.info("WriterOp - Done")
 
 
 def main(argv):
@@ -334,7 +557,7 @@ def main(argv):
                         help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='beam to receive data for')
-    parser.add_argument('-c', '--cores', type=str, default='0,1',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1000,
                         help='gulp size for ring buffers')
@@ -342,6 +565,8 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
+    parser.add_argument('-q', '--record-directory-quota', type=int, default=0,
+                        help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
@@ -369,6 +594,9 @@ def main(argv):
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
         
+    # Setup the subsystem ID
+    mcs_id = 'dr%i' % args.beam
+    
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
@@ -384,6 +612,15 @@ def main(argv):
     capture_ring = Ring(name="capture")
     write_ring   = Ring(name="write")
     
+    # Setup the recording directory, if needed
+    if not os.path.exists(args.record_directory):
+        status = os.system('mkdir -p %s' % args.record_directory)
+        if status != 0:
+            raise RuntimeError("Unable to create directory: %s" % args.record_directory)
+    else:
+        if not os.path.isdir(os.path.realpath(args.record_directory)):
+            raise RuntimeError("Cannot record to a non-directory: %s" % args.record_directory)
+            
     # Setup the blocks
     ops = []
     if args.offline:
@@ -396,24 +633,15 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+    ops.append(SpectraOp(log, mcs_id, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    ops.append(StatisticsOp(log, mcs_id, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, args, QUEUE))
-    ops.append(BeamCommandProcessor(log, args.record_directory, QUEUE))
+    ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota))
+    ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    ops[-1].record(json.dumps({'id': 234343423,
-                               'start_mjd': mjd_now,
-                               'start_mpm': mpm_now,
-                               'duration_ms': 30*1000}))
-    
-    try:
-        os.unlink(QUEUE[0].filename)
-    except OSError:
-        pass
-        
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
     
@@ -428,6 +656,15 @@ def main(argv):
     for thread in threads:
         #thread.daemon = True
         thread.start()
+        
+    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
+    mjd_now = int(t_now.mjd)
+    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
+    c = Client()
+    r = c.send_command(mcs_id, 'record',
+                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+    print('III', r)
+    
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")
