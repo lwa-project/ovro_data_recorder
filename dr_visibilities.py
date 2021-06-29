@@ -236,7 +236,7 @@ class DummyOp(object):
                     'cfreq':    chan0*CHAN_BW,
                     'nchan':    nchan,
                     'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
-                    'navg':     navg,
+                    'navg':     navg*8192,
                     'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
                     'npol':     npol,
                     'nbl':      nbl,
