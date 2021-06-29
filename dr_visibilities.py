@@ -80,7 +80,7 @@ class CaptureOp(object):
                'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
                'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
-               'npol':     2,
+               'npol':     4,
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
@@ -137,7 +137,7 @@ class ReaderOp(object):
                'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
                'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
-               'npol':     2,
+               'npol':     4,
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
