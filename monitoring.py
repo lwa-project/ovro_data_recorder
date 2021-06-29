@@ -95,7 +95,7 @@ class PerformanceLogger(object):
                         late1 = contents['stats']['nlate_bytes']
                         missing1 = contents['stats']['nmissing_bytes']
                         
-                rx_rate = (good1 - good1) / (self._state[1][0] - self._state[0][0])
+                rx_rate = (good1 - good0) / (self._state[1][0] - self._state[0][0])
                 missing_fraction = (missing1 - missing0) / (good1 - good0 + missing1 - missing0)
                 
                 self.client.write_monitor_point('bifrost/rx_rate',
