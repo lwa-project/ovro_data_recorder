@@ -7,6 +7,9 @@ import jinja2
 import argparse
 
 # Setup
+## Path information
+path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 ## Power beam setup
 rdir = '/home/ubuntu/data/beam'
 quota = 0
@@ -87,8 +90,8 @@ def main(args):
             template = env.get_template('dr-beam-base.service')
             for beam in beams:
                 address, port, directory, quota = beams[beam] 
-                service = template.render(beam=beam, address=address, port=port,
-                                          directory=directory, quota=quota)
+                service = template.render(path=path, beam=beam, address=address,
+                                          port=port, directory=directory, quota=quota)
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -104,8 +107,8 @@ def main(args):
             template = env.get_template('dr-vslow-base.service')
             for band in vslow:
                 address, port, directory, quota = vslow[band]
-                service = template.render(band=band, address=address, port=port,
-                                          directory=directory, quota=quota)
+                service = template.render(path=path, band=band, address=address,
+                                          port=port, directory=directory, quota=quota)
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
@@ -113,7 +116,7 @@ def main(args):
             template = env.get_template('dr-manager-vslow-base.service')
             begin_band = min([band for band in vslow])
             end_band = max([band for band in vslow])
-            service = template.render(begin_band=begin_band, end_band=end_band)
+            service = template.render(path=path, begin_band=begin_band, end_band=end_band)
             with open('dr-manager-vslow.service', 'w') as fh:
                 fh.write(service)
 
@@ -129,8 +132,8 @@ def main(args):
             emplate = env.get_template('dr-vfast-base.service')
             for band in vfast:
                 address, port, directory, quota = vfast[band]
-                service = template.render(band=band, address=address, port=port,
-                                          directory=directory, quota=quota)
+                service = template.render(path=path, band=band, address=address,
+                                          port=port, directory=directory, quota=quota)
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
@@ -138,7 +141,7 @@ def main(args):
             template = env.get_template('dr-manager-vfast-base.service')
             begin_band = min([band for band in vfast])
             end_band = max([band for band in vfast])
-            service = template.render(begin_band=begin_band, end_band=end_band)
+            service = template.render(path=path, begin_band=begin_band, end_band=end_band)
             with open('dr-manager-vfast.service', 'w') as fh:
                 fh.write(service)
 
