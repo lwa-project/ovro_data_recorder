@@ -20,7 +20,7 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
-from lwa_antpos.station import ovrolwa as ovro
+from lwa_antpos.station import ovro
 
 from common import *
 from reductions import *
