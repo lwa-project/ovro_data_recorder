@@ -416,6 +416,10 @@ class SpectraOp(object):
                         filename = '%06i_%02i%02i%02i_spectra.png' % (mjd, h, m, s)
                         mp.to_file(filename)
                         
+                        ## Save the raw spectra for comparison purposes
+                        filename = '%06i_%02i%02i%02i_spectra.npy' % (mjd, h, m, s)
+                        numpy.savez(filename, adata)
+                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
