@@ -20,7 +20,8 @@ StandardError=syslog
 SyslogIdentifier=dr-vslow-{{ band }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log \
+                           && /home/ubuntu/ovro_data_recorder/update_casa_data.sh'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1

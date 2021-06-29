@@ -80,12 +80,12 @@ class CaptureOp(object):
                'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
                'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
-               'npol':     2,
+               'npol':     4,
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
         print("******** CFREQ:", hdr['cfreq'])
-        hdr_str = json.dumps(hdr)
+        hdr_str = json.dumps(hdr).encode()
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
         #hdr_str = json.dumps(hdr).ljust(4096, ' ')
@@ -98,7 +98,7 @@ class CaptureOp(object):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
         
-        with UDPCapture("cor", self.sock, self.oring, self.nbl, 0, 9000, 
+        with UDPCapture("cor", self.sock, self.oring, self.nbl, 1, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
             while not self.shutdown_event.is_set():
@@ -137,12 +137,12 @@ class ReaderOp(object):
                'bw':       nchan*CHAN_BW*(4 if self.fast else 1),
                'navg':     navg,
                'nstand':   int(numpy.sqrt(8*nsrc+1)-1)//2,
-               'npol':     2,
+               'npol':     4,
                'nbl':      nsrc,
                'complex':  True,
                'nbit':     32}
         print("******** CFREQ:", hdr['cfreq'])
-        hdr_str = json.dumps(hdr)
+        hdr_str = json.dumps(hdr).encode()
         # TODO: Can't pad with NULL because returned as C-string
         #hdr_str = json.dumps(hdr).ljust(4096, '\0')
         #hdr_str = json.dumps(hdr).ljust(4096, ' ')
@@ -160,7 +160,7 @@ class ReaderOp(object):
         tgulp = tint * self.ntime_gulp
         
         with open(self.filename, 'rb') as fh:
-            with DiskReader("cor_%i" % (192//4 if self.fast else 192), fh, self.oring, self.nbl, 0,  
+            with DiskReader("cor_%i" % (192//4 if self.fast else 192), fh, self.oring, self.nbl, 1,  
                             self.ntime_gulp, self.slot_ntime,
                             sequence_callback=seq_callback, core=self.core) as capture:
                 prev_time = time.time()
@@ -211,7 +211,7 @@ class DummyOp(object):
             nbl   = self.nbl
             chan0 = 1234
             nchan = 192 // (4 if self.fast else 1)
-            npol = 4
+            npol  = 4
             
             # Try to load model visibilities
             try:
@@ -224,6 +224,11 @@ class DummyOp(object):
             assert(vis_base.shape[2] == npol)
             
             vis_base = vis_base[:self.nbl,::(4 if self.fast else 1),:]
+            vis_base_r = (vis_base.real*1000).astype(numpy.int32)
+            vis_base_i = (vis_base.imag*1000).astype(numpy.int32)
+            vis_base = numpy.zeros((nbl, nchan, npol, 2), dtype=numpy.int32)
+            vis_base[...,0] = vis_base_r
+            vis_base[...,1] = vis_base_i
             
             ohdr = {'time_tag': int(int(time.time())*FS),
                     'seq0':     0, 
@@ -239,7 +244,7 @@ class DummyOp(object):
                     'nbit':     32}
             ohdr_str = json.dumps(ohdr)
             
-            ogulp_size = self.ntime_gulp*nbl*nchan*npol*8      # complex64
+            ogulp_size = self.ntime_gulp*nbl*nchan*npol*8      # ci32
             oshape = (self.ntime_gulp,nbl,nchan,npol)
             self.oring.resize(ogulp_size)
             
@@ -251,8 +256,9 @@ class DummyOp(object):
                         reserve_time = curr_time - prev_time
                         prev_time = curr_time
                         
-                        odata = ospan.data_view(numpy.complex64).reshape(oshape)
-                        odata[...] = vis_base + 0.01*numpy.random.randn(*oshape)
+                        odata = ospan.data_view(numpy.int32).reshape(oshape+(2,))
+                        temp = vis_base + (1000*0.01*numpy.random.randn(*odata.shape)).astype(numpy.int32)
+                        odata[...] = temp
                         
                         curr_time = time.time()
                         while curr_time - prev_time < tgulp:
@@ -364,7 +370,7 @@ class SpectraOp(object):
             chan_bw  = ihdr['bw'] / nchan
             npol     = ihdr['npol']
             
-            igulp_size = self.ntime_gulp*nbl*nchan*npol*8   # complex64
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8   # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             
             # Setup the arrays for the frequencies and auto-correlations
@@ -381,7 +387,7 @@ class SpectraOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                idata = ispan.data_view('ci32').reshape(ishape)
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -389,7 +395,9 @@ class SpectraOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata[0,autos,:,:].real
+                    adata = idata.view(numpy.int32)
+                    adata = adata.reshape(ishape+(2,))
+                    adata = adata[0,autos,:,:,0]
                     adata = adata[:,:,[0,3]]
                     
                     ## Plot
@@ -407,6 +415,10 @@ class SpectraOp(object):
                         h, m, s = dt.hour, dt.minute, dt.second
                         filename = '%06i_%02i%02i%02i_spectra.png' % (mjd, h, m, s)
                         mp.to_file(filename)
+                        
+                        ## Save the raw spectra for comparison purposes
+                        filename = '%06i_%02i%02i%02i_spectra.npy' % (mjd, h, m, s)
+                        numpy.save(filename, adata)
                         
                     last_save = time.time()
                     
@@ -544,7 +556,7 @@ class BaselineOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                idata = ispan.data_view('ci32').reshape(ishape)
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -552,7 +564,12 @@ class BaselineOp(object):
                     ts = tt.unix
                     
                     ## Plot
-                    im = self._plot_baselines(time_tag, freq, dist, idata[0,...], valid)
+                    bdata = idata[0,...]
+                    bdata = bdata.view(numpy.int32)
+                    bdata = bdata.reshape(ishape+(2,))
+                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
+                    bdata = bdata.astype(numpy.complex64)
+                    im = self._plot_baselines(time_tag, freq, dist, bdata, valid)
                     
                     ## Save
                     mp = ImageMonitorPoint.from_image(im)
@@ -623,7 +640,7 @@ class StatisticsOp(object):
             chan_bw  = ihdr['bw'] / nchan
             npol     = ihdr['npol']
             
-            igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             
             autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
@@ -640,7 +657,7 @@ class StatisticsOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                idata = ispan.data_view('ci32').reshape(ishape)
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -648,7 +665,9 @@ class StatisticsOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata[0,autos,:,:].real
+                    adata = idata.view(numpy.int32)
+                    adata = adata.reshape(ishape+(2,))
+                    adata = adata[0,autos,:,:,0]
                     adata = adata[:,:,[0,3]]
                     
                     ## Run the statistics over all times/channels
@@ -721,7 +740,7 @@ class WriterOp(object):
             npol     = ihdr['npol']
             pols     = ['XX','XY','YX','YY']
             
-            igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # complex64
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size*(10 if self.fast else 1))
             
@@ -744,8 +763,12 @@ class WriterOp(object):
                     first_gulp = False
                     
                 ## Setup and load
-                idata = ispan.data_view(numpy.complex64).reshape(ishape)
-               
+                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = idata.view(numpy.int32)
+                idata = idata.reshape(ishape+(2,))
+                idata = idata[...,0] + 1j*idata[...,1]
+                idata = idata.astype(numpy.complex64)
+                
                 ## Determine what to do
                 if QUEUE.active is not None:
                     ### Recording active - write
