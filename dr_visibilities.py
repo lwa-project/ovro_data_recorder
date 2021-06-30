@@ -420,6 +420,12 @@ class SpectraOp(object):
                         filename = '%06i_%02i%02i%02i_spectra.npy' % (mjd, h, m, s)
                         numpy.save(filename, adata)
                         
+                        ## Save everything for comparison purposes
+                        odata = idata.view(numpy.int32)
+                        odata = odata.reshape(odata.shape+(2,))
+                        filename = '%06i_%02i%02i%02i_everything.npy' % (mjd, h, m, s)
+                        numpy.save(filename, odata)
+                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp
