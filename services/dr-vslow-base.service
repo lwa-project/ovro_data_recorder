@@ -21,13 +21,13 @@ SyslogIdentifier=dr-vslow-{{ band }}
 
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log \
-                           && /home/ubuntu/ovro_data_recorder/update_casa_data.sh'
+                           && {{ path }}/update_casa_data.sh'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-python /home/ubuntu/ovro_data_recorder/dr_visibilities.py \
+python {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --record-directory       {{ directory }} \
