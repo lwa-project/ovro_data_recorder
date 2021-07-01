@@ -422,7 +422,7 @@ class SpectraOp(object):
                         
                         ## Save everything for comparison purposes
                         odata = idata.view(numpy.int32)
-                        odata = odata.reshape(odata.shape+(2,))
+                        odata = odata.reshape(ishape+(2,))
                         filename = '%06i_%02i%02i%02i_everything.npy' % (mjd, h, m, s)
                         numpy.save(filename, odata)
                         
