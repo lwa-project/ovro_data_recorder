@@ -50,7 +50,7 @@ vslow = { 1: ('10.41.0.17', 10000, rdir, quota),
 
 ## Fast visibilities setup
 rdir = '/home/ubuntu/data/fast'
-quota = 10*1024**4
+quota = '10TB'
 vfast = { 1: ('10.41.0.17', 11000, rdir, quota),
           2: ('10.41.0.18', 11000, rdir, quota),
           3: ('10.41.0.19', 11000, rdir, quota),
