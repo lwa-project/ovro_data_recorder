@@ -827,7 +827,7 @@ def main(argv):
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
-    parser.add_argument('-t', '--record-directory-quota', type=int, default=0,
+    parser.add_argument('-t', '--record-directory-quota', type=quota_size, default=0,
                         help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-q', '--quick', action='store_true',
                         help='run in fast visibiltiy mode')
