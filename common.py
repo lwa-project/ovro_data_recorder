@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import signal
 import logging
@@ -11,7 +12,7 @@ from astropy.time import Time as AstroTime
 
 
 __all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
-           'LWATime', 'chan_to_freq', 'freq_to_chan', 'daemonize',
+           'LWATime', 'chan_to_freq', 'freq_to_chan', 'quota_size', 'daemonize',
            'LogFileHandler', 'setup_signal_handling', 'synchronize_time']
 
 
@@ -122,6 +123,29 @@ def freq_to_chan(freq):
     """
     
     return int(freq / CHAN_BW + 0.5)
+
+
+def quota_size(value):
+    """
+    Covnert a human readable quota size into a number of bytes.
+    """
+    
+    _UNITS_RE = re.compile('^\s*(?P<value>\d+(\.(\d*)?)?)\s*(?P<scale>[kMGTP]i?)?B?$')
+    _UNITS_SCALES = {None: 1,
+                     'k' : 1000,    'ki': 1024,
+                     'M' : 1000**2, 'Mi': 1024**2,
+                     'G' : 1000**3, 'Gi': 1024**3,
+                     'T' : 1000**4, 'Ti': 1024**4,
+                     'P' : 1000**5, 'Pi': 1024**5
+                     }
+    
+    value = str(value)
+    mtch = _UNITS_RE.match(value)
+    if mtch is None:
+        raise ValueError("Cannot interpret '%s' as a quota size" % value)
+    value = float(mtch.group('value'))
+    value *= _UNITS_SCALES[mtch.group('scale')]
+    return int(value)
 
 
 """

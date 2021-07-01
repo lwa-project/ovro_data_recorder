@@ -26,11 +26,12 @@ ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-python /home/ubuntu/ovro_data_recorder/dr_dual_tengine.py \
-         --address          {{ address }} \
-         --port             {{ port }} \
-         --record-directory {{ directory }} \
-	 --logfile          /home/ubuntu/log/dr-tengine.%H.log'
+python {{ path }}/dr_dual_tengine.py \
+         --address                {{ address }} \
+         --port                   {{ port }} \
+         --record-directory       {{ directory }} \
+         --record-directory-quota {{ quota }} \
+         --logfile                /home/ubuntu/log/dr-tengine.%H.log'
 
 [Install]
 WantedBy=multi-user.target

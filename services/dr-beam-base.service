@@ -26,7 +26,7 @@ ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-python /home/ubuntu/ovro_data_recorder/dr_beam.py \
+python {{ path }}/dr_beam.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --beam                   {{ beam }} \
