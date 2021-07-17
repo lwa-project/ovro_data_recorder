@@ -153,6 +153,7 @@ def parse_config(filename):
                 continue
                 
             if line.startswith('LWA-000'):
+                line = line.replace('LWA-000', 'OVRO-LWA')
                 station = Station.from_line(line)
             elif line.find('NO') == -1:
                 ant = Antenna.from_line(line)
