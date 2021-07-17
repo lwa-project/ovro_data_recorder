@@ -614,9 +614,9 @@ def _write_observation_table(filename, config):
                                     keywords={'QuantumUnits':['s',], 
                                               'MEASINFO':{'type':'epoch', 'Ref':'UTC'}
                                               })
-    col2 = tableutil.makescacoldesc('LOG', 'none',
+    col2 = tableutil.makearrcoldesc('LOG', 'none', 1,
                                     comment='Observing log')
-    col3 = tableutil.makescacoldesc('SCHEDULE', 'none',
+    col3 = tableutil.makearrcoldesc('SCHEDULE', 'none', 1,
                                     comment='Observing schedule')
     col4 = tableutil.makescacoldesc('FLAG_ROW', False, 
                                     comment='Row flag')
@@ -638,8 +638,8 @@ def _write_observation_table(filename, config):
     tb = table("%s/OBSERVATION" % filename, desc, nrow=nint, ack=False)
     
     tb.putcol('TIME_RANGE', numpy.zeros((nint,2)), 0, nint)
-    tb.putcol('LOG', ['Not provided',]*nint, 0, nint)
-    tb.putcol('SCHEDULE', ['Not provided',]*nint, 0, nint)
+    tb.putcol('LOG', numpy.array([['Not provided',],]*nint, dtype='S'), 0, nint)
+    tb.putcol('SCHEDULE', numpy.array([['Not provided',],]*nint, dtype='S'), 0, nint)
     tb.putcol('FLAG_ROW', [False,]*nint, 0, nint)
     tb.putcol('OBSERVER', [os.path.basename(__file__),]*nint, 0, nint)
     tb.putcol('PROJECT', [station.name+' all-sky',]*nint, 0, nint)
