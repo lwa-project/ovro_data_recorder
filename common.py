@@ -30,7 +30,7 @@ NCHAN            = 4096
 CHAN_BW          = CLOCK / (2*NCHAN)
 
 #: Total number of GPU pipelines
-NPIPELINE        = 16
+NPIPELINE        = 32
 
 #: Epoch that is the basis for LWA time tags
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
