@@ -87,7 +87,7 @@ class CaptureOp(object):
     def shutdown(self):
         self.shutdown_event.set()
         
-    def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
+    def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
@@ -111,7 +111,7 @@ class CaptureOp(object):
         
     def main(self):
         seq_callback = PacketCaptureCallback()
-        seq_callback.set_pbeam(self.seq_callback)
+        seq_callback.set_ibeam(self.seq_callback)
         
         with UDPCapture("ibeam1", self.sock, self.oring, self.nserver, self.beam0, 9000, 
                         self.ntime_gulp, self.slot_ntime,
