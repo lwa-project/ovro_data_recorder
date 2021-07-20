@@ -12,8 +12,9 @@ from astropy.time import Time as AstroTime
 
 
 __all__ = ['FS', 'CLOCK', 'NCHAN', 'CHAN_BW', 'NPIPELINE', 'OVRO_EPOCH',
-           'LWATime', 'chan_to_freq', 'freq_to_chan', 'quota_size', 'daemonize',
-           'LogFileHandler', 'setup_signal_handling', 'synchronize_time']
+           'ETCD_HOST', 'ETCD_PORT', 'LWATime', 'chan_to_freq', 'freq_to_chan',
+           'quota_size', 'daemonize', 'LogFileHandler', 'setup_signal_handling',
+           'synchronize_time']
 
 
 #: Sample rate that is the basis for LWA time tags
@@ -35,11 +36,29 @@ NPIPELINE        = 32
 OVRO_EPOCH       = datetime(1970, 1, 1, 0, 0, 0, 0)
 
 
-#: etcd hostname
-ETCD_HOST = '127.0.0.1'
+#: etcd hostname - can be overridden with a 'ETCD_HOST = ...' line in 'etcd.cfg' file
+ETCD_HOST = '10.42.0.64'
 
-#: etcd port
+
+#: etcd port - can be overridden with a 'ETCD_PORT = ...' line in 'etcd.cfg' file
 ETCD_PORT = 2379
+
+
+# Try the etcd.cfg file to see if we need to override either _HOST or _PORT
+if os.path.exists('etcd.cfg'):
+    with open('etcd.cfg', 'r') as fh:
+        for line in fh:
+            if line.startswith('ETCD_HOST'):
+                _, value = line.split('=', 1)
+                value = value.split('#', 1)[0]
+                value = value.strip().rstrip()
+                ETCD_HOST = value
+            elif line.startswith('ETCD_PORT'):
+                _, value = line.split('=', 1)
+                value = value.split('#', 1)[0]
+                value = value.strip().rstrip()
+                value = int(value, 10)
+                ETCD_PORT = value
 
 
 class LWATime(AstroTime):

@@ -1,3 +1,6 @@
+# Configuration files
+etcd.cfg
+
 # Data files
 *.hdf5
 *.ms
