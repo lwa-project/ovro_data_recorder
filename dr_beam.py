@@ -99,63 +99,6 @@ class CaptureOp(object):
         del capture
 
 
-class ReaderOp(object):
-    def __init__(self, log, filename, oring, nserver, beam0=1, ntime_gulp=250,
-                 slot_ntime=25000, shutdown_event=None, core=None):
-        self.log      = log
-        self.filename = filename
-        self.oring    = oring
-        self.nserver  = nserver
-        self.beam0    = beam0
-        self.ntime_gulp   = ntime_gulp
-        self.slot_ntime   = slot_ntime
-        if shutdown_event is None:
-            shutdown_event = threading.Event()
-        self.shutdown_event = shutdown_event
-        self.core    = core
-        
-    def shutdown(self):
-        self.shutdown_event.set()
-        
-    def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
-        #print("++++++++++++++++ seq0     =", seq0)
-        #print("                 time_tag =", time_tag)
-        hdr = {'time_tag': time_tag,
-               'seq0':     seq0, 
-               'chan0':    chan0,
-               'cfreq0':   chan0*CHAN_BW,
-               'bw':       nchan*CHAN_BW,
-               'navg':     navg,
-               'nbeam':    nbeam,
-               'npol':     4,
-               'pols':     'XX,YY,CR,CI',
-               'complex':  False,
-               'nbit':     32}
-        #print("******** HDR:", hdr)
-        hdr_str = json.dumps(hdr).encode()
-        # TODO: Can't pad with NULL because returned as C-string
-        #hdr_str = json.dumps(hdr).ljust(4096, '\0')
-        #hdr_str = json.dumps(hdr).ljust(4096, ' ')
-        header_buf = ctypes.create_string_buffer(hdr_str)
-        hdr_ptr[0]      = ctypes.cast(header_buf, ctypes.c_void_p)
-        hdr_size_ptr[0] = len(hdr_str)
-        return 0
-        
-    def main(self):
-        seq_callback = PacketCaptureCallback()
-        seq_callback.set_pbeam(self.seq_callback)
-        
-        with open(self.filename, 'rb') as fh:
-            with DiskReader("pbeam_192", fh, self.oring, self.nserver, self.beam0,
-                            self.ntime_gulp, self.slot_ntime,
-                            sequence_callback=seq_callback, core=self.core) as capture:
-                while not self.shutdown_event.is_set():
-                    status = capture.recv()
-                    if status in (1,4,5,6):
-                        break
-        del capture
-
-
 class DummyOp(object):
     def __init__(self, log, sock, oring, nserver, beam0=1, ntime_gulp=250,
                  slot_ntime=25000, shutdown_event=None, core=None):
@@ -551,8 +494,6 @@ def main(argv):
                         help='UDP port to receive data on')
     parser.add_argument('-o', '--offline', action='store_true',
                         help='run in offline using the specified file to read from')
-    parser.add_argument('--filename', type=str,
-                        help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='beam to receive data for')
     parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
@@ -622,14 +563,10 @@ def main(argv):
     # Setup the blocks
     ops = []
     if args.offline:
-        if args.filename:
-            ops.append(ReaderOp(log, args.filename, capture_ring, 16,
-                                ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
-        else:
-            ops.append(DummyOp(log, isock, capture_ring, 16,
-                               ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+        ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
+                           ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     else:
-        ops.append(CaptureOp(log, isock, capture_ring, 16,
+        ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     ops.append(SpectraOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))

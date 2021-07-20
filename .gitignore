@@ -1,8 +1,15 @@
+# Configuration files
+etcd.cfg
+
 # Data files
 *.hdf5
 *.ms
 *.tar.gz
 *.tar
+
+# Temporary files that will go away in the future
+*.npy
+*.png
 
 # Help files
 docs/source/*.help

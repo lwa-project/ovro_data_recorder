@@ -78,7 +78,7 @@ class CaptureOp(object):
     def shutdown(self):
         self.shutdown_event.set()
         
-    def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
+    def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
@@ -102,7 +102,7 @@ class CaptureOp(object):
         
     def main(self):
         seq_callback = PacketCaptureCallback()
-        seq_callback.set_pbeam(self.seq_callback)
+        seq_callback.set_ibeam(self.seq_callback)
         
         with UDPCapture("ibeam2", self.sock, self.oring, self.nserver, self.beam0, 9000, 
                         self.ntime_gulp, self.slot_ntime,
@@ -1078,8 +1078,6 @@ def main(argv):
                         help='UDP port to receive data on')
     parser.add_argument('-o', '--offline', action='store_true',
                         help='run in offline using the specified file to read from')
-    parser.add_argument('--filename', type=str,
-                        help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='first beam to receive data for')
     parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4,5,6,7,8,9,10',
@@ -1162,14 +1160,10 @@ def main(argv):
     # Setup the blocks
     ops = []
     if args.offline:
-        if args.filename:
-            ops.append(ReaderOp(log, args.filename, capture_ring, 16,
-                                ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
-        else:
-            ops.append(DummyOp(log, isock, capture_ring, 16,
-                               ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+        ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
+                           ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     else:
-        ops.append(CaptureOp(log, isock, capture_ring, 16,
+        ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     ops.append(BeamSelectOp(log, capture_ring, split0_ring, 0,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))

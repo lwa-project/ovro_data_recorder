@@ -36,7 +36,7 @@ ovro = ovro2
 nant = len(ovro.antennas) // 2
 nbl = nant*(nant+1)//2
 chan0 = 1234
-nchan = 184
+nchan = 192
 CHAN_BW = 196e6 / 8192
 jd = AstroTime.now().jd
 
