@@ -992,8 +992,6 @@ def main(argv):
                         help='UDP port to receive data on')
     parser.add_argument('-o', '--offline', action='store_true',
                         help='run in offline using the specified file to read from')
-    parser.add_argument('--filename', type=str,
-                        help='filename containing packets to read from in offline mode')
     parser.add_argument('-b', '--beam', type=int, default=1,
                         help='beam to receive data for')
     parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4',
@@ -1068,12 +1066,8 @@ def main(argv):
     # Setup the blocks
     ops = []
     if args.offline:
-        if args.filename:
-            ops.append(ReaderOp(log, args.filename, capture_ring, 16,
-                                ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
-        else:
-            ops.append(DummyOp(log, isock, capture_ring, 16,
-                               ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+        ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
+                           ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, 16,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
