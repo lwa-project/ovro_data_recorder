@@ -10,15 +10,7 @@ from astropy.time import Time as AstroTime
 from lsl.common import stations
 from lsl.sim import vis as simVis
 
-# Crude but effective for making sure we are up-to-date
-try:
-    os.unlink('station.py')
-    os.unlink('ovro.txt')
-except OSError:
-    pass
-shutil.copy('../station.py', 'station.py')
-shutil.copy('../ovro.txt', 'ovro.txt')
-from station import ovro
+from lwa_antpos.station import ovro
 
 
 # Convert a station.Station to a lsl.common.stations.LWAStation object
