@@ -72,6 +72,7 @@ class CaptureOp(object):
                'bw':       nchan*CHAN_BW,
                'navg':     navg,
                'nbeam':    nbeam,
+               'nchan':    nchan,
                'npol':     4,
                'pols':     'XX,YY,CR,CI',
                'complex':  False,
