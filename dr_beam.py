@@ -64,6 +64,7 @@ class CaptureOp(object):
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
+        time_tag *= 2*NCHAN     # Seems to be needed now
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
