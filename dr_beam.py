@@ -64,6 +64,7 @@ class CaptureOp(object):
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
+        time_tag *= 2*NCHAN     # Seems to be needed now
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -71,6 +72,7 @@ class CaptureOp(object):
                'bw':       nchan*CHAN_BW,
                'navg':     navg,
                'nbeam':    nbeam,
+               'nchan':    nchan,
                'npol':     4,
                'pols':     'XX,YY,CR,CI',
                'complex':  False,
@@ -597,7 +599,8 @@ def main(argv):
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     c = Client()
     r = c.send_command(mcs_id, 'record',
-                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
+                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000,
+                       time_avg=250)
     print('III', r)
     
     while not shutdown_event.is_set():
