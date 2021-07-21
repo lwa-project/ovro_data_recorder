@@ -3,8 +3,33 @@
 import os
 import sys
 import numpy
+import shutil
+import tempfile
+import subprocess
 
 from casacore.tables import table
+
+
+def smart_int(value):
+    for i in range(len(value)):
+        try:
+            return int(value[i:], 10)
+        except ValueError:
+            pass
+    raise ValueError("Cannot find an integer in '%s'" % value)
+
+
+def wrap_range_list(line, width=70, initial_indent='', subsequent_indent=''):
+    parts = line.split(',')
+    output = [initial_indent+parts[0]]
+    for part in parts[1:]:
+        part = part.strip().rstrip()
+        if len(output[-1]) + len(part) < 70:
+            output[-1] += ', '+part
+        else:
+            output.append(subsequent_indent)
+            output[-1] += part
+    return '\n'.join(output)
 
 
 def build_metastack(flds, srcs, spws, dscs):
@@ -29,8 +54,14 @@ def get_frequencies(desc_id, metastack):
 def main(args):
     for filename in args:
         if not os.path.isdir(filename):
-            continue
-            
+            if filename[-7:] == '.ms.tar':
+                # Oh, it's tarred, extract it
+                tempdir = tempfile.mkdtemp(prefix='casa_ms')
+                subprocess.check_call(['tar', '-C', tempdir, '-x', '-f', filename])
+                
+                msname = os.path.basename(filename).replace('.tar', '')
+                filename = os.path.join(tempdir, msname)
+                
         data = table(filename, ack=False)
         ants = table(os.path.join(filename, 'ANTENNA'), ack=False)
         srcs = table(os.path.join(filename, 'SOURCE'), ack=False)
@@ -45,8 +76,21 @@ def main(args):
         nbl = nvis // nscan
         nant = ants.nrows()
         
+        ant_ranges = []
+        for i,name in enumerate(ants.getcol('NAME')):
+            if i == 0:
+                ant_ranges.append([name, name])
+            else:
+                if smart_int(ant_ranges[-1][1]) + 1 == smart_int(name):
+                    ant_ranges[-1][1] = name
+                else:
+                    ant_ranges.append([name, name])
+                    
         print("Data Sizes:")
         print("  Antenna count:", nant)
+        print("    Antenna Name Contiguous Ranges:")
+        print(wrap_range_list(', '.join(["%s to %s" % tuple(ant_range) for ant_range in ant_ranges]),
+                              initial_indent='      ', subsequent_indent='      '))
         print("  Visibility count:", nvis)
         print("Scans:")
         for s in scans:
@@ -87,6 +131,12 @@ def main(args):
         flds.close()
         spws.close()
         dscs.close()
+        
+        try:
+            # Cleanup if we have extracted from a tar file
+            shutil.rmtree(tempdir)
+        except NameError:
+            pass
 
 
 if __name__ == '__main__':
