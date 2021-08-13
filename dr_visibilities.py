@@ -680,7 +680,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size*(10 if self.fast else 1))
+            self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
             
             first_gulp = True
             was_active = False
@@ -838,12 +838,12 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,
-                           ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
-                            core=cores.pop(0)))
+                           ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                           fast=args.quick, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
-                             ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
-                             core=cores.pop(0)))
+                             ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                             fast=args.quick, core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
