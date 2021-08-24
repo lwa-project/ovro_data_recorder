@@ -231,15 +231,14 @@ def update_pointing(filename, scan, ra, dec):
     
     # Source table
     tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
-    tb.putcell('DIRECTION', scan, (ra, dec))
+    tb.putcell('DIRECTION', scan, numpy.array([[ra,dec],]))
     tb.flush()
     tb.close()
     
     # Field table
     tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
-    tb.putcell('DELAY_DIR', scan, numpy.array([ra, dec]))
-    tb.putcell('PHASE_DIR', scan, numpy.array([ra, dec]))
-    tb.putcell('REFERENCE_DIR', scan, numpy.array([ra, dec]))
+    for col in ('DELAY_DIR', 'PHASE_DIR', 'REFERENCE_DIR'):
+        tb.putcell(col, scan, numpy.array([[ra,dec],]))
     tb.flush()
     tb.close()
 
@@ -652,12 +651,12 @@ def _write_observation_table(filename, config):
     
     # Source
     
-    col1  = tableutil.makearrcoldesc('DIRECTION', 0.0, 1, 
+    col1  = tableutil.makearrcoldesc('DIRECTION', 0.0, 2,
                                      comment='Direction (e.g. RA, DEC).', 
                                      keywords={'QuantumUnits':['rad','rad'], 
                                                'MEASINFO':{'type':'direction', 'Ref':'J2000'}
                                                })
-    col2  = tableutil.makearrcoldesc('PROPER_MOTION', 0.0, 1, 
+    col2  = tableutil.makearrcoldesc('PROPER_MOTION', 0.0, 2,
                                      comment='Proper motion', 
                                      keywords={'QuantumUnits':['rad/s',]})
     col3  = tableutil.makescacoldesc('CALIBRATION_GROUP', 0, 
@@ -699,8 +698,8 @@ def _write_observation_table(filename, config):
                                   col10, col11, col12, col13])
     tb = table("%s/SOURCE" % filename, desc, nrow=nint, ack=False)
     
-    tb.putcol('DIRECTION', numpy.zeros((nint, 2)), 0, nint)
-    tb.putcol('PROPER_MOTION', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('DIRECTION', numpy.zeros((nint, 1, 2)), 0, nint)
+    tb.putcol('PROPER_MOTION', numpy.zeros((nint, 1, 2)), 0, nint)
     tb.putcol('CALIBRATION_GROUP', [0,]*nint, 0, nint)
     tb.putcol('CODE', ['none',]*nint, 0, nint)
     tb.putcol('INTERVAL', [tint,]*nint, 0, nint)
@@ -718,17 +717,17 @@ def _write_observation_table(filename, config):
     
     # Field
     
-    col1 = tableutil.makearrcoldesc('DELAY_DIR', 0.0, 1, 
+    col1 = tableutil.makearrcoldesc('DELAY_DIR', 0.0, 2,
                                     comment='Direction of delay center (e.g. RA, DEC)as polynomial in time.', 
                                     keywords={'QuantumUnits':['rad','rad'], 
                                               'MEASINFO':{'type':'direction', 'Ref':'J2000'}
                                               })
-    col2 = tableutil.makearrcoldesc('PHASE_DIR', 0.0, 1, 
+    col2 = tableutil.makearrcoldesc('PHASE_DIR', 0.0, 2,
                                     comment='Direction of phase center (e.g. RA, DEC).', 
                                     keywords={'QuantumUnits':['rad','rad'], 
                                               'MEASINFO':{'type':'direction', 'Ref':'J2000'}
                                               })
-    col3 = tableutil.makearrcoldesc('REFERENCE_DIR', 0.0, 1, 
+    col3 = tableutil.makearrcoldesc('REFERENCE_DIR', 0.0, 2,
                                     comment='Direction of REFERENCE center (e.g. RA, DEC).as polynomial in time.', 
                                     keywords={'QuantumUnits':['rad','rad'], 
                                               'MEASINFO':{'type':'direction', 'Ref':'J2000'}
@@ -752,9 +751,9 @@ def _write_observation_table(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
     tb = table("%s/FIELD" % filename, desc, nrow=nint, ack=False)
     
-    tb.putcol('DELAY_DIR', numpy.zeros((nint, 2)), 0, nint)
-    tb.putcol('PHASE_DIR', numpy.zeros((nint, 2)), 0, nint)
-    tb.putcol('REFERENCE_DIR', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('DELAY_DIR', numpy.zeros((nint, 1, 2)), 0, nint)
+    tb.putcol('PHASE_DIR', numpy.zeros((nint, 1, 2)), 0, nint)
+    tb.putcol('REFERENCE_DIR', numpy.zeros((nint, 1, 2)), 0, nint)
     tb.putcol('CODE', ['none',]*nint, 0, nint)
     tb.putcol('FLAG_ROW', [False,]*nint, 0, nint)
     tb.putcol('NAME', ['zenith',]*nint, 0, nint)
