@@ -293,8 +293,8 @@ class MeasurementSetWriter(FileWriterBase):
         """
         
         # Setup
-        tint = navg / CHAN_BW
-        time_step = navg * (int(FS) / int(CHAN_BW))
+        tint = navg / FS
+        time_step = navg
         freq = numpy.arange(nchan)*chan_bw + chan_to_freq(chan0)
         if not isinstance(pols, (tuple, list)):
             pols = [p.strip().rstrip() for p in pols.split(',')]
