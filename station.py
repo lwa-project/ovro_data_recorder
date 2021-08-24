@@ -164,3 +164,6 @@ def parse_config(filename):
 
 # A ready-made Station instance, filled with Antennas
 ovro = parse_config(OVRO_CONFIG_FILENAME)
+
+# Use OVRO_MMA as the telescope name until CASA knows about OVRO-LWA
+ovro.name = 'OVRO_MMA'
