@@ -790,7 +790,7 @@ def _write_spectralwindow_table(filename, config):
                                                'MEASINFO':{'type':'frequency', 
                                                            'VarRefCol':'MEAS_FREQ_REF', 
                                                            'TabRefTypes':['REST','LSRK','LSRD','BARY','GEO','TOPO','GALACTO','LGROUP','CMB','Undefined'],
-                                                           'TabRefCodes':[0,1,2,3,4,5,6,7,8,64]}
+                                                           'TabRefCodes':numpy.array([0,1,2,3,4,5,6,7,8,64], dtype=numpy.uint32)}
                                                })
     col3  = tableutil.makescacoldesc('REF_FREQUENCY', freq[0], 
                                      comment='The reference frequency', 
@@ -798,7 +798,7 @@ def _write_spectralwindow_table(filename, config):
                                                'MEASINFO':{'type':'frequency', 
                                                            'VarRefCol':'MEAS_FREQ_REF', 
                                                            'TabRefTypes':['REST','LSRK','LSRD','BARY','GEO','TOPO','GALACTO','LGROUP','CMB','Undefined'],
-                                                           'TabRefCodes':[0,1,2,3,4,5,6,7,8,64]}
+                                                           'TabRefCodes':numpy.array([0,1,2,3,4,5,6,7,8,64], dtype=numpy.uint32)}
                                                })
     col4  = tableutil.makearrcoldesc('CHAN_WIDTH', 0.0, 1, 
                                      comment='Channel width for each channel', 
