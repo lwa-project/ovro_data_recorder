@@ -682,6 +682,21 @@ class WriterOp(object):
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
             
+            ###########################
+            #                         #
+            # TO BE REMOVED AFTER E2E #
+            #                         #
+            ###########################
+            # E2E test setup missing antenna blanking control
+            to_blank = []
+            nstand = int(numpy.sqrt(8*nbl+1)-1)//2
+            k = 0
+            for i in range(nstand):
+                for j in range(i,nstand):
+                    if i >= 64 or j >= 64:
+                        to_blank.append(k)
+                    k += 1
+                    
             first_gulp = True
             was_active = False
             prev_time = time.time()
@@ -706,6 +721,14 @@ class WriterOp(object):
                 idata = idata.reshape(ishape+(2,))
                 idata = idata[...,0] + 1j*idata[...,1]
                 idata = idata.astype(numpy.complex64)
+                
+                ###########################
+                #                         #
+                # TO BE REMOVED AFTER E2E #
+                #                         #
+                ###########################
+                ## E2E test setup missing antenna blanking
+                idata[:,to_blank,:,:] = 0
                 
                 ## Determine what to do
                 if QUEUE.active is not None:
