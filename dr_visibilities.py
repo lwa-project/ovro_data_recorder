@@ -827,7 +827,9 @@ def main(argv):
         mcs_id += 'f'
     else:
         mcs_id += 's'
-    mcs_id += args.address.split('.')[-1]
+    base_ip = int(args.address.split('.')[-1], 10)
+    base_port = args.port % 100
+    mcs_id += str(base_ip*100 + base_port)
     
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
