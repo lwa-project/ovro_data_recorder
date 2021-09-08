@@ -155,7 +155,7 @@ def parse_config(filename):
             if line.startswith('LWA-000'):
                 line = line.replace('LWA-000', 'OVRO-LWA')
                 station = Station.from_line(line)
-            elif line.find('NO') == -1:
+            elif line.find('NO') > -2:
                 ant = Antenna.from_line(line)
                 station.append(ant)
                 
@@ -167,3 +167,30 @@ ovro = parse_config(OVRO_CONFIG_FILENAME)
 
 # Use OVRO_MMA as the telescope name until CASA knows about OVRO-LWA
 ovro.name = 'OVRO_MMA'
+
+# Change the order to match what's going on in E2E
+## The current list as of 2021 Sep 8
+interim = ['LWA-224', 'LWA-213', 'LWA-214', 'LWA-215', 'LWA-217', 'LWA-218',
+           'LWA-219', 'LWA-223', 'LWA-225', 'LWA-226', 'LWA-227', 'LWA-228',
+           'LWA-229', 'LWA-230', 'LWA-231', 'LWA-232', 'LWA-233', 'LWA-234',
+           'LWA-235', 'LWA-236', 'LWA-237', 'LWA-238', 'LWA-239', 'LWA-240',
+           'LWA-241', 'LWA-242', 'LWA-243', 'LWA-244', 'LWA-245', 'LWA-246',
+           'LWA-247', 'LWA-248']
+interm = [_smart_int(v.replace('-', '')) for v in interim]
+## Sort by swapping until there is nothing left to swap
+while True:
+    orig_order = [ant.id for ant in ovro.antennas]
+    done = True
+    for i,j in enumerate(interm):
+        k = orig_order.index(j)
+        if i != k:
+            temp = ovro.antennas[k]
+            ovro.antennas[k] = ovro.antennas[i]
+            ovro.antennas[i] = temp
+            done = False
+            break
+    if done:
+        break
+## Trim
+ovro.antennas = ovro.antennas[:352]
+         
