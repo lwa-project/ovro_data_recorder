@@ -170,12 +170,12 @@ ovro.name = 'OVRO_MMA'
 
 # Change the order to match what's going on in E2E
 ## The current list as of 2021 Sep 8
-interim = ['LWA-224', 'LWA-213', 'LWA-214', 'LWA-215', 'LWA-217', 'LWA-218',
-           'LWA-219', 'LWA-223', 'LWA-225', 'LWA-226', 'LWA-227', 'LWA-228',
-           'LWA-229', 'LWA-230', 'LWA-231', 'LWA-232', 'LWA-233', 'LWA-234',
-           'LWA-235', 'LWA-236', 'LWA-237', 'LWA-238', 'LWA-239', 'LWA-240',
-           'LWA-241', 'LWA-242', 'LWA-243', 'LWA-244', 'LWA-245', 'LWA-246',
-           'LWA-247', 'LWA-248']
+interim = ['LWA-213', 'LWA-224', 'LWA-215', 'LWA-214', 'LWA-218', 'LWA-217',
+           'LWA-223', 'LWA-219', 'LWA-226', 'LWA-225', 'LWA-228', 'LWA-227',
+           'LWA-230', 'LWA-229', 'LWA-232', 'LWA-231', 'LWA-234', 'LWA-233',
+           'LWA-236', 'LWA-235', 'LWA-238', 'LWA-237', 'LWA-240', 'LWA-239',
+           'LWA-242', 'LWA-241', 'LWA-244', 'LWA-243', 'LWA-246', 'LWA-245',
+           'LWA-248', 'LWA-247']
 interm = [_smart_int(v.replace('-', '')) for v in interim]
 ## Sort by swapping until there is nothing left to swap
 while True:
