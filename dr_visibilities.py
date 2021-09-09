@@ -786,6 +786,8 @@ class WriterOp(object):
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
             
+            norm_factor = navg // (2*NCHAN)
+            
             first_gulp = True
             was_active = False
             prev_time = time.time()
@@ -809,6 +811,7 @@ class WriterOp(object):
                 idata = idata.view(numpy.int32)
                 idata = idata.reshape(ishape+(2,))
                 idata = idata[...,0] + 1j*idata[...,1]
+                idata /= norm_factor
                 idata = idata.astype(numpy.complex64)
                 
                 ## Determine what to do
