@@ -418,8 +418,7 @@ class Client(object):
                 self.client.cancel_watch(self._watchers[command][0])
             except Exception:
                 pass
-        self.client.close()
-        
+                
     def _update_mon_manifest(self, name, drop=False):
         """
         Update the monitoring point manifest as needed.  Returns a Boolean of
@@ -749,7 +748,7 @@ class Client(object):
                 self.client.cancel_watch(self._watchers[command][0])
             except KeyError:
                 pass
-            self._watchers[command] = (watch_id, callback)
+            self._watchers[full_name] = (watch_id, callback)
             self._update_cmd_manifest(command)
             return True
         except Exception as e:
