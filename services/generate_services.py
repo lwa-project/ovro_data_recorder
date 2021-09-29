@@ -13,39 +13,39 @@ path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ## Power beam setup
 rdir = '/home/ubuntu/data/beam'
 quota = 0
-beams = { 1: ('enp216s0', 10000, rdir+'01', quota),
-          2: ('enp216s0', 10001, rdir+'02', quota),
-          3: ('enp216s0', 10002, rdir+'03', quota),
-          4: ('enp216s0', 10003, rdir+'04', quota),
-          5: ('enp216s0', 10004, rdir+'05', quota),
-          6: ('enp216s0', 10005, rdir+'06', quota),
-          7: ('enp216s0', 10006, rdir+'07', quota),
-          8: ('enp216s0', 10007, rdir+'08', quota),
-          9: ('enp216s0', 10008, rdir+'09', quota),
-         10: ('enp216s0', 10009, rdir+'10', quota),
-         11: ('enp216s0', 10010, rdir+'11', quota),
-         12: ('enp216s0', 10011, rdir+'12', quota),
+beams = { 1: ('10.41.0.25', 20001, rdir+'01', quota),
+          2: ('10.41.0.25', 20001, rdir+'02', quota),
+          3: ('10.41.0.25', 20001, rdir+'03', quota),
+          4: ('10.41.0.25', 20001, rdir+'04', quota),
+          5: ('10.41.0.25', 20001, rdir+'05', quota),
+          6: ('10.41.0.25', 20001, rdir+'06', quota),
+          7: ('10.41.0.25', 20001, rdir+'07', quota),
+          8: ('10.41.0.25', 20001, rdir+'08', quota),
+          9: ('10.41.0.25', 20001, rdir+'09', quota),
+         10: ('10.41.0.25', 20001, rdir+'10', quota),
+         11: ('10.41.0.25', 20001, rdir+'11', quota),
+         12: ('10.41.0.25', 20001, rdir+'12', quota),
         }
 
 ## Slow visibilities setup
 rdir = '/home/ubuntu/data/slow'
 quota = 0
-vslow = { 1: ('10.41.0.17', 10000, rdir, quota),
-          2: ('10.41.0.18', 10000, rdir, quota),
-          3: ('10.41.0.19', 10000, rdir, quota),
-          4: ('10.41.0.20', 10000, rdir, quota),
-          5: ('10.41.0.21', 10000, rdir, quota),
-          6: ('10.41.0.22', 10000, rdir, quota),
-          7: ('10.41.0.23', 10000, rdir, quota),
-          8: ('10.41.0.24', 10000, rdir, quota),
-          9: ('10.41.0.33', 10000, rdir, quota),
-         10: ('10.41.0.34', 10000, rdir, quota),
-         11: ('10.41.0.35', 10000, rdir, quota),
-         12: ('10.41.0.36', 10000, rdir, quota),
-         13: ('10.41.0.37', 10000, rdir, quota),
-         14: ('10.41.0.38', 10000, rdir, quota),
-         15: ('10.41.0.39', 10000, rdir, quota),
-         16: ('10.41.0.40', 10000, rdir, quota),
+vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB),
+          2: ('10.41.0.41', 10001, rdir, quota),
+          3: ('10.41.0.25', 10002, rdir, quota),
+          4: ('10.41.0.41', 10002, rdir, quota),
+          5: ('10.41.0.25', 10003, rdir, quota),
+          6: ('10.41.0.41', 10003, rdir, quota),
+          7: ('10.41.0.25', 10004, rdir, quota),
+          8: ('10.41.0.41', 10004, rdir, quota),
+          9: ('10.41.0.25', 10005, rdir, quota),
+         10: ('10.41.0.41', 10005, rdir, quota),
+         11: ('10.41.0.25', 10006, rdir, quota),
+         12: ('10.41.0.41', 10006, rdir, quota),
+         13: ('10.41.0.25', 10007, rdir, quota),
+         14: ('10.41.0.41', 10007, rdir, quota),
+         15: ('10.41.0.25', 10008, rdir, quota),
+         16: ('10.41.0.41', 10008, rdir, quota),
         }
 
 ## Fast visibilities setup
@@ -72,7 +72,7 @@ vfast = { 1: ('10.41.0.17', 11000, rdir, quota),
 ## T-engine setup
 rdir = '/home/ubuntu/data/tengine'
 quota = 0
-tengines = {1: ('enp216s0', 10000, rdir, quota),
+tengines = {1: ('10.41.0.41', 20002, rdir, quota),
            }
 
 def main(args):
