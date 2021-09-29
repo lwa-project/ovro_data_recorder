@@ -199,7 +199,8 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
     # Feed table
     if scan == 0:
         tb = table(os.path.join(filename, "FEED"), readonly=False, ack=False)
-        tb.putcell('TIME', 0, start_time.measurementset)
+        nant = tb.nrows()
+        tb.putcol('TIME', [start_time.measurementset,]*nant, 0, nant)
         tb.flush()
         tb.close()
         
