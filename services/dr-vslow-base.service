@@ -31,6 +31,7 @@ source /home/ubuntu/.bashrc && \
 /home/ubuntu/anaconda3/envs/casa/bin/python3 {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
+         --cores                  {{ cores }} \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --logfile                /home/ubuntu/log/dr-vslow-{{ band }}.%H.log'

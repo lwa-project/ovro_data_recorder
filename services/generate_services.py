@@ -112,10 +112,15 @@ def main(args):
         else:
             ### Recorders
             template = env.get_template('dr-vslow-base.service')
+            cores = [0,1,2,3,4,5]
             for band in vslow:
                 address, port, directory, quota = vslow[band]
                 service = template.render(path=path, band=band, address=address,
-                                          port=port, directory=directory, quota=quota)
+                                          port=port, directory=directory, quota=quota,
+                                          cores=','.join([str(v) for v in cores]))
+                for c in range(len(cores)):
+                    cores[c] += len(cores)
+                    cores[c] %= 20
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
