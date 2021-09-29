@@ -30,7 +30,7 @@ beams = { 1: ('10.41.0.25', 20001, rdir+'01', quota),
 ## Slow visibilities setup
 rdir = '/home/ubuntu/data/slow'
 quota = 0
-vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB),
+vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB'),
           2: ('10.41.0.41', 10001, rdir, quota),
           3: ('10.41.0.25', 10002, rdir, quota),
           4: ('10.41.0.41', 10002, rdir, quota),
@@ -50,23 +50,23 @@ vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB),
 
 ## Fast visibilities setup
 rdir = '/home/ubuntu/data/fast'
-quota = '10TB'
-vfast = { 1: ('10.41.0.17', 11000, rdir, quota),
-          2: ('10.41.0.18', 11000, rdir, quota),
-          3: ('10.41.0.19', 11000, rdir, quota),
-          4: ('10.41.0.20', 11000, rdir, quota),
-          5: ('10.41.0.21', 11000, rdir, quota),
-          6: ('10.41.0.22', 11000, rdir, quota),
-          7: ('10.41.0.23', 11000, rdir, quota),
-          8: ('10.41.0.24', 11000, rdir, quota),
-          9: ('10.41.0.33', 11000, rdir, quota),
-         10: ('10.41.0.34', 11000, rdir, quota),
-         11: ('10.41.0.35', 11000, rdir, quota),
-         12: ('10.41.0.36', 11000, rdir, quota),
-         13: ('10.41.0.37', 11000, rdir, quota),
-         14: ('10.41.0.38', 11000, rdir, quota),
-         15: ('10.41.0.39', 11000, rdir, quota),
-         16: ('10.41.0.40', 11000, rdir, quota),
+quota = 0
+vfast = { 1: ('10.41.0.25', 11001, rdir, '250GB'),
+          2: ('10.41.0.41', 11001, rdir, quota),
+          3: ('10.41.0.25', 11002, rdir, quota),
+          4: ('10.41.0.41', 11002, rdir, quota),
+          5: ('10.41.0.25', 11003, rdir, quota),
+          6: ('10.41.0.41', 11003, rdir, quota),
+          7: ('10.41.0.25', 11004, rdir, quota),
+          8: ('10.41.0.41', 11004, rdir, quota),
+          9: ('10.41.0.25', 11005, rdir, quota),
+         10: ('10.41.0.41', 11005, rdir, quota),
+         11: ('10.41.0.25', 11006, rdir, quota),
+         12: ('10.41.0.41', 11006, rdir, quota),
+         13: ('10.41.0.25', 11007, rdir, quota),
+         14: ('10.41.0.41', 11007, rdir, quota),
+         15: ('10.41.0.25', 11008, rdir, quota),
+         16: ('10.41.0.41', 11008, rdir, quota),
         }
 
 ## T-engine setup
@@ -142,10 +142,15 @@ def main(args):
         else:
             ### Recorders
             template = env.get_template('dr-vfast-base.service')
+            cores = [0,1,2,3,4,5]
             for band in vfast:
                 address, port, directory, quota = vfast[band]
                 service = template.render(path=path, band=band, address=address,
-                                          port=port, directory=directory, quota=quota)
+                                          port=port, directory=directory, quota=quota,
+                                          cores=','.join([str(v) for v in cores]))
+                for c in range(len(cores)):
+                    cores[c] += len(cores)
+                    cores[c] %= 20
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
