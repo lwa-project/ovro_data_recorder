@@ -32,7 +32,7 @@ python {{ path }}/dr_visibilities.py \
          --port                   {{ port }} \
          --quick \
          --record-directory       {{ directory }} \
-         --record-directory-quota {{ quota }}
+         --record-directory-quota {{ quota }} \
          --logfile                /home/ubuntu/log/dr-vfast-{{ band }}.%H.log'
 
 [Install]

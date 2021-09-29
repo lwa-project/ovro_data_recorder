@@ -31,7 +31,7 @@ python {{ path }}/dr_beam.py \
          --port                   {{ port }} \
          --beam                   {{ beam }} \
          --record-directory       {{ directory }} \
-         --record-directory-quota {{ quota }}
+         --record-directory-quota {{ quota }} \
          --logfile                /home/ubuntu/log/dr-beam-{{ beam }}.%H.log'
 
 [Install]

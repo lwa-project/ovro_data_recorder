@@ -31,7 +31,7 @@ python {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --record-directory       {{ directory }} \
-         --record-directory-quota {{ quota }}
+         --record-directory-quota {{ quota }} \
          --logfile                /home/ubuntu/log/dr-vslow-{{ band }}.%H.log'
 
 [Install]
