@@ -27,7 +27,8 @@ ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log 
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-python {{ path }}/dr_visibilities.py \
+source /home/ubuntu/.bashrc && \
+/home/ubuntu/anaconda3/envs/casa/bin/python3 {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --record-directory       {{ directory }} \
