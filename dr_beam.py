@@ -20,12 +20,13 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
-from common import *
+from mnc.common import *
+from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
+
 from reductions import *
 from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import PowerBeamCommandProcessor
-from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket

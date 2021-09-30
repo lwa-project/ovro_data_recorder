@@ -20,14 +20,15 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
-from common import *
+from mnc.common import *
+from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
+
 from station import ovro
 from reductions import *
 from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
-from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -953,17 +954,17 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
                              ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
-    ops.append(EndToEndBlankingOp(log, capture_ring, blank_ring,
-                                  ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    if not args.quick:
-        ops.append(SpectraOp(log, mcs_id, blank_ring,
-                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-        ops.append(BaselineOp(log, mcs_id, station, blank_ring,
-                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(StatisticsOp(log, mcs_id, blank_ring,
-                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(WriterOp(log, station, blank_ring,
-                        ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
+    # ops.append(EndToEndBlankingOp(log, capture_ring, blank_ring,
+    #                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    # if not args.quick:
+    #     ops.append(SpectraOp(log, mcs_id, blank_ring,
+    #                          ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    #     ops.append(BaselineOp(log, mcs_id, station, blank_ring,
+    #                           ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    # ops.append(StatisticsOp(log, mcs_id, blank_ring,
+    #                         ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    # ops.append(WriterOp(log, station, blank_ring,
+    #                     ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,

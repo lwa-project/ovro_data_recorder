@@ -20,11 +20,12 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
-from common import *
+from mnc.common import *
+from mnc.mcs import MultiMonitorPoint, Client
+
 from operations import FileOperationsQueue, DrxOperationsQueue
 from monitoring import GlobalLogger
 from control import VoltageBeamCommandProcessor
-from mcs import MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket

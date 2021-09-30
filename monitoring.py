@@ -9,7 +9,7 @@ from collections import deque
 
 from bifrost.proclog import load_by_pid
 
-from mcs import MonitorPoint, Client
+from mnc.mcs import MonitorPoint, Client
 
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 

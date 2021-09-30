@@ -7,7 +7,7 @@ import shutil
 from casacore.measures import measures
 from casacore.tables import table, tableutil
 
-from common import LWATime
+from mnc.common import LWATime
 
 __all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'get_zenith_uvw',
            'create_ms', 'update_time', 'update_pointing', 'update_data']

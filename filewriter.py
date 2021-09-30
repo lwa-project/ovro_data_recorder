@@ -10,7 +10,8 @@ from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
-from common import *
+from mnc.common import *
+
 from lwahdf import *
 from lwams import *
 

@@ -4,10 +4,11 @@ import shutil
 import threading
 from datetime import datetime, timedelta
 
-from common import LWATime, synchronize_time
+from mnc.common import LWATime, synchronize_time
+from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
+
 from reductions import *
 from filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
-from mcs import MonitorPoint, CommandCallbackBase, Client
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
            'VoltageBeamCommandProcessor']

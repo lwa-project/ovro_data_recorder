@@ -4,7 +4,7 @@ import h5py
 import numpy
 from datetime import datetime
 
-from common import FS, CLOCK, NCHAN, CHAN_BW
+from mnc.common import FS, CLOCK, NCHAN, CHAN_BW
 
 __all__ = ['create_hdf5', 'set_frequencies', 'set_time',
            'set_polarization_products']
