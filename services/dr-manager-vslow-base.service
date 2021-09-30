@@ -26,8 +26,8 @@ ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-source /home/ubuntu/.bashrc && \
-/home/ubuntu/anaconda3/envs/casa/bin/python3 {{ path }}/dr_manager_visibilites.py \
+source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_manager_visibilites.py \
          --begin-band {{ begin_band }} \
          --end-band   {{ end_band }} \
 	       --logfile    /home/ubuntu/log/dr-manager-vslow.%H.log'

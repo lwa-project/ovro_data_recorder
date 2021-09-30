@@ -77,6 +77,8 @@ tengines = {1: ('10.41.0.41', 21001, rdir, quota),
 
 def main(args):
     # Pre-process
+    anaconda = args.anaconda_path
+    condaenv = args.conda_env
     if (not args.power_beams \
         and not args.slow_visibilities \
         and not args.fast_visibilities \
@@ -97,8 +99,9 @@ def main(args):
             template = env.get_template('dr-beam-base.service')
             for beam in beams:
                 address, port, directory, quota = beams[beam] 
-                service = template.render(path=path, beam=beam, address=address,
-                                          port=port, directory=directory, quota=quota)
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          beam=beam, address=address, port=port,
+                                          directory=directory, quota=quota)
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -115,8 +118,9 @@ def main(args):
             cores = [0,1,2,3,4,5]
             for band in vslow:
                 address, port, directory, quota = vslow[band]
-                service = template.render(path=path, band=band, address=address,
-                                          port=port, directory=directory, quota=quota,
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          band=band, address=address, port=port,
+                                          directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
@@ -145,8 +149,9 @@ def main(args):
             cores = [0,1,2,3,4,5]
             for band in vfast:
                 address, port, directory, quota = vfast[band]
-                service = template.render(path=path, band=band, address=address,
-                                          port=port, directory=directory, quota=quota,
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          band=band, address=address, port=port,
+                                          directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
@@ -172,7 +177,8 @@ def main(args):
             template = env.get_template('dr-tengine-base.service')
             for beam in tengines:
                 address, port, directory, quota = tengines[beam]
-                service = template.render(path=path, address=address, port=port,
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          address=address, port=port,
                                           directory=directory, quota=quota)
                 with open('dr-tengine.service', 'w') as fh:
                     fh.write(service)
@@ -184,6 +190,10 @@ if __name__ == '__main__':
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('-p', '--anaconda-path', type=str, default='/home/ubuntu/anaconda3',
+                       help='root path to anaconda install to use')
+    group.add_argument('-e', '--conda-env', type=str, default='casa',
+                       help='anaconda enviroment name to use')
     group.add_argument('-b', '--power-beams', action='store_true',
                        help='only generate/clean the power beam services')
     group.add_argument('-s', '--slow-visibilities', action='store_true',
