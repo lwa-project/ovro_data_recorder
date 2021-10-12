@@ -1,4 +1,5 @@
 import os
+import glob
 import time
 import warnings
 import progressbar
@@ -346,3 +347,28 @@ class BeamTracker(object):
         except KeyboardInterrupt:
             # We gave up, end it now
             pass
+
+
+def create_and_calibrate(nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders'):
+    """
+    Wraper to create a new BeamPointingControl instance and load bandpass
+    calibration data from a directory.
+    """
+    
+    # Create the instance
+    control_instance = BeamPointingControl(nserver=nserver,
+                                           npipeline_per_server=npipeline_per_server,
+                                           station=ovro)
+    
+    # Find the calibration files
+    calfiles = glob.glob(os.path.join(cal_directory, '*.bcal'))
+    calfiles.sort()
+    if len(calfiles) == 0:
+        warnings.warn(f"No calibration data found in '{cal_directory}'")
+        
+    # Load the calibration data, if found
+    for calfile in calfiles:
+        control_instance.set_beam1_calibration(calfile)
+        
+    # Done
+    return control_instance
