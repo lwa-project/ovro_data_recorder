@@ -300,7 +300,7 @@ class BeamTracker(object):
                 az = aa.az.deg
                 alt = aa.alt.deg
                 if verbose:
-                    print(f"At {time.time()}, moving to azimuth {aa.az}, altitude {aa.alt}")
+                    print(f"At {time.time():.1f}, moving to azimuth {aa.az}, altitude {aa.alt}")
                     
                 ## Point
                 self.control_instance.set_beam1_pointing(az, alt, degrees=True)
