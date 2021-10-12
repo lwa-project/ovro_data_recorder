@@ -188,13 +188,13 @@ class BeamPointingControl(object):
         # Figure out what the delays to zenith are
         # TODO: Is this needed?
         zen = numpy.array([0, 0, 1])
-        zen_delay = [numpy.dot(zen, ant.enz)/speedOfLight for ant in self.station]
+        zen_delay = [numpy.dot(zen, ant.enz)/speedOfLight for ant in self.station.antennas]
         
         # Figure out what the delays to the pointing direction are
         dir = numpy.array([numpy.cos(alt)*numpy.sin(az), 
                            numpy.cos(alt)*numpy.cos(az), 
                            numpy.sin(alt)])
-        dir_delay = [numpy.dot(dir, ant.enz)/speedOfLight for ant in self.station]
+        dir_delay = [numpy.dot(dir, ant.enz)/speedOfLight for ant in self.station.antennas]
         
         # Subtract what we need from what we have from the calibration
         # TODO: Is this correct?
