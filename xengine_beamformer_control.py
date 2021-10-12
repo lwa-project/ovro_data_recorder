@@ -79,17 +79,30 @@ class BeamPointingControl(object):
         for p in self.pipelines:
             p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
             
-    def set_beam1_cal(self, subband, caltable, verbose=True):
+    def _freq_to_pipeline(self, freq):
         """
-        Given a subband number (0 through NSUBBAND-1, inclusive) and a CASA measurement
-        set containing a bandpass calibration, load the bandpass calibration into
-        the appropriate pipelines.
+        Given a frequency in Hz, return the pipeline index where that frequency
+        can be found in the data.  Raises a ValueError if there does not appear
+        to be a corresponding pipeline.
+        """
+        
+        for i,freq in enumerate(self.freqs):
+            if freq >= freq[0] and freq <= freq[-1]:
+                return i
+        raise ValueError(f"Cannot associate {freq/1e6:.3f} MHz with any pipeline currently under control")
+        
+    def set_beam1_calibration(self, caltable, verbose=True):
+        """
+        Given a a CASA measurement set containing a bandpass calibration, load
+        the bandpass calibration into the appropriate pipeline(s).
         """
         
         # Validate
         assert(subband >= 0 and subband < NSUBBAND)
         assert(os.path.exists(caltable))
         assert(os.path.is_dir(caltable))
+        assert(os.path.exists(os.path.join(caltab, 'SPECTRAL_WINDOW')))
+        assert(os.path.is_dir(os.path.join(caltab, 'SPECTRAL_WINDOW')))
         
         # Load in the calibration data
         tab = tables.table(caltab, ack=False)
@@ -98,12 +111,12 @@ class BeamPointingControl(object):
         
         # Load in the frequency information for the calibration
         tab = tables.table(os.path.join(caltab, 'SPECTRAL_WINDOW'))
-        freq = tab.getcol('CHAN_FREQ')[...]
-        freq = freq.ravel()
+        calfreq = tab.getcol('CHAN_FREQ')[...]
+        calfreq = calfreq.ravel()
         tab.close()
         
         if verbose:
-            print(f"Loaded {caldata.shape[0]} by {caldata.shape[1]} by {caldata.shape[2]} complex gains covering {freq[0]/1e6:.3f} to {freq[-1]/1e6:.3f} MHz")
+            print(f"Loaded {caldata.shape[0]} by {caldata.shape[1]} by {caldata.shape[2]} complex gains covering {calfreq[0]/1e6:.3f} to {calfreq[-1]/1e6:.3f} MHz")
             
         # Validate the calibration data structure
         assert(caldata.shape[0] == NSTAND)
@@ -113,16 +126,27 @@ class BeamPointingControl(object):
         # Find the pipelines that should correspond to the specified subband
         # TODO: Use the freuqency information to figure this out for the user
         subband_pipelines = []
-        for i,p in enumerate(self.pipelines):
-            if i//NPIPELINE_SUBBAND == subband:
-                subband_pipelines.append(p)
-                
+        for i in range(NPIPELINE_SUBBAND):
+            ## Get the frequency range for the pipeline in the subband and pull
+            ## out the middle
+            center_freq = calfreq[i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE]
+            center_freq = center_freq[center_freq.size//2]
+            
+            ## Try to map that frequency to a pipeline.  If it works, save the
+            ## pipeline to subband_pipelines.
+            try:
+                j = self._freq_to_pipeline(center_freq)
+                subband_pipelines.append(self.pipelines[j])
                 if verbose:
-                    print(f"Found pipeline {i} covering {self.freq[i][0]/1e6:.3f} to {self.freq[i][-1]/1e6:.3f} MHz")
-                    
-        # Validate that we have the right number of pipelines for the subband
-        assert(len(subband_pipelines) == NPIPELINE_SUBBAND)
-        
+                    print(f"Found pipeline {j} covering {self.freq[j][0]/1e6:.3f} to {self.freq[j][-1]/1e6:.3f} MHz")
+            except ValueError:
+                pass
+                
+        # Issue a warning if we don't seem to have the right number of pipelines
+        # for the subband
+        if len(subband_pipelines) != NPIPELINE_SUBBAND:
+            warnings.warn(f"Found {len(subband_pipelines)} pipelines associated with these data instead of the expected {NPIPELINE_SUBBAND}")
+            
         # Set the coefficients - this is slow
         pb = progressbar.ProgressBar()
         pb.start(max_value=len(subband_pipelines)*NSTAND)
