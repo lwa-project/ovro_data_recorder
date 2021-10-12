@@ -29,17 +29,17 @@ class BeamPointingControl(object):
     Class to provide high level control over beam 1 (and only beam 1 right now).
     """
     
-    def __init__(self, nservers=8, npipeline_per_server=4, station=ovro):
+    def __init__(self, nserver=8, npipeline_per_server=4, station=ovro):
         # Validate
-        assert(nservers <= NSERVER)
-        assert(nservers*npipeline_per_server <= NBAND*NPIPELINE_BAND)
+        assert(nserver <= NSERVER)
+        assert(nserver*npipeline_per_server <= NBAND*NPIPELINE_BAND)
         
         # Save the station so that we know where to point from
         self.station = station
         
         # Contect to the pipelines
         self.pipelines = []
-        for s in range(nservers):
+        for s in range(nserver):
             hostname = f"lxdlwagpu{s+1:02d}"
             for i in range(npipeline_per_server):
                 p = Lwa352PipelineControl(hostname, i, etcdhost='etcdv3service')
@@ -49,6 +49,7 @@ class BeamPointingControl(object):
         self.freqs = []
         for p in self.pipelines:
             metadata = p.beamform.get_bifrost_status()
+            # TODO: Not so hardcoded
             freq = (metadata['chan0'] + numpy.range(metadata['nchan']))*196e6/8192
             self.freqs.append(freq)
             
