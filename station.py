@@ -93,6 +93,19 @@ class Station(object):
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
         
     @property
+    def topo_rot_matrix(self):
+        """
+        Return the rotation matrix that takes a difference in an Earth centered,
+        Earth fixed location relative to the Station and rotates it into a
+        topocentric frame that is south-east-zenith.
+        """
+        
+        r = numpy.array([[ numpy.sin(self.lat)*numpy.cos(self.lon), numpy.sin(self.lat)*numpy.sin(self.lon), -numpy.cos(self.lat)],
+                         [-numpy.sin(self.lon),                     numpy.cos(self.lon),                      0                  ],
+                         [ numpy.cos(self.lat)*numpy.cos(self.lon), numpy.cos(self.lat)*numpy.sin(self.lon),  numpy.sin(self.lat)]])
+        return r
+        
+    @property
     def casa_position(self):
         """
         Return a four-element tuple of (CASA position reference, CASA position 1,
@@ -139,7 +152,29 @@ class Antenna(object):
         e = EarthLocation(lat=self.lat*u.rad, lon=self.lon*u.rad, height=self.elev*u.m)
         return (e.x.to_value(u.m), e.y.to_value(u.m), e.z.to_value(u.m))
         
-    
+    @property
+    def enz(self):
+        """
+        Return the topocentric east-north-zenith coordinates for the antenna 
+        relative to the center of its associated Station in meters.
+        """
+        
+        if self.parent is None:
+            raise RuntimeError("Cannot find east-north-zenith without an associated Station")
+            
+        ecefFrom = numpy.array(self.parent.ecef)
+        ecefTo = numpy.array(self.ecef)
+
+        rho = ecefTo - ecefFrom
+        rot = self.parent.topo_rot_matrix
+        sez = numpy.dot(rot, rho)
+
+        # Convert from south, east, zenith to east, north, zenith
+        enz = 1.0*sez[[1,0,2]]
+        enz[1] *= -1.0
+        return enz
+
+
 def parse_config(filename):
     """
     Given an OVRO-LWA configuration file, parse it and return a Station instance.
