@@ -13,15 +13,19 @@ from astropy.coordinates import solar_system_ephemeris, get_body
 from astropy.constants import c as speedOfLight
 speedOfLight = speedOfLight.to('m/ns').value
 
+from common import NPIPELINE, chan_to_freq
 from station import ovro
 
-NSERVER = 8
-NBAND = 16
-NSTAND = 352
-NPOL = 2
 
 NCHAN_PIPELINE = 96
-NPIPELINE_BAND = 2
+NPIPELINE_SUBBAND = 2
+NPIPELINE_SERVER = 4
+
+NSUBBAND = NPIPELINE // NPIPELINE_SUBBAND
+NSERVER = NPIPELINE // NPIPELINE_SERVER
+
+NSTAND = 352
+NPOL = 2
 
 
 class BeamPointingControl(object):
@@ -32,7 +36,7 @@ class BeamPointingControl(object):
     def __init__(self, nserver=8, npipeline_per_server=4, station=ovro):
         # Validate
         assert(nserver <= NSERVER)
-        assert(nserver*npipeline_per_server <= NBAND*NPIPELINE_BAND)
+        assert(nserver*npipeline_per_server <= NPIPELINE)
         
         # Save the station so that we know where to point from
         self.station = station
@@ -49,8 +53,7 @@ class BeamPointingControl(object):
         self.freqs = []
         for p in self.pipelines:
             metadata = p.beamform.get_bifrost_status()
-            # TODO: Not so hardcoded
-            freq = (metadata['chan0'] + numpy.range(metadata['nchan']))*196e6/8192
+            freq = chan_to_freq(metadata['chan0'] + numpy.range(metadata['nchan']))
             self.freqs.append(freq)
             
         # Make a variable to track the per-pipeline calibration state
@@ -74,17 +77,17 @@ class BeamPointingControl(object):
         """
         
         for p in self.pipelines:
-            p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port]) # 1 power beam
+            p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
             
-    def set_beam1_cal(self, band, caltable, verbose=True):
+    def set_beam1_cal(self, subband, caltable, verbose=True):
         """
-        Given a band number (0 through NBAND-1, inclusive) and a CASA measurement
+        Given a subband number (0 through NSUBBAND-1, inclusive) and a CASA measurement
         set containing a bandpass calibration, load the bandpass calibration into
         the appropriate pipelines.
         """
         
         # Validate
-        assert(band >= 0 and band < NBAND)
+        assert(subband >= 0 and subband < NSUBBAND)
         assert(os.path.exists(caltable))
         assert(os.path.is_dir(caltable))
         
@@ -104,26 +107,26 @@ class BeamPointingControl(object):
             
         # Validate the calibration data structure
         assert(caldata.shape[0] == NSTAND)
-        assert(caldata.shape[1] == NCHAN_PIPELINE*NPIPELINE_BAND)
+        assert(caldata.shape[1] == NCHAN_PIPELINE*NPIPELINE_SUBBAND)
         assert(caldata.shape[2] == NPOL)
         
-        # Find the pipelines that should correspond to the specified band
+        # Find the pipelines that should correspond to the specified subband
         # TODO: Use the freuqency information to figure this out for the user
-        band_pipelines = []
+        subband_pipelines = []
         for i,p in enumerate(self.pipelines):
-            if i//NPIPELINE_BAND == band:
-                band_pipelines.append(p)
+            if i//NPIPELINE_SUBBAND == subband:
+                subband_pipelines.append(p)
                 
                 if verbose:
                     print(f"Found pipeline {i} covering {self.freq[i][0]/1e6:.3f} to {self.freq[i][-1]/1e6:.3f} MHz")
                     
-        # Validate that we have the right number of pipelines for the band
-        assert(len(band_pipelines) == NPIPELINE_BAND)
+        # Validate that we have the right number of pipelines for the subband
+        assert(len(subband_pipelines) == NPIPELINE_SUBBAND)
         
         # Set the coefficients - this is slow
         pb = progressbar.ProgressBar()
-        pb.start(max_value=len(band_pipelines)*NSTAND)
-        for i,p in enumerate(band_pipelines):
+        pb.start(max_value=len(subband_pipelines)*NSTAND)
+        for i,p in enumerate(subband_pipelines):
             for j in range(NSTAND):
                 for pol in range(NPOL):
                     cal = caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
