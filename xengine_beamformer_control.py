@@ -1,6 +1,7 @@
 import os
 import glob
 import time
+import numpy
 import warnings
 import progressbar
 
@@ -54,7 +55,7 @@ class BeamPointingControl(object):
         self.freqs = []
         for p in self.pipelines:
             metadata = p.beamform.get_bifrost_status()
-            freq = chan_to_freq(metadata['chan0'] + numpy.range(metadata['nchan']))
+            freq = chan_to_freq(metadata['chan0'] + numpy.arange(metadata['nchan']))
             self.freqs.append(freq)
             
         # Make a variable to track the per-pipeline calibration state
@@ -80,7 +81,7 @@ class BeamPointingControl(object):
         for p in self.pipelines:
             p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
             
-    def _freq_to_pipeline(self, freq):
+    def _freq_to_pipeline(self, freq_to_find):
         """
         Given a frequency in Hz, return the pipeline index where that frequency
         can be found in the data.  Raises a ValueError if there does not appear
@@ -88,9 +89,9 @@ class BeamPointingControl(object):
         """
         
         for i,freq in enumerate(self.freqs):
-            if freq >= freq[0] and freq <= freq[-1]:
+            if freq_to_find >= freq[0] and freq_to_find <= freq[-1]:
                 return i
-        raise ValueError(f"Cannot associate {freq/1e6:.3f} MHz with any pipeline currently under control")
+        raise ValueError(f"Cannot associate {freq_to_find/1e6:.3f} MHz with any pipeline currently under control")
         
     def set_beam1_calibration(self, caltable, verbose=True):
         """
@@ -99,19 +100,18 @@ class BeamPointingControl(object):
         """
         
         # Validate
-        assert(subband >= 0 and subband < NSUBBAND)
         assert(os.path.exists(caltable))
-        assert(os.path.is_dir(caltable))
-        assert(os.path.exists(os.path.join(caltab, 'SPECTRAL_WINDOW')))
-        assert(os.path.is_dir(os.path.join(caltab, 'SPECTRAL_WINDOW')))
+        assert(os.path.isdir(caltable))
+        assert(os.path.exists(os.path.join(caltable, 'SPECTRAL_WINDOW')))
+        assert(os.path.isdir(os.path.join(caltable, 'SPECTRAL_WINDOW')))
         
         # Load in the calibration data
-        tab = tables.table(caltab, ack=False)
+        tab = tables.table(caltable, ack=False)
         caldata = tab.getcol('CPARAM')[...]
         tab.close()
         
         # Load in the frequency information for the calibration
-        tab = tables.table(os.path.join(caltab, 'SPECTRAL_WINDOW'))
+        tab = tables.table(os.path.join(caltable, 'SPECTRAL_WINDOW'), ack=False)
         calfreq = tab.getcol('CHAN_FREQ')[...]
         calfreq = calfreq.ravel()
         tab.close()
@@ -139,7 +139,7 @@ class BeamPointingControl(object):
                 j = self._freq_to_pipeline(center_freq)
                 subband_pipelines.append(self.pipelines[j])
                 if verbose:
-                    print(f"Found pipeline {j} covering {self.freq[j][0]/1e6:.3f} to {self.freq[j][-1]/1e6:.3f} MHz")
+                    print(f"Found pipeline {j} covering {self.freqs[j][0]/1e6:.3f} to {self.freqs[j][-1]/1e6:.3f} MHz")
             except ValueError:
                 pass
                 
@@ -156,7 +156,7 @@ class BeamPointingControl(object):
                 for pol in range(NPOL):
                     cal = caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
                     p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
-            pb += 1
+                pb += 1
             self._cal_set[i] = True
         pb.finish()
         
@@ -182,7 +182,7 @@ class BeamPointingControl(object):
         assert(delays.size == NSTAND*NPOL)
         
         # Make up some dummy amplitudes
-        amps = numpy.zeros(NSTAND*NPOL, dtype=numpy.complex64)
+        amps = numpy.zeros(NSTAND*NPOL, dtype=numpy.float32)
         amps[pol::NPOL] = self._gain
         # TODO: Remove this when we are done with it
         amps[64:] *= 0
@@ -227,6 +227,8 @@ class BeamPointingControl(object):
         # Subtract what we need from what we have from the calibration
         # TODO: Is this correct?
         delays = numpy.array(dir_delay) - numpy.array(zen_delay)
+        delays = numpy.repeat(delays, NPOL)
+        delays = delays.max() - delays
         
         # Apply
         for pol in range(NPOL):
@@ -369,6 +371,9 @@ def create_and_calibrate(nserver=8, npipeline_per_server=4, cal_directory='/home
     # Load the calibration data, if found
     for calfile in calfiles:
         control_instance.set_beam1_calibration(calfile)
-        
+       
+    # Start up the data flow
+    control_instance.set_beam1_dest()
+    
     # Done
     return control_instance
