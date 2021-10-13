@@ -154,7 +154,7 @@ class BeamPointingControl(object):
         for i,p in enumerate(subband_pipelines):
             for j in range(NSTAND):
                 for pol in range(NPOL):
-                    cal = caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
+                    cal = 1./caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
                     p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
                 pb += 1
             self._cal_set[i] = True
