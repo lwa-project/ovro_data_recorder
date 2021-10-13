@@ -51,10 +51,10 @@ class Station(object):
         Create a new Station instance from a line in an antenna positions file.
         """
         
-        name, lat, lon, x, y, active = line.split(None, 5)
+        name, style, lat, lon, elev, x, y, active = line.split(None, 7)
         lat = float(lat) * numpy.pi/180
         lon = float(lon) * numpy.pi/180
-        elev = 1222.0        # Is this right?
+        elev = 1182.72  ## Mean of the first 352 antennas
         return cls(name, lat, lon, elev)
         
     def append(self, ant):
@@ -137,10 +137,15 @@ class Antenna(object):
         Create a new Antenna instance from a line in an antenna positions file.
         """
         
-        name, lat, lon, x, y, active = line.split(None, 5)
+        try:
+            name, style, lat, lon, elev, x, y, active = line.split(None, 7)
+        except ValueError:
+            ## Deal with missing elevations for unbuilt antennas
+            name, style, lat, lon, x, y, active = line.split(None, 6)
+            elev = 1182.72  ## Mean of the first 352 antennas
         lat = float(lat) * numpy.pi/180
         lon = float(lon) * numpy.pi/180
-        elev = 1222.0        # Is this right?
+        elev = float(elev)
         return cls(name, lat, lon, elev)
         
     @property
