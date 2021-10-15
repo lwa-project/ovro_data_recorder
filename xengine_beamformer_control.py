@@ -106,6 +106,16 @@ class BeamPointingControl(object):
             with AllowedPipelineFailure(p):
                 p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
                 
+    def set_beam1_vlbi_dest(self, addr='10.41.0.25', port=21001):
+        """
+        Set the destination IP address and UDP port for the VLBI version of the
+        beam data.  Defaults to 10.41.0.25, port 21001 (on lxdlwagpu09).
+        """
+        
+        for p in self.pipelines:
+            with AllowedPipelineFailure(p):
+                p.beamform_vlbi_output.set_destination(addr, port)
+                
     def _freq_to_pipeline(self, freq_to_find):
         """
         Given a frequency in Hz, return the pipeline index where that frequency
@@ -403,6 +413,7 @@ def create_and_calibrate(servers=None, nserver=8, npipeline_per_server=4, cal_di
        
     # Start up the data flow
     control_instance.set_beam1_dest()
+    control_instance.set_beam1_vlbi_dest()
     
     # Done
     return control_instance
