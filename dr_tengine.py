@@ -1071,7 +1071,7 @@ def main(argv):
         ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
                            ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     else:
-        ops.append(CaptureOp(log, isock, capture_ring, 16,
+        ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, tengine_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
