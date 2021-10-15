@@ -1092,7 +1092,7 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     c = Client()
-    r = c.send_command(mcs_id, 'record',
+    r = c.send_command(mcs_id, 'record', beam=args.beam,
                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r)
     """
