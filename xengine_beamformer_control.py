@@ -30,23 +30,47 @@ NSTAND = 352
 NPOL = 2
 
 
+class AllowedPipelineFailure(object):
+    """
+    Context manager to ignore failures while controlling the pipelines.
+    """
+    
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+        
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if exc_type:
+            warnings.warn(f"Failed to command {self.pipeline.host} (pipeline {self.pipeline.pipeline_id})")
+        return True
+
+
 class BeamPointingControl(object):
     """
     Class to provide high level control over beam 1 (and only beam 1 right now).
     """
     
-    def __init__(self, nserver=8, npipeline_per_server=4, station=ovro):
+    def __init__(self, servers=None, nserver=8, npipeline_per_server=4, station=ovro):
         # Validate
         assert(nserver <= NSERVER)
         assert(nserver*npipeline_per_server <= NPIPELINE)
-        
+        if servers is not None:
+            assert(len(servers) <= NSERVER)
+            
         # Save the station so that we know where to point from
         self.station = station
         
+        # Figure out the servers to control
+        if servers is None:
+            servers = []
+            for s in range(nserver):
+                servers.append(f"lxdlwagpu{s+1:02d}")
+                
         # Contect to the pipelines
         self.pipelines = []
-        for s in range(nserver):
-            hostname = f"lxdlwagpu{s+1:02d}"
+        for hostname in servers:
             for i in range(npipeline_per_server):
                 p = Lwa352PipelineControl(hostname, i, etcdhost='etcdv3service')
                 self.pipelines.append(p)
@@ -79,8 +103,9 @@ class BeamPointingControl(object):
         """
         
         for p in self.pipelines:
-            p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
-            
+            with AllowedPipelineFailure(p):
+                p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
+                
     def _freq_to_pipeline(self, freq_to_find):
         """
         Given a frequency in Hz, return the pipeline index where that frequency
@@ -105,9 +130,10 @@ class BeamPointingControl(object):
         assert(os.path.exists(os.path.join(caltable, 'SPECTRAL_WINDOW')))
         assert(os.path.isdir(os.path.join(caltable, 'SPECTRAL_WINDOW')))
         
-        # Load in the calibration data
+        # Load in the calibration data and normalize it
         tab = tables.table(caltable, ack=False)
         caldata = tab.getcol('CPARAM')[...]
+        caldata /= numpy.abs(caldata)
         tab.close()
         
         # Load in the frequency information for the calibration
@@ -149,13 +175,14 @@ class BeamPointingControl(object):
             warnings.warn(f"Found {len(subband_pipelines)} pipelines associated with these data instead of the expected {NPIPELINE_SUBBAND}")
             
         # Set the coefficients - this is slow
-        pb = progressbar.ProgressBar()
+        pb = progressbar.ProgressBar(redirect_stdout=True)
         pb.start(max_value=len(subband_pipelines)*NSTAND)
         for i,p in enumerate(subband_pipelines):
             for j in range(NSTAND):
                 for pol in range(NPOL):
                     cal = 1./caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
-                    p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
+                    with AllowedPipelineFailure(p):
+                        p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
                 pb += 1
             self._cal_set[i] = True
         pb.finish()
@@ -188,10 +215,11 @@ class BeamPointingControl(object):
         amps[64:] *= 0
         
         # Set the delays and amplitudes
-        pb = progressbar.ProgressBar()
+        pb = progressbar.ProgressBar(redirect_stdout=True)
         pb.start(max_value=len(self.pipelines))
         for p in self.pipelines:
-            p.beamform.update_delays(pol, delays, amps)
+            with AllowedPipelineFailure(p):
+                p.beamform.update_delays(pol, delays, amps)
             pb += 1
         pb.finish()
         
@@ -351,14 +379,15 @@ class BeamTracker(object):
             pass
 
 
-def create_and_calibrate(nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders'):
+def create_and_calibrate(servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders'):
     """
     Wraper to create a new BeamPointingControl instance and load bandpass
     calibration data from a directory.
     """
     
     # Create the instance
-    control_instance = BeamPointingControl(nserver=nserver,
+    control_instance = BeamPointingControl(servers=servers,
+                                           nserver=nserver,
                                            npipeline_per_server=npipeline_per_server,
                                            station=ovro)
     
