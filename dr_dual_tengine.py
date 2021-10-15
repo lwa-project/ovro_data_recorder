@@ -89,12 +89,14 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
+        time_tag = seq0*2*NCHAN     # Seems to be needed now
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
                'cfreq0':   chan0*CHAN_BW,
+               'nchan':    nchan,
                'bw':       nchan*CHAN_BW,
                'nbeam':    nbeam,
                'npol':     2,
