@@ -14,8 +14,8 @@ import logging
 import argparse
 import threading
 
-from common import *
-from mcs import MonitorPoint, CommandCallbackBase, Client
+from mnc.common import *
+from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
 
 def main(argv):
