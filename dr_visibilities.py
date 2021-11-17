@@ -206,12 +206,12 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
-class EndToEndBlankingOp(object):
-    ###########################
-    #                         #
-    # TO BE REMOVED AFTER E2E #
-    #                         #
-    ###########################
+class PhaseOneBlankingOp(object):
+    ################################
+    #                             #
+    # TO BE REMOVED AFTER PHASE I #
+    #                             #
+    ###############################
     
     def __init__(self, log, iring, oring, ntime_gulp=1, guarantee=True, core=-1):
         self.log        = log
@@ -242,7 +242,7 @@ class EndToEndBlankingOp(object):
                 
                 self.sequence_proclog.update(ihdr)
                 
-                self.log.info("EndToEndBlanking: Start of new sequence: %s", str(ihdr))
+                self.log.info("PhaseOneBlanking: Start of new sequence: %s", str(ihdr))
                 
                 # Setup the ring metadata and gulp sizes
                 time_tag = ihdr['time_tag']
@@ -262,12 +262,21 @@ class EndToEndBlankingOp(object):
                 oshape = ishape
                 self.oring.resize(ogulp_size)
                 
+                valid = [248, 249, 256, 257, 258, 259, 260, 261, 262, 263, 264,
+                         265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275,
+                         276, 277, 278, 279, 280, 281, 282, 288, 289, 290, 291,
+                         292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302,
+                         303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313,
+                         314, 320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
+                         330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 340,
+                         341, 342, 343, 344, 345, 346]
+                
                 to_keep = []
                 nstand = int(numpy.sqrt(8*nbl+1)-1)//2
                 k = 0
                 for i in range(nstand):
                     for j in range(i,nstand):
-                        if i < 32 and j < 32:
+                        if i in valid and j in valid:
                             to_keep.append(k)
                         k += 1
                         
@@ -307,7 +316,7 @@ class EndToEndBlankingOp(object):
                                                   'reserve_time': reserve_time, 
                                                   'process_time': process_time,})
                         
-        self.log.info("EndToEndBlankingOp - Done")
+        self.log.info("PhaseOneBlankingOp - Done")
 
 
 class SpectraOp(object):
@@ -954,7 +963,7 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
                              ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
-    ops.append(EndToEndBlankingOp(log, capture_ring, blank_ring,
+    ops.append(PhaseOneBlankingOp(log, capture_ring, blank_ring,
                                   ntime_gulp=args.gulp_size, core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, blank_ring,
