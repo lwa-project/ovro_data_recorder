@@ -206,119 +206,6 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
-class PhaseOneBlankingOp(object):
-    ################################
-    #                             #
-    # TO BE REMOVED AFTER PHASE I #
-    #                             #
-    ###############################
-    
-    def __init__(self, log, iring, oring, ntime_gulp=1, guarantee=True, core=-1):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.ntime_gulp = ntime_gulp
-        self.guarantee  = guarantee
-        self.core       = core
-        
-        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
-        self.in_proclog   = ProcLog(type(self).__name__+"/in")
-        self.out_proclog   = ProcLog(type(self).__name__+"/out")
-        self.size_proclog = ProcLog(type(self).__name__+"/size")
-        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
-        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
-        
-        self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
-        self.out_proclog.update({'nring':1, 'ring0':self.oring.name})
-        
-    def main(self):
-        cpu_affinity.set_core(self.core)
-        self.bind_proclog.update({'ncore': 1, 
-                                  'core0': cpu_affinity.get_core(),})
-        
-        with self.oring.begin_writing() as oring:
-            for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
-                
-                self.sequence_proclog.update(ihdr)
-                
-                self.log.info("PhaseOneBlanking: Start of new sequence: %s", str(ihdr))
-                
-                # Setup the ring metadata and gulp sizes
-                time_tag = ihdr['time_tag']
-                navg     = ihdr['navg']
-                nbl      = ihdr['nbl']
-                chan0    = ihdr['chan0']
-                nchan    = ihdr['nchan']
-                chan_bw  = ihdr['bw'] / nchan
-                npol     = ihdr['npol']
-                pols     = ['XX','XY','YX','YY']
-                
-                igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
-                ishape = (self.ntime_gulp,nbl,nchan,npol)
-                self.iring.resize(igulp_size)
-                
-                ogulp_size = igulp_size
-                oshape = ishape
-                self.oring.resize(ogulp_size)
-                
-                valid = [248, 249, 256, 257, 258, 259, 260, 261, 262, 263, 264,
-                         265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275,
-                         276, 277, 278, 279, 280, 281, 282, 288, 289, 290, 291,
-                         292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302,
-                         303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313,
-                         314, 320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
-                         330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 340,
-                         341, 342, 343, 344, 345, 346]
-                
-                to_keep = []
-                nstand = int(numpy.sqrt(8*nbl+1)-1)//2
-                k = 0
-                for i in range(nstand):
-                    for j in range(i,nstand):
-                        if i in valid and j in valid:
-                            to_keep.append(k)
-                        k += 1
-                        
-                empty = BFArray(shape=oshape, dtype='ci32')
-                BFMemSet(empty, 0)
-                
-                ohdr = ihdr.copy()
-                ohdr_str = json.dumps(ohdr)
-                
-                with oring.begin_sequence(time_tag=time_tag, header=ohdr_str) as oseq:
-                    prev_time = time.time()
-                    iseq_spans = iseq.read(igulp_size)
-                    for ispan in iseq_spans:
-                        if ispan.size < igulp_size:
-                            continue # Ignore final gulp
-                        curr_time = time.time()
-                        acquire_time = curr_time - prev_time
-                        prev_time = curr_time
-                        
-                        with oseq.reserve(ogulp_size) as ospan:
-                            curr_time = time.time()
-                            reserve_time = curr_time - prev_time
-                            prev_time = curr_time
-                            
-                            ## Setup and load
-                            idata = ispan.data_view('ci32').reshape(ishape)
-                            odata = ospan.data_view('ci32').reshape(oshape)
-                            
-                            copy_array(odata, empty)
-                            for k in to_keep:
-                                odata[:,k,:,:] = idata[:,k,:,:]
-                                
-                        curr_time = time.time()
-                        process_time = curr_time - prev_time
-                        prev_time = curr_time
-                        self.perf_proclog.update({'acquire_time': acquire_time, 
-                                                  'reserve_time': reserve_time, 
-                                                  'process_time': process_time,})
-                        
-        self.log.info("PhaseOneBlankingOp - Done")
-
-
 class SpectraOp(object):
     def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=-1):
         self.log        = log
@@ -938,7 +825,6 @@ def main(argv):
         
     # Setup the rings
     capture_ring = Ring(name="capture")
-    blank_ring   = Ring(name="blank")
     
     # Setup antennas
     nant = len(station.antennas)
@@ -963,16 +849,14 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
                              ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
-    ops.append(PhaseOneBlankingOp(log, capture_ring, blank_ring,
-                                  ntime_gulp=args.gulp_size, core=cores.pop(0)))
     if not args.quick:
-        ops.append(SpectraOp(log, mcs_id, blank_ring,
+        ops.append(SpectraOp(log, mcs_id, capture_ring,
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
-        ops.append(BaselineOp(log, mcs_id, station, blank_ring,
+        ops.append(BaselineOp(log, mcs_id, station, capture_ring,
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(StatisticsOp(log, mcs_id, blank_ring,
+    ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(WriterOp(log, station, blank_ring,
+    ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
