@@ -119,7 +119,7 @@ def main(args):
             spec = tuning[key][nint//2,:]
             valid = numpy.where(spec > 0)[0]
             valid = list(range(valid.min(), valid.max()+1))
-            print("Selecting %i channels out of %i" % (len(valid), nchan))
+            print("Selecting %i out of a total of %i channels (%.1f%%)" % (len(valid), nchan, 100.*len(valid)/nchan))
             if len(valid) == nchan and args.time_decimation == 1:
                 raise RuntimeError("Nothing to do, exiting")
                 
