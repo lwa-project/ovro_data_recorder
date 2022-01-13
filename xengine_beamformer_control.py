@@ -229,8 +229,6 @@ class BeamPointingControl(object):
         # Make up some dummy amplitudes
         amps = numpy.zeros(NSTAND*NPOL, dtype=numpy.float32)
         amps[pol::NPOL] = self._gain
-        # TODO: Remove this when we are done with it
-        amps[64:] *= 0
         
         # Set the delays and amplitudes
         pb = progressbar.ProgressBar(redirect_stdout=True)
