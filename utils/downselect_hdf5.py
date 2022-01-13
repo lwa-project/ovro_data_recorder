@@ -113,14 +113,13 @@ def main(args):
         # Figure out the valid channel range
         tuning = hIn.get('/Observation1/Tuning1', None)
         for key in tuning.keys():
-            print(key)
             if key not in ('XX', 'I'):
                 continue
             nint, nchan = tuning[key].shape
             spec = tuning[key][nint//2,:]
             valid = numpy.where(spec > 0)[0]
             valid = list(range(valid.min(), valid.max()+1))
-            print("Selected %i channels out of %i" % (len(valid), nchan))
+            print("Selecting %i channels out of %i" % (len(valid), nchan))
             if len(valid) == nchan and args.time_decimation == 1:
                 raise RuntimeError("Nothing to do, exiting")
                 
