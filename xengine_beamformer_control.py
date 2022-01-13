@@ -144,6 +144,9 @@ class BeamPointingControl(object):
         tab = tables.table(caltable, ack=False)
         caldata = tab.getcol('CPARAM')[...]
         caldata /= numpy.abs(caldata)
+        
+        # Load in the flagging data for the calibration
+        flgdata = tab.getcol('FLAG')[...]
         tab.close()
         
         # Load in the frequency information for the calibration
@@ -191,8 +194,13 @@ class BeamPointingControl(object):
             for j in range(NSTAND):
                 for pol in range(NPOL):
                     cal = 1./caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
+                    cal = numpy.where(numpy.isfinite(cal), cal, 0)
+                    flg = flgdata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
+                    cal *= (1-flg)
+                    
                     with AllowedPipelineFailure(p):
                         p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
+                        time.sleep(0.1)
                 pb += 1
             self._cal_set[i] = True
         pb.finish()
