@@ -40,7 +40,7 @@ def _fillHDF(inputH5, output, tDecimation=1, channels=None, level=0):
             ### If so, add it and fill it in.
             if ent not in list(output):
                 entityO = output.create_group(ent)
-            _fillHDF(entity, entityO, tDecimation=tDecimation, sDecimation=sDecimation, level=level+1)
+            _fillHDF(entity, entityO, tDecimation=tDecimation, channels=channels, level=level+1)
             continue
             
         ## Is it a dataset?
@@ -113,13 +113,17 @@ def main(args):
         # Figure out the valid channel range
         tuning = hIn.get('/Observation1/Tuning1', None)
         for key in tuning.keys():
+            print(key)
             if key not in ('XX', 'I'):
                 continue
-            nint = tuning[key][0]
+            nint, nchan = tuning[key].shape
             spec = tuning[key][nint//2,:]
             valid = numpy.where(spec > 0)[0]
             valid = list(range(valid.min(), valid.max()+1))
-            
+            print("Selected %i channels out of %i" % (len(valid), nchan))
+            if len(valid) == nchan and args.time_decimation == 1:
+                raise RuntimeError("Nothing to do, exiting")
+                
         _fillHDF(hIn, hOut, tDecimation=args.time_decimation, channels=valid)
         
         hIn.close()
