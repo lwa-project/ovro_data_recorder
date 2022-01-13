@@ -111,7 +111,7 @@ def main(args):
         hOut = h5py.File(outname, mode='w')
         
         # Figure out the valid channel range
-        tuning = f.get('/Observation1/Tuning1', None)
+        tuning = hIn.get('/Observation1/Tuning1', None)
         for key in tuning.keys():
             if key not in ('XX', 'I'):
                 continue
