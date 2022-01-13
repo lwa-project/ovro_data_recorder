@@ -15,7 +15,7 @@ from astropy.coordinates import solar_system_ephemeris, get_body
 from astropy.constants import c as speedOfLight
 speedOfLight = speedOfLight.to('m/ns').value
 
-from common import NPIPELINE, chan_to_freq
+from mnc.common import NPIPELINE, chan_to_freq
 from station import ovro
 
 
