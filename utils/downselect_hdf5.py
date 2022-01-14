@@ -112,17 +112,61 @@ def main(args):
         
         # Figure out the valid channel range
         tuning = hIn.get('/Observation1/Tuning1', None)
-        for key in tuning.keys():
-            if key not in ('XX', 'I'):
-                continue
-            nint, nchan = tuning[key].shape
-            spec = tuning[key][nint//2,:]
-            valid = numpy.where(spec > 0)[0]
-            valid = list(range(valid.min(), valid.max()+1))
-            print("Selecting %i out of a total of %i channels (%.1f%%)" % (len(valid), nchan, 100.*len(valid)/nchan))
-            if len(valid) == nchan and args.time_decimation == 1:
-                raise RuntimeError("Nothing to do, exiting")
+        freq = tuning['freq'][:]
+        nchan = freq.size
+        if args.spectral_range is None:
+            for key in tuning.keys():
+                if key not in ('XX', 'I'):
+                    continue
+                nint, nchan = tuning[key].shape
+                spec = tuning[key][nint//2,:]
+                valid = numpy.where(spec > 0)[0]
+                valid = list(range(valid.min(), valid.max()+1))
+        else:
+            low, high = args.spectral_range.split(',', 1)
+            low, high = float(low)*1e6, float(high)*1e6
+            valid = numpy.where((freq >= low) & (freq <= high))[0]
+            
+        # If requested, adjust the frequency range slightly to make prepfold happy
+        if args.prepfold:
+            which_end = True
+            nchan_valid = len(valid)
+            while True:
+                ## These are the checks that prepfold.c uses
+                found = False
+                if nchan_valid <= 256:
+                    found |= (nchan_valid % 32 == 0)
+                    found |= (nchan_valid % 30 == 0)
+                    found |= (nchan_valid % 25 == 0)
+                    found |= (nchan_valid % 20 == 0)
+                elif nchan_valid <= 1024:
+                    found |= (nchan_valid % 8 == 0)
+                    found |= (nchan_valid % 10 == 0)
+                else:
+                    found |= (nchan_valid % 128 == 0)
+                    found |= (nchan_valid % 100 == 0)
+                    
+                ## If found, we are done.  Otherwise trim an end and try again.
+                if found:
+                    break
+                    
+                if which_end:
+                    valid = valid[1:]
+                else:
+                    valid = valid[:-1]
+                which_end ^= True
+                nchan_valid = len(valid)
                 
+        # Sanity checks
+        if len(valid) == nchan and args.time_decimation == 1:
+           raise RuntimeError("Downselecting does change the file contents, exiting")
+        if len(valid) == 0:
+            raise RuntimeError("No valid downselected channels found, exiting")
+            
+        # Report and process
+        print("Selecting %i out of a total of %i channels (%.1f%%)" % (len(valid), nchan, 100.*len(valid)/nchan))
+        print("->  Frequency range is %.3f to %.3f MHz" % (freq[valid[0]]/1e6, freq[valid[-1]]/1e6))
+        
         _fillHDF(hIn, hOut, tDecimation=args.time_decimation, channels=valid)
         
         hIn.close()
@@ -141,5 +185,9 @@ if __name__ == '__main__':
                         help='filename to decimate')
     parser.add_argument('-f', '--force', action='store_true', 
                         help='force overwritting of existing HDF5 files')
+    parser.add_argument('-s', '--spectral-range', type=str,
+                        help='spectral range to keep in MHz as \'low,high\'')
+    parser.add_argument('-p', '--prepfold', action='store_true',
+                        help='adjust spectral range to make prepfold happy')
     args = parser.parse_args()
     main(args)
