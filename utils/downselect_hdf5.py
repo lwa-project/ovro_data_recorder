@@ -65,14 +65,14 @@ def _fillHDF(inputH5, output, tDecimation=1, channels=None, level=0):
                     entityO[i,:] = data.sum(axis=0)
                     
             elif ent == 'freq':
-                newShape = (192,)
+                newShape = (len(channels),)
                 entityO = output.create_dataset(ent, newShape, entity.dtype)
                 for i in range(newShape[0]):
                     data = entity[channels]
                     entityO[i] = data[i]
                     
             else:
-                newShape = (entity.shape[0]//tDecimation, 192)
+                newShape = (entity.shape[0]//tDecimation, len(channels))
                 entityO = output.create_dataset(ent, newShape, entity.dtype)
                 for i in range(newShape[0]):
                     data = entity[tDecimation*i:tDecimation*(i+1),:]
