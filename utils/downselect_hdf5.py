@@ -131,7 +131,7 @@ def main(args):
         if args.prepfold:
             which_end = True
             nchan_valid = len(valid)
-            while True:
+            while nchan_valid > 0:
                 ## These are the checks that prepfold.c uses
                 found = False
                 if nchan_valid <= 256:
