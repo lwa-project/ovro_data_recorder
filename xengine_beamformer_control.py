@@ -200,7 +200,7 @@ class BeamPointingControl(object):
                     
                     with AllowedPipelineFailure(p):
                         p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
-                        time.sleep(0.1)
+                        time.sleep(0.005)
                 pb += 1
             self._cal_set[i] = True
         pb.finish()
