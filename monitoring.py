@@ -375,7 +375,7 @@ class GlobalLogger(object):
             if t_now - t_storage > 60.0:
                 self.storage.main(once=True)
                 t_storage = t_now
-            if t_now - t_status > 10.0:
+            if t_now - t_status > 20.0:
                 self.status.main(once=True)
                 t_status = t_now
                 
