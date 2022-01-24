@@ -10,7 +10,7 @@ from casacore import tables
 
 import astropy.units as u
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz
+from astropy.coordinates import SkyCoord, Angle, EarthLocation, AltAz
 from astropy.coordinates import solar_system_ephemeris, get_body
 from astropy.constants import c as speedOfLight
 speedOfLight = speedOfLight.to('m/ns').value
@@ -278,14 +278,15 @@ class BeamPointingControl(object):
         for pol in range(NPOL):
             self.set_beam1_delays(delays, pol)
             
-    def set_beam1_target(self, target, verbose=True):
+    def set_beam1_target(self, target_or_ra, dec=None, verbose=True):
         """
         Given the name of an astronomical target, 'sun', or 'zenith', compute the
-        current topocentric position of the body and point the beam at it.
+        current topocentric position of the body and point the beam at it.  If
+        the 'dec' keyword is not None, the target is intepreted to be a RA.
         """
         
         # Figure out what to do with the name
-        if target.lower() in ('z', 'zen', 'zenith'):
+        if target_or_ra.lower() in ('z', 'zen', 'zenith'):
             ## Zenith is easy
             az, alt = 0.0, 90.0
         else:
@@ -293,17 +294,24 @@ class BeamPointingControl(object):
             obs = EarthLocation.from_geocentric(*self.station.ecef, unit=u.m)
             
             ## Resolve the name into coordinates
-            if target.lower() in solar_system_ephemeris.bodies:
-                if target.lower().startswith('earth'):
-                    raise ValueError(f"Invalid target: '{target}'")
+            if dec is not None:
+                ra = u.Angle(target_or_ra, unit='hourangle')
+                dec = u.Angle(dec, unit='deg')
+                sc = SkyCoord(ra, dec, frame='FK5')
+                if verbose:
+                    print(f"Resolved '{target_or_ra}, {dec}' to RA {sc.ra}, Dec. {sc.dec}")
                     
-                sc = get_body(target.lower(), Time.now(), location=obs)
+            elif target_or_ra.lower() in solar_system_ephemeris.bodies:
+                if target_or_ra.lower().startswith('earth'):
+                    raise ValueError(f"Invalid target: '{target_or_ra}'")
+                    
+                sc = get_body(target_or_ra.lower(), Time.now(), location=obs)
                 if verbose:
-                    print(f"Resolved '{target}' to {target.lower()}")
+                    print(f"Resolved '{target_or_ra}' to {target_or_ra.lower()}")
             else:
-                sc = SkyCoord.from_name(target)
+                sc = SkyCoord.from_name(target_or_ra)
                 if verbose:
-                    print(f"Resolved '{target}' to RA {sc.ra}, Dec. {sc.dec}")
+                    print(f"Resolved '{target_or_ra}' to RA {sc.ra}, Dec. {sc.dec}")
                     
             ## Figure out where it is right now
             aa = sc.transform_to(AltAz(obstime=Time.now(), location=obs))
@@ -326,10 +334,11 @@ class BeamTracker(object):
         self.control_instance = control_instance
         self.update_interval = update_interval
         
-    def track(self, target, duration=0, verbose=True):
+    def track(self, target_or_ra, dec=None, duration=0, verbose=True):
         """
         Given a target name and a tracking duration in seconds, start tracking
-        the source.  If the duration is less than or equal to zero the default
+        the source.  If the 'dec' keyword is not None, the target is intepreted
+        to be a RA.  If the duration is less than or equal to zero the default
         of 12 hours is used.
         
         .. note:: The tracking can be canceled at any time with a control-C.
@@ -339,25 +348,32 @@ class BeamTracker(object):
         obs = EarthLocation.from_geocentric(*self.control_instance.station.ecef, unit=u.m)
         
         # Resolve the name into coordinates
-        if target.lower() in solar_system_ephemeris.bodies:
-            if target.lower().startswith('earth'):
-                raise ValueError(f"Invalid target: '{target}'")
+        if target_or_ra.lower() in solar_system_ephemeris.bodies:
+            if target_or_ra.lower().startswith('earth'):
+                raise ValueError(f"Invalid target: '{target_or_ra}'")
                 
-            sc = get_body(target.lower(), Time.now(), location=obs)
+            sc = get_body(target_or_ra.lower(), Time.now(), location=obs)
             if verbose:
-                print(f"Resolved '{target}' to {target.lower()}")
+                print(f"Resolved '{target_or_ra}' to {target_or_ra.lower()}")
         else:
-            sc = SkyCoord.from_name(target)
-            if verbose:
-                print(f"Resolved '{target}' to RA {sc.ra}, Dec. {sc.dec}")
-                
+            if dec is not None:
+                ra = u.Angle(target_or_ra, unit='hourangle')
+                dec = u.Angle(dec, unit='deg')
+                sc = SkyCoord(ra, dec, frame='FK5')
+                if verbose:
+                    print(f"Resolved '{target_or_ra}, {dec}' to RA {sc.ra}, Dec. {sc.dec}")
+            else:
+                sc = SkyCoord.from_name(target_or_ra)
+                if verbose:
+                    print(f"Resolved '{target_or_ra}' to RA {sc.ra}, Dec. {sc.dec}")
+                    
         # Figure out the duration of the tracking
         if duration <= 0:
             duration = 86400.0/2
             
         # Set the pointing update time offset - this is half the update interval
         # so that we should end up with a nice scalloped pattern
-        puto = TimeDelta(self.update_interval/2.0, format='sec')
+        puto = TimeDelta(min([duration, self.update_interval])/2.0, format='sec')
         
         # Set the tracking stop time    
         t_stop = time.time() + duration
