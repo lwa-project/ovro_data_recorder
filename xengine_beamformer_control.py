@@ -412,7 +412,7 @@ class BeamTracker(object):
                 
                 ## Sleep to wait it out in increments of 0.01 s so that a control-C
                 ## doesn't take forever to register
-                while t < t_sleep_until:
+                while t < t_sleep_until and t < t_stop:
                     time.sleep(0.01)
                     t = time.time()
                     
