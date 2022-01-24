@@ -295,8 +295,8 @@ class BeamPointingControl(object):
             
             ## Resolve the name into coordinates
             if dec is not None:
-                ra = u.Angle(target_or_ra, unit='hourangle')
-                dec = u.Angle(dec, unit='deg')
+                ra = Angle(target_or_ra, unit='hourangle')
+                dec = Angle(dec, unit='deg')
                 sc = SkyCoord(ra, dec, frame='FK5')
                 if verbose:
                     print(f"Resolved '{target_or_ra}, {dec}' to RA {sc.ra}, Dec. {sc.dec}")
@@ -357,8 +357,8 @@ class BeamTracker(object):
                 print(f"Resolved '{target_or_ra}' to {target_or_ra.lower()}")
         else:
             if dec is not None:
-                ra = u.Angle(target_or_ra, unit='hourangle')
-                dec = u.Angle(dec, unit='deg')
+                ra = Angle(target_or_ra, unit='hourangle')
+                dec = Angle(dec, unit='deg')
                 sc = SkyCoord(ra, dec, frame='FK5')
                 if verbose:
                     print(f"Resolved '{target_or_ra}, {dec}' to RA {sc.ra}, Dec. {sc.dec}")
