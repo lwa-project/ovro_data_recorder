@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 from astropy.time import TimeDelta
 
+from mnc.mcs import Client as MCSClient
 from mnc.common import LWATime, NCHAN as NCHAN_NATIVE, CLOCK as CLOCK_NATIVE
 try:
     from mnc.ezdr import Lwa352RecorderControl
@@ -233,9 +234,15 @@ def main(args):
         dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, dur=rec_dur, time_avg=obs[0]['time_avg'])
         
     ## Get the recorder pipeline lag
-    ### TODO: Get the real lag
-    lag = TimeDelta(0, format='sec')
-    
+    try:
+        c = MCSClient()
+        lag = c.read_monitor_piont('bifrost/pipeline_lag', 'dr1')
+        lag = TimeDelta(lag.value, format='sec')
+        logger.info(f"Setting pipeline lag correction to {lag.sec:.3f} s")
+    exept Exception:
+        logger.warn("Failed to find pipeline lag, setting to zero")
+        lag = TimeDelta(0.0, format='sec')
+        
     # Beamforming/tracking
     ## Wait for the right time
     logger.info("Waiting for the start of the first observation...")
