@@ -232,11 +232,14 @@ def main(args):
     if dr is not None and not args.dry_run:
         dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, dur=rec_dur, time_avg=obs[0]['time_avg'])
         
+    ## Get the recorder pipeline lag
+    ### TODO: Get the real lag
+    lag = TimeDelta(0, format='sec')
+    
     # Beamforming/tracking
     ## Wait for the right time
     logger.info("Waiting for the start of the first observation...")
-    ## TODO: Wait time correction for the pipeline lag?
-    while LWATime.now() < start:
+    while LWATime.now() < start + lag:
         time.sleep(0.01)
         
     ## Iterate through the observations
