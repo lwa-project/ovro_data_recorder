@@ -400,10 +400,10 @@ class BeamTracker(object):
                 t_used = time.time() - t_mark
                 t_sleep_until = t + self.update_interval - t_used
                 
-                ## Sleep to wait it out in increments of 0.5 s so that a control-C
+                ## Sleep to wait it out in increments of 0.01 s so that a control-C
                 ## doesn't take forever to register
                 while t < t_sleep_until:
-                    time.sleep(0.5)
+                    time.sleep(0.01)
                     t = time.time()
                     
         except KeyboardInterrupt:
