@@ -169,7 +169,7 @@ def parse_sdf(filename):
     # One last check and save the averaging time
     if time_avg > 0:
         if round(tint, 3) != round(time_avg*tint_native, 3):
-            logger.warn(f"Requested {tint*1000:.1f} ms time resolution but will use {time_avg*tint_native*1000:.1f} ms instead")
+            logger.warn(f"Requested {tint*1000:.1f} ms spectrometer time resolution will not but used, {time_avg*tint_native*1000:.1f} ms will be used instead")
     else:
         time_avg = 1
         logger.warn(f"Spectrometer mode was not requested but will be used anyway with an integration time of {tint_native*1000:.1f} ms")
