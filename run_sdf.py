@@ -239,7 +239,7 @@ def main(args):
         lag = c.read_monitor_piont('bifrost/pipeline_lag', 'dr1')
         lag = TimeDelta(lag.value, format='sec')
         logger.info(f"Setting pipeline lag correction to {lag.sec:.3f} s")
-    exept Exception:
+    except Exception:
         logger.warn("Failed to find pipeline lag, setting to zero")
         lag = TimeDelta(0.0, format='sec')
         
