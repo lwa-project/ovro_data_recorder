@@ -285,6 +285,11 @@ class BeamPointingControl(object):
         the 'dec' keyword is not None, the target is intepreted to be a RA.
         """
         
+        # Force to string
+        target_or_ra = str(target_or_ra)
+        if dec is not None:
+            dec = str(dec)
+            
         # Figure out what to do with the name
         if target_or_ra.lower() in ('z', 'zen', 'zenith'):
             ## Zenith is easy
@@ -344,6 +349,11 @@ class BeamTracker(object):
         .. note:: The tracking can be canceled at any time with a control-C.
         """
         
+        # Force to string
+        target_or_ra = str(target_or_ra)
+        if dec is not None:
+            dec = str(dec)
+            
         # Load in where we are
         obs = EarthLocation.from_geocentric(*self.control_instance.station.ecef, unit=u.m)
         
