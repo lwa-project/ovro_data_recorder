@@ -199,7 +199,7 @@ def main(args):
     logger.info(f"Recording starts at {rec_start.datetime} and continutes for {rec_dur:.3f} s")
     
     ## Validate
-    if rec_start > LWATime.now() - TimeDelta(30, format='sec'):
+    if rec_start < LWATime.now() + TimeDelta(30, format='sec'):
         logger.error("Insufficient advanced notice to run this SDF, aborting")
         sys.exit(1)
     elif rec_start < LWATime.now():
@@ -231,7 +231,7 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, dur=rec_dur, time_avg=obs[0]['time_avg'])
+        dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, duration=rec_dur, time_avg=obs[0]['time_avg'])
         
     ## Get the recorder pipeline lag
     try:
