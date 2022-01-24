@@ -230,7 +230,7 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, dur=rec_dur)
+        dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, dur=rec_dur, time_avg=obs[0]['time_avg'])
         
     # Beamforming/tracking
     ## Wait for the right time
