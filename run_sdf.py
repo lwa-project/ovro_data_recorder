@@ -51,6 +51,7 @@ def parse_sdf(filename):
     
     # Parse the SDF in a simple way that only keeps track of the pointing/durations
     obs = []
+    beam = 1
     time_avg = 0
     tint_native = 2*NCHAN_NATIVE / CLOCK_NATIVE * 24
     with open(filename, 'r') as fh:
@@ -130,6 +131,7 @@ def parse_sdf(filename):
             elif line.startswith('SESSION_DRX_BEAM'):
                 beam = int(line.rsplit(None, 1)[1], 10)
                 if beam != 1:
+                    beam = 1
                     logger.warn(f"Beam {beam} requested but observation will run on beam 1")
             elif line.startswith('SESSION_SPC'):
                 _, nchan, nwin = line.rsplit(None, 2)
@@ -167,7 +169,7 @@ def parse_sdf(filename):
             ## Nope, it's a normal observation
             expanded_obs.append(o)
             
-    # One last check and save the averaging time
+    # One last check and save the averaging time and beam
     if time_avg > 0:
         if round(tint, 3) != round(time_avg*tint_native, 3):
             logger.warn(f"Requested {tint*1000:.1f} ms spectrometer time resolution will not but used, {time_avg*tint_native*1000:.1f} ms will be used instead")
@@ -175,6 +177,7 @@ def parse_sdf(filename):
         time_avg = 1
         logger.warn(f"Spectrometer mode was not requested but will be used anyway with an integration time of {tint_native*1000:.1f} ms")
     expanded_obs[0]['time_avg'] = time_avg
+    expanded_obs[0]['beam'] = beam
     
     return expanded_obs
 
@@ -209,12 +212,16 @@ def main(args):
     # Setup the control
     ## Recording
     try:
+        ### TODO:  Really should access DR1 directly since this will control all
+        ###        power beam recorder that are currently running
+        ### TODO:  Use the 'beam' key in obs[0] to actually use the specified beam
         dr = Lwa352RecorderControl('power')
     except Exception:
         logger.warn(f"Cannot create DR control object, will not send DR commands")
         dr = None
     ## Beamforming
     try:
+        ### TODO:  Use the 'beam' key in obs[0] to actually use the specified beam
         bf = BeamPointingControl()
         bt = BeamTracker(bf, update_interval=15)
     except Exception:
@@ -235,6 +242,8 @@ def main(args):
         
     ## Get the recorder pipeline lag
     try:
+        ### TODO:  Remove this lag correction once there is a way to schedule
+        ###        a beam pointing update
         c = MCSClient()
         lag = c.read_monitor_piont('bifrost/pipeline_lag', 'dr1')
         lag = TimeDelta(lag.value, format='sec')
