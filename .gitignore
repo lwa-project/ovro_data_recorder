@@ -11,6 +11,10 @@ etcd.cfg
 *.npy
 *.png
 
+# Downloaded Python scripts
+utils/_data.etag
+utils/_data.py
+
 # Help files
 docs/source/*.help
 
