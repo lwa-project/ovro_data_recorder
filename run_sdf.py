@@ -245,7 +245,7 @@ def main(args):
         ### TODO:  Remove this lag correction once there is a way to schedule
         ###        a beam pointing update
         c = MCSClient()
-        lag = c.read_monitor_piont('bifrost/pipeline_lag', 'dr1')
+        lag = c.read_monitor_point('bifrost/pipeline_lag', 'dr1')
         lag = TimeDelta(lag.value, format='sec')
         logger.info(f"Setting pipeline lag correction to {lag.sec:.3f} s")
     except Exception:
