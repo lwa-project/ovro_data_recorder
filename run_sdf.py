@@ -15,11 +15,6 @@ from astropy.time import TimeDelta
 from mnc.mcs import Client as MCSClient
 from mnc.common import LWATime, NCHAN as NCHAN_NATIVE, CLOCK as CLOCK_NATIVE
 try:
-    from mnc.ezdr import Lwa352RecorderControl
-except ImportError as e:
-    Lwa352RecorderControl = None
-    logger.warn(f"Cannot import Lwa352RecorderControl, will not send DR commands")
-try:
     from xengine_beamformer_control import BeamPointingControl, BeamTracker
 except ImportError as e:
     BeamPointingControl = BeamTracker = None
@@ -212,17 +207,13 @@ def main(args):
     # Setup the control
     ## Recording
     try:
-        ### TODO:  Really should access DR1 directly since this will control all
-        ###        power beam recorder that are currently running
-        ### TODO:  Use the 'beam' key in obs[0] to actually use the specified beam
-        dr = Lwa352RecorderControl('power')
+        dr = MCSClient()
     except Exception:
         logger.warn(f"Cannot create DR control object, will not send DR commands")
         dr = None
     ## Beamforming
     try:
-        ### TODO:  Use the 'beam' key in obs[0] to actually use the specified beam
-        bf = BeamPointingControl()
+        bf = BeamPointingControl(obs[0]['beam'])
         bt = BeamTracker(bf, update_interval=15)
     except Exception:
         logger.warn(f"Cannot create beamformer control objects, will not send beamformer commands")
@@ -238,14 +229,19 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        dr.record(start_mjd=obs[0]['mjd'], start_mpm=obs[0]['mpm']-5000, duration=rec_dur, time_avg=obs[0]['time_avg'])
-        
+        status = dr.send_command(f"dr{obs[0]['beam']}", 'record',
+                                 start_mjd=obs[0]['mjd'],
+                                 start_mpm=obs[0]['mpm'],
+                                 duration_ms=int(rec_dur*1000),
+                                 time_avg=obs[0]['time_avg'])
+        if not status[0]:
+            logger.error("Record command failed: %s", str(status[1]))
+            
     ## Get the recorder pipeline lag
     try:
         ### TODO:  Remove this lag correction once there is a way to schedule
         ###        a beam pointing update
-        c = MCSClient()
-        lag = c.read_monitor_piont('bifrost/pipeline_lag', 'dr1')
+        lag = dr.read_monitor_point('bifrost/pipeline_lag', f"dr{obs[0]['beam']}")
         lag = TimeDelta(lag.value, format='sec')
         logger.info(f"Setting pipeline lag correction to {lag.sec:.3f} s")
     except Exception:

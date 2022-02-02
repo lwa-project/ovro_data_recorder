@@ -4,6 +4,7 @@ import time
 import numpy
 import warnings
 import progressbar
+from threading import RLock
 
 from lwa352_pipeline_control import Lwa352PipelineControl
 from casacore import tables
@@ -47,18 +48,25 @@ class AllowedPipelineFailure(object):
         return True
 
 
+_BEAM_DEST_LOCK = RLock()
+
+
 class BeamPointingControl(object):
     """
-    Class to provide high level control over beam 1 (and only beam 1 right now).
+    Class to provide high level control over a beam.
     """
     
-    def __init__(self, servers=None, nserver=8, npipeline_per_server=4, station=ovro):
+    def __init__(self, beam, servers=None, nserver=8, npipeline_per_server=4, station=ovro):
         # Validate
+        assert(beam in list(range(1,16+1)))
         assert(nserver <= NSERVER)
         assert(nserver*npipeline_per_server <= NPIPELINE)
         if servers is not None:
             assert(len(servers) <= NSERVER)
             
+        # Save the beam
+        self.beam = beam
+        
         # Save the station so that we know where to point from
         self.station = station
         
@@ -96,22 +104,41 @@ class BeamPointingControl(object):
         
         return all(self._cal_set)
         
-    def set_beam1_dest(self, addr='10.41.0.25', port=20001):
+    def set_beam_dest(self, addr='10.41.0.25', port=20001):
         """
         Set the destination IP address and UDP port for the beam data.  Defaults
         to what is currently used by the "dr-beam-1" service on lxdlwagpu09.
         """
         
-        for p in self.pipelines:
-            with AllowedPipelineFailure(p):
-                p.beamform_output.set_destination([addr] + ['0.0.0.0']*15, [port])
-                
-    def set_beam1_vlbi_dest(self, addr='10.41.0.25', port=21001):
+        with _BEAM_DEST_LOCK:
+            for p in self.pipelines:
+                with AllowedPipelineFailure(p):
+                    # Get the current settings for the pipeline
+                    metadata = p.beamform.get_bifrost_status(user_only=True)
+                    addrs = json.loads(metadata['dest_ip'].replace("'", '"'))
+                    ports = json.loads(metadata['dest_port'])
+                    while len(addrs) < 16:
+                        addrs.extend(addrs)
+                    addrs = addrs[:16]
+                    while len(ports) < 16:
+                        ports.extend(ports)
+                    ports = ports[:16]
+                    # Update this beam
+                    addrs[self.beam-1] = addr
+                    ports[self.beam-1] = port
+                    # Send them out again
+                    p.beamform_output.set_destination(addrs, ports)
+                    
+    def set_beam_vlbi_dest(self, addr='10.41.0.25', port=21001):
         """
         Set the destination IP address and UDP port for the VLBI version of the
         beam data.  Defaults to 10.41.0.25, port 21001 (on lxdlwagpu09).
         """
         
+        # Validate that this is the correct beam
+        if self.beam != 1:
+            raise RuntimeError("The VLBI beam is controlled through beam 1")
+            
         for p in self.pipelines:
             with AllowedPipelineFailure(p):
                 p.beamform_vlbi_output.set_destination(addr, port)
@@ -128,7 +155,7 @@ class BeamPointingControl(object):
                 return i
         raise ValueError(f"Cannot associate {freq_to_find/1e6:.3f} MHz with any pipeline currently under control")
         
-    def set_beam1_calibration(self, caltable, verbose=True):
+    def set_beam_calibration(self, caltable, verbose=True):
         """
         Given a a CASA measurement set containing a bandpass calibration, load
         the bandpass calibration into the appropriate pipeline(s).
@@ -199,13 +226,13 @@ class BeamPointingControl(object):
                     cal *= (1-flg)
                     
                     with AllowedPipelineFailure(p):
-                        p.beamform.update_calibration_gains(pol, NPOL*j+pol, cal)
+                        p.beamform.update_calibration_gains(2*(self.beam-1)+pol, NPOL*j+pol, cal)
                         time.sleep(0.005)
                 pb += 1
             self._cal_set[i] = True
         pb.finish()
         
-    def set_beam1_gain(self, gain):
+    def set_beam_gain(self, gain):
         """
         Set the "gain" for beam 1 - this is a multiplicative scalar used during
         beamforming.
@@ -217,7 +244,7 @@ class BeamPointingControl(object):
         assert(gain >= 0)
         self._gain = float(gain)
         
-    def set_beam1_delays(self, delays, pol=0):
+    def set_beam_delays(self, delays, pol=0):
         """
         Set the beamformer delays to the specified values in ns for the given
         polarization.
@@ -235,11 +262,11 @@ class BeamPointingControl(object):
         pb.start(max_value=len(self.pipelines))
         for p in self.pipelines:
             with AllowedPipelineFailure(p):
-                p.beamform.update_delays(pol, delays, amps)
+                p.beamform.update_delays(2*(self.beam-1)+pol, delays, amps)
             pb += 1
         pb.finish()
         
-    def set_beam1_pointing(self, az, alt, degrees=True):
+    def set_beam_pointing(self, az, alt, degrees=True):
         """
         Given a topocentric pointing in azimuth and altitude (elevation), point
         the beam in that direction.  The `degrees` keyword determines if the
@@ -276,9 +303,9 @@ class BeamPointingControl(object):
         
         # Apply
         for pol in range(NPOL):
-            self.set_beam1_delays(delays, pol)
+            self.set_beam_delays(delays, pol)
             
-    def set_beam1_target(self, target_or_ra, dec=None, verbose=True):
+    def set_beam_target(self, target_or_ra, dec=None, verbose=True):
         """
         Given the name of an astronomical target, 'sun', or 'zenith', compute the
         current topocentric position of the body and point the beam at it.  If
@@ -326,7 +353,7 @@ class BeamPointingControl(object):
                 print(f"Currently at azimuth {aa.az}, altitude {aa.alt}")
                 
         # Point the beam
-        self.set_beam1_pointing(az, alt, degrees=True)
+        self.set_beam_pointing(az, alt, degrees=True)
 
 
 class BeamTracker(object):
@@ -404,7 +431,7 @@ class BeamTracker(object):
                     print(f"At {time.time():.1f}, moving to azimuth {aa.az}, altitude {aa.alt}")
                     
                 ## Point
-                self.control_instance.set_beam1_pointing(az, alt, degrees=True)
+                self.control_instance.set_beam_pointing(az, alt, degrees=True)
                 
                 ## Find how much time we used and when we should sleep until
                 t_used = time.time() - t_mark
@@ -421,14 +448,15 @@ class BeamTracker(object):
             pass
 
 
-def create_and_calibrate(servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders'):
+def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders'):
     """
     Wraper to create a new BeamPointingControl instance and load bandpass
     calibration data from a directory.
     """
     
     # Create the instance
-    control_instance = BeamPointingControl(servers=servers,
+    control_instance = BeamPointingControl(beam,
+                                           servers=servers,
                                            nserver=nserver,
                                            npipeline_per_server=npipeline_per_server,
                                            station=ovro)
@@ -441,11 +469,12 @@ def create_and_calibrate(servers=None, nserver=8, npipeline_per_server=4, cal_di
         
     # Load the calibration data, if found
     for calfile in calfiles:
-        control_instance.set_beam1_calibration(calfile)
+        control_instance.set_beam_calibration(calfile)
        
     # Start up the data flow
-    control_instance.set_beam1_dest()
-    control_instance.set_beam1_vlbi_dest()
-    
+    control_instance.set_beam_dest()
+    if control_instance.beam == 1:
+        control_instance.set_beam_vlbi_dest()
+        
     # Done
     return control_instance
