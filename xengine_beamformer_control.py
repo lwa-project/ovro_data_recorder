@@ -115,7 +115,7 @@ class BeamPointingControl(object):
             for p in self.pipelines:
                 with AllowedPipelineFailure(p):
                     # Get the current settings for the pipeline
-                    metadata = p.beamform.get_bifrost_status()
+                    metadata = p.beamform_output.get_bifrost_status()
                     addrs = json.loads(metadata['stats']['dest_ip'].replace("'", '"'))
                     ports = json.loads(metadata['stats']['dest_port'])
                     while len(addrs) < 16:
