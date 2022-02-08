@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 import time
 import numpy
 import warnings
@@ -114,9 +115,9 @@ class BeamPointingControl(object):
             for p in self.pipelines:
                 with AllowedPipelineFailure(p):
                     # Get the current settings for the pipeline
-                    metadata = p.beamform.get_bifrost_status(user_only=True)
-                    addrs = json.loads(metadata['dest_ip'].replace("'", '"'))
-                    ports = json.loads(metadata['dest_port'])
+                    metadata = p.beamform.get_bifrost_status()
+                    addrs = json.loads(metadata['stats']['dest_ip'].replace("'", '"'))
+                    ports = json.loads(metadata['stats']['dest_port'])
                     while len(addrs) < 16:
                         addrs.extend(addrs)
                     addrs = addrs[:16]
