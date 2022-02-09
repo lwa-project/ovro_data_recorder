@@ -97,6 +97,9 @@ class BeamPointingControl(object):
         # Make a variable to keep track of a "gain"
         self._gain = 1.0
         
+        # Initially set uniform antenna weighting for a natural beam shape
+        self.set_beam_weighting(lambda x: 1.0)
+        
     @property
     def cal_set(self):
         """
@@ -245,6 +248,17 @@ class BeamPointingControl(object):
         assert(gain >= 0)
         self._gain = float(gain)
         
+    def set_beam_weighting(self, fnc=lambda x: 1.0):
+        """
+        Set the beamformer antenna weighting using the provided function.  The
+        function should accept a single floating point input of an antenna's
+        distance from the array center (in meters) and return a weight between
+        0 and 1, inclusive.
+        """
+        
+        fnc2 = lambda x: numpy.clip(fnc(numpy.sqrt(x[0]**2 + x[1]**2)), 0, 1)
+        self._weighting = numpy.array([fnc2(ant) for ant in self.station.antennas])
+        
     def set_beam_delays(self, delays, pol=0):
         """
         Set the beamformer delays to the specified values in ns for the given
@@ -257,6 +271,7 @@ class BeamPointingControl(object):
         # Make up some dummy amplitudes
         amps = numpy.zeros(NSTAND*NPOL, dtype=numpy.float32)
         amps[pol::NPOL] = self._gain
+        amps *= self._weighting
         
         # Set the delays and amplitudes
         pb = progressbar.ProgressBar(redirect_stdout=True)
