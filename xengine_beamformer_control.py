@@ -257,7 +257,8 @@ class BeamPointingControl(object):
         """
         
         fnc2 = lambda x: numpy.clip(fnc(numpy.sqrt(x[0]**2 + x[1]**2)), 0, 1)
-        self._weighting = numpy.array([fnc2(ant) for ant in self.station.antennas])
+        self._weighting = numpy.array([fnc2(ant.enz) for ant in self.station.antennas])
+        self._weighting = numpy.repeat(self._weighting, 2)
         
     def set_beam_delays(self, delays, pol=0):
         """
