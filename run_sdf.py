@@ -237,31 +237,22 @@ def main(args):
         if not status[0]:
             logger.error("Record command failed: %s", str(status[1]))
             
-    ## Get the recorder pipeline lag
-    try:
-        ### TODO:  Remove this lag correction once there is a way to schedule
-        ###        a beam pointing update
-        lag = dr.read_monitor_point('bifrost/pipeline_lag', f"dr{obs[0]['beam']}")
-        lag = TimeDelta(lag.value, format='sec')
-        logger.info(f"Setting pipeline lag correction to {lag.sec:.3f} s")
-    except Exception:
-        logger.warn("Failed to find pipeline lag, setting to zero")
-        lag = TimeDelta(0.0, format='sec')
-        
     # Beamforming/tracking
     ## Wait for the right time
     logger.info("Waiting for the start of the first observation...")
-    while LWATime.now() < start + lag:
+    while LWATime.now() < start + TimeDelta(2, format='sec'):
         time.sleep(0.01)
         
     ## Iterate through the observations
     for i,o in enumerate(obs):
+        obs_start = start = LWATime(o['mjd'], o['mpm']/1000/86400, format='mjd', scale='utc')
+        obs_start = obs_date.unix
         name = o['ra']
         if o['dec'] is not None:
             name = f"{o['ra']} hr, {o['dec']} deg"
         logger.info(f"Tracking pointing #{i+1} ('{name}') for {o['dur']/1000.0:.3f} s")
         if bt is not None and not args.dry_run:
-            bt.track(o['ra'], dec=o['dec'], duration=o['dur']/1000.0)
+            bt.track(o['ra'], dec=o['dec'], duration=o['dur']/1000.0, start_time=obs_start)
             
     # Close it out
     logger.info("Finished with the observations, waiting for the recording to finish...")
