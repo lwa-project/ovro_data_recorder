@@ -6,6 +6,7 @@ import numpy
 import warnings
 import progressbar
 from threading import RLock
+from concurrent.futures import ThreadPoolExecutor, wait as thread_pool_wait
 
 from lwa352_pipeline_control import Lwa352PipelineControl
 from casacore import tables
@@ -47,6 +48,34 @@ class AllowedPipelineFailure(object):
         if exc_type:
             warnings.warn(f"Failed to command {self.pipeline.host} (pipeline {self.pipeline.pipeline_id})")
         return True
+
+
+class PipelineTaskPool(list):
+    def __init__(self, objects=[]):
+        list.__init__(self, objects)
+        
+    def __getattr__(self, item):
+        with ThreadPoolExecutor(8) as pool:
+            results = {}
+            for i,obj in enumerate(self):
+                results[pool.submit(lambda x: getattr(x, item), obj)] = i
+        output = PipelineTaskPool([None,]*len(self))
+        for result in thread_pool_wait(results).done:
+            i = results[result]
+            output[i] = result.result()
+        return output
+        
+    def __call__(self, *args, **kwds):
+        with ThreadPoolExecutor(8) as pool:
+            results = {}
+            for i,obj in enumerate(self):
+                results[pool.submit(lambda x: x.__call__(*args, **kwds), obj)] = i
+        output = [None,]*len(self)
+        for result in thread_pool_wait(results).done:
+            i = results[result]
+            with AllowedPipelineFailure(self.[i]):
+                output[i] = result.result()
+        return output
 
 
 _BEAM_DEST_LOCK = RLock()
@@ -260,7 +289,7 @@ class BeamPointingControl(object):
         self._weighting = numpy.array([fnc2(ant.enz) for ant in self.station.antennas])
         self._weighting = numpy.repeat(self._weighting, 2)
         
-    def set_beam_delays(self, delays, pol=0):
+    def set_beam_delays(self, delays, pol=0, load_time=None):
         """
         Set the beamformer delays to the specified values in ns for the given
         polarization.
@@ -275,15 +304,10 @@ class BeamPointingControl(object):
         amps *= self._weighting
         
         # Set the delays and amplitudes
-        pb = progressbar.ProgressBar(redirect_stdout=True)
-        pb.start(max_value=len(self.pipelines))
-        for p in self.pipelines:
-            with AllowedPipelineFailure(p):
-                p.beamform.update_delays(2*(self.beam-1)+pol, delays, amps)
-            pb += 1
-        pb.finish()
+        ptp = PipelineTaskPool(self.pipelines)
+        ptp.beamform.update_delays(2*(self.beam-1)+pol, delays, amps, load_time=load_time, time_unit='time')
         
-    def set_beam_pointing(self, az, alt, degrees=True):
+    def set_beam_pointing(self, az, alt, degrees=True, load_time=None):
         """
         Given a topocentric pointing in azimuth and altitude (elevation), point
         the beam in that direction.  The `degrees` keyword determines if the
@@ -320,9 +344,9 @@ class BeamPointingControl(object):
         
         # Apply
         for pol in range(NPOL):
-            self.set_beam_delays(delays, pol)
+            self.set_beam_delays(delays, pol, load_time=load_time)
             
-    def set_beam_target(self, target_or_ra, dec=None, verbose=True):
+    def set_beam_target(self, target_or_ra, dec=None, load_time=None, verbose=True):
         """
         Given the name of an astronomical target, 'sun', or 'zenith', compute the
         current topocentric position of the body and point the beam at it.  If
@@ -370,7 +394,7 @@ class BeamPointingControl(object):
                 print(f"Currently at azimuth {aa.az}, altitude {aa.alt}")
                 
         # Point the beam
-        self.set_beam_pointing(az, alt, degrees=True)
+        self.set_beam_pointing(az, alt, degrees=True, load_time=load_time)
 
 
 class BeamTracker(object):
@@ -383,7 +407,7 @@ class BeamTracker(object):
         self.control_instance = control_instance
         self.update_interval = update_interval
         
-    def track(self, target_or_ra, dec=None, duration=0, verbose=True):
+    def track(self, target_or_ra, dec=None, duration=0, start_time=None, verbose=True):
         """
         Given a target name and a tracking duration in seconds, start tracking
         the source.  If the 'dec' keyword is not None, the target is intepreted
@@ -430,7 +454,9 @@ class BeamTracker(object):
         puto = TimeDelta(min([duration, self.update_interval])/2.0, format='sec')
         
         # Set the tracking stop time    
-        t_stop = time.time() + duration
+        if start_time is None:
+            start_time = time.time()
+        t_stop = start_time + duration
         
         try:
             # Go!
@@ -448,7 +474,7 @@ class BeamTracker(object):
                     print(f"At {time.time():.1f}, moving to azimuth {aa.az}, altitude {aa.alt}")
                     
                 ## Point
-                self.control_instance.set_beam_pointing(az, alt, degrees=True)
+                self.control_instance.set_beam_pointing(az, alt, degrees=True, load_time=t_mark+2)
                 
                 ## Find how much time we used and when we should sleep until
                 t_used = time.time() - t_mark
