@@ -275,14 +275,6 @@ class SpectraOp(object):
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=tt.unix)
                     
-                    if True:
-                        ## Save again, this time to disk
-                        mjd, dt = tt.mjd, tt.datetime
-                        mjd = int(mjd)
-                        h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
-                        mp.to_file(filename)
-                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))

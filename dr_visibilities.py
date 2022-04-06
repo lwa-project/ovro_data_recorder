@@ -341,24 +341,6 @@ class SpectraOp(object):
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=ts)
                     
-                    if True:
-                        ## Save again, this time to disk
-                        mjd, dt = tt.mjd, tt.datetime
-                        mjd = int(mjd)
-                        h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i_spectra.png' % (mjd, h, m, s)
-                        mp.to_file(filename)
-                        
-                        ### Save the raw spectra for comparison purposes
-                        #filename = '%06i_%02i%02i%02i_spectra.npy' % (mjd, h, m, s)
-                        #numpy.save(filename, adata)
-                        #
-                        ### Save everything for comparison purposes
-                        #odata = idata.view(numpy.int32)
-                        #odata = odata.reshape(ishape+(2,))
-                        #filename = '%06i_%02i%02i%02i_everything.npy' % (mjd, h, m, s)
-                        #numpy.save(filename, odata)
-                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp
@@ -515,14 +497,6 @@ class BaselineOp(object):
                     self.client.write_monitor_point('diagnostics/baselines',
                                                     mp, timestamp=ts)
                     
-                    if True:
-                        ## Save again, this time to disk
-                        mjd, dt = tt.mjd, tt.datetime
-                        mjd = int(mjd)
-                        h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i_baselines.png' % (mjd, h, m, s)
-                        mp.to_file(filename)
-                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp
