@@ -73,7 +73,7 @@ class PipelineTaskPool(list):
         output = [None,]*len(self)
         for result in thread_pool_wait(results).done:
             i = results[result]
-            with AllowedPipelineFailure(self[i]):
+            with AllowedPipelineFailure(self[i].__self__):
                 output[i] = result.result()
         return output
 
