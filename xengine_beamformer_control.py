@@ -6,6 +6,7 @@ import numpy
 import warnings
 import progressbar
 from threading import RLock
+from textwrap import fill as tw_fill
 from concurrent.futures import ThreadPoolExecutor, wait as thread_pool_wait
 
 from lwa352_pipeline_control import Lwa352PipelineControl
@@ -31,6 +32,17 @@ NSERVER = NPIPELINE // NPIPELINE_SERVER
 
 NSTAND = 352
 NPOL = 2
+
+
+def _build_repr(name, attrs=[]):
+    name = '.'.join(name.split('.')[-2:])
+    output = "<%s" % name
+    first = True
+    for key,value in attrs:
+        output += "%s %s=%s" % (('' if first else ','), key, value)
+        first = False
+    output += ">"
+    return output
 
 
 class AllowedPipelineFailure(object):
@@ -128,6 +140,11 @@ class BeamPointingControl(object):
         
         # Initially set uniform antenna weighting for a natural beam shape
         self.set_beam_weighting(lambda x: 1.0)
+        
+    def __repr__(self):
+        n = self.__class__.__module__+'.'+self.__class__.__name__
+        a = [(attr,getattr(self, attr, None)) for attr in ('beam',)]
+        return tw_fill(_build_repr(n,a), subsequent_indent='    ')
         
     @property
     def cal_set(self):
@@ -410,8 +427,15 @@ class BeamTracker(object):
     """
     
     def __init__(self, control_instance, update_interval=30):
+        if not isinstance(control_instance, BeamPointingControl):
+            raise ValueError("Expected control_instance to be of type BeamPointingControl")
         self.control_instance = control_instance
         self.update_interval = update_interval
+        
+    def __repr__(self):
+        n = self.__class__.__module__+'.'+self.__class__.__name__
+        a = [(attr,getattr(self, attr, None)) for attr in ('control_instance', 'update_interval')]
+        return tw_fill(_build_repr(n,a), subsequent_indent='    ')
         
     def track(self, target_or_ra, dec=None, duration=0, start_time=None, verbose=True):
         """
