@@ -236,6 +236,7 @@ class SpectraOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             
+            nchan_pipeline = nchan // NPIPELINE
             frange = (numpy.arange(nchan) + chan0) * CHAN_BW
             last_save = 0.0
             
@@ -263,6 +264,13 @@ class SpectraOp(object):
                     ax.cla()
                     ax.plot(frange/1e6, numpy.log10(sdata[0,:,0])*10, color='#1F77B4')
                     ax.plot(frange/1e6, numpy.log10(sdata[0,:,1])*10, color='#FF7F0E')
+                    ylim = ax.get_ylim()
+                    for b in range(1, NPIPELINE):
+                        linestyle = ':'
+                        if b % 4 == 0:
+                            linestyle = '--'
+                        ax.vlines(frange[b*nchan_pipeline]/1e6, *ylim, linestyle=linestyle, color='black', alpha=0.2)
+                    ax.set_ylim(ylim)
                     ax.set_xlim((frange[0]/1e6,frange[-1]/1e6))
                     ax.set_xlabel('Frequency [MHz]')
                     ax.set_ylabel('Power [arb. dB]')
