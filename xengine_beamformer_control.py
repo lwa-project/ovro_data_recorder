@@ -162,7 +162,7 @@ class BeamPointingControl(object):
                     # Send them out again
                     p.beamform_output.set_destination(addrs, ports)
                     
-    def set_beam_vlbi_dest(self, addr='10.41.0.25', port=21001):
+    def set_beam_vlbi_dest(self, addr='10.41.0.41', port=21001):
         """
         Set the destination IP address and UDP port for the VLBI version of the
         beam data.  Defaults to 10.41.0.25, port 21001 (on lxdlwagpu09).
