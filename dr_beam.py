@@ -389,9 +389,10 @@ class StatisticsOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+    def __init__(self, log, iring, beam=1, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
+        self.beam       = beam
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
@@ -462,7 +463,7 @@ class WriterOp(object):
                     ### Recording active - write
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
+                        QUEUE.active.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
                 elif was_active:
@@ -576,7 +577,7 @@ def main(argv):
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+                        beam=args.beam, ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota))
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
