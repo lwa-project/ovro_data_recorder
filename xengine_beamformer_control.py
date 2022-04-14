@@ -546,8 +546,8 @@ def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, 
        
     # Start up the data flow
     control_instance.set_beam_dest()
-    if control_instance.beam == 1:
-        control_instance.set_beam_vlbi_dest()
+    #if control_instance.beam == 1:
+    #    control_instance.set_beam_vlbi_dest()
         
     # Done
     return control_instance
