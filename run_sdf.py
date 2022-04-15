@@ -125,9 +125,6 @@ def parse_sdf(filename):
                     temp['steps'][i]['dur'] = dur
             elif line.startswith('SESSION_DRX_BEAM'):
                 beam = int(line.rsplit(None, 1)[1], 10)
-                if beam != 1:
-                    beam = 1
-                    logger.warn(f"Beam {beam} requested but observation will run on beam 1")
             elif line.startswith('SESSION_SPC'):
                 _, nchan, nwin = line.rsplit(None, 2)
                 nchan = int(nchan, 10)
