@@ -852,21 +852,6 @@ def main(argv):
         #thread.daemon = True
         thread.start()
         
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    c = Client()
-    r = c.send_command(mcs_id, 'start',
-                       start_mjd=mjd_now, start_mpm=mpm_now)
-    print('III', r)
-    
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=75), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    r = c.send_command(mcs_id, 'stop',
-                       stop_mjd=mjd_now, stop_mpm=mpm_now)
-    print('III', r)
-    
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")
