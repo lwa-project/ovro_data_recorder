@@ -31,48 +31,48 @@ beams = { 1: ('10.41.0.25', 20001, rdir+'01', quota),
 rdir = '/home/ubuntu/data/slow'
 quota = 0
 vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB'),
-          2: ('10.41.0.41', 10001, rdir, quota),
+          2: ('10.41.0.73', 10001, rdir, quota),
           3: ('10.41.0.25', 10002, rdir, quota),
-          4: ('10.41.0.41', 10002, rdir, quota),
+          4: ('10.41.0.73', 10002, rdir, quota),
           5: ('10.41.0.25', 10003, rdir, quota),
-          6: ('10.41.0.41', 10003, rdir, quota),
+          6: ('10.41.0.73', 10003, rdir, quota),
           7: ('10.41.0.25', 10004, rdir, quota),
-          8: ('10.41.0.41', 10004, rdir, quota),
+          8: ('10.41.0.73', 10004, rdir, quota),
           9: ('10.41.0.25', 10005, rdir, quota),
-         10: ('10.41.0.41', 10005, rdir, quota),
+         10: ('10.41.0.73', 10005, rdir, quota),
          11: ('10.41.0.25', 10006, rdir, quota),
-         12: ('10.41.0.41', 10006, rdir, quota),
+         12: ('10.41.0.73', 10006, rdir, quota),
          13: ('10.41.0.25', 10007, rdir, quota),
-         14: ('10.41.0.41', 10007, rdir, quota),
+         14: ('10.41.0.73', 10007, rdir, quota),
          15: ('10.41.0.25', 10008, rdir, quota),
-         16: ('10.41.0.41', 10008, rdir, quota),
+         16: ('10.41.0.73', 10008, rdir, quota),
         }
 
 ## Fast visibilities setup
 rdir = '/home/ubuntu/data/fast'
 quota = 0
 vfast = { 1: ('10.41.0.25', 11001, rdir, '250GB'),
-          2: ('10.41.0.41', 11001, rdir, quota),
+          2: ('10.41.0.73', 11001, rdir, quota),
           3: ('10.41.0.25', 11002, rdir, quota),
-          4: ('10.41.0.41', 11002, rdir, quota),
+          4: ('10.41.0.73', 11002, rdir, quota),
           5: ('10.41.0.25', 11003, rdir, quota),
-          6: ('10.41.0.41', 11003, rdir, quota),
+          6: ('10.41.0.73', 11003, rdir, quota),
           7: ('10.41.0.25', 11004, rdir, quota),
-          8: ('10.41.0.41', 11004, rdir, quota),
+          8: ('10.41.0.73', 11004, rdir, quota),
           9: ('10.41.0.25', 11005, rdir, quota),
-         10: ('10.41.0.41', 11005, rdir, quota),
+         10: ('10.41.0.73', 11005, rdir, quota),
          11: ('10.41.0.25', 11006, rdir, quota),
-         12: ('10.41.0.41', 11006, rdir, quota),
+         12: ('10.41.0.73', 11006, rdir, quota),
          13: ('10.41.0.25', 11007, rdir, quota),
-         14: ('10.41.0.41', 11007, rdir, quota),
+         14: ('10.41.0.73', 11007, rdir, quota),
          15: ('10.41.0.25', 11008, rdir, quota),
-         16: ('10.41.0.41', 11008, rdir, quota),
+         16: ('10.41.0.73', 11008, rdir, quota),
         }
 
 ## T-engine setup
 rdir = '/home/ubuntu/data/tengine'
 quota = 0
-tengines = {1: ('10.41.0.41', 21001, rdir, quota),
+tengines = {1: ('10.41.0.73', 21001, rdir, quota),
            }
 
 def main(args):
