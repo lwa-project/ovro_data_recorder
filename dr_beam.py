@@ -6,8 +6,6 @@ try:
 except NameError:
     pass
 
-from __future__ import print_function, division
-
 import os
 import sys
 import h5py
