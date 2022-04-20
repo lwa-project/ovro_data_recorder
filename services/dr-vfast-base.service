@@ -20,8 +20,7 @@ StandardError=syslog
 SyslogIdentifier=dr-vfast-{{ band }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log \
-                           && {{ path }}/update_casa_data.sh'
+ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
