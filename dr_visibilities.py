@@ -20,10 +20,11 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
+from lwa_antpos.station import ovro
+
 from mnc.common import *
 from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
-from station import ovro
 from reductions import *
 from operations import FileOperationsQueue
 from monitoring import GlobalLogger
