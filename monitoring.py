@@ -9,7 +9,7 @@ from collections import deque
 
 from bifrost.proclog import load_by_pid
 
-from mcs import MonitorPoint, Client
+from mnc.mcs import MonitorPoint, Client
 
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
@@ -21,13 +21,14 @@ class PerformanceLogger(object):
     as the RX rate and missing packet fraction.
     """
     
-    def __init__(self, log, id, queue=None, shutdown_event=None):
+    def __init__(self, log, id, queue=None, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
+        self.update_interval = update_interval
         
         self.client = Client(id)
         
@@ -134,7 +135,7 @@ class PerformanceLogger(object):
             # Sleep
             if once:
                 break
-            time.sleep(10)
+            time.sleep(self.update_interval)
 
 
 class StorageLogger(object):
@@ -143,7 +144,7 @@ class StorageLogger(object):
     a directory quota, if needed.
     """
     
-    def __init__(self, log, id, directory, quota=None, shutdown_event=None):
+    def __init__(self, log, id, directory, quota=None, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.directory = directory
@@ -153,6 +154,7 @@ class StorageLogger(object):
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
+        self.update_interval = update_interval
         
         self.client = Client(id)
         
@@ -240,7 +242,7 @@ class StorageLogger(object):
             # Sleep
             if once:
                 break
-            time.sleep(10)
+            time.sleep(self.update_interval)
 
 
 class StatusLogger(object):
@@ -250,13 +252,14 @@ class StatusLogger(object):
     an overall state of the pipeline.
     """
     
-    def __init__(self, log, id, queue, shutdown_event=None):
+    def __init__(self, log, id, queue, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
+        self.update_interval = update_interval
         
         self.client = Client(id)
         
@@ -321,7 +324,7 @@ class StatusLogger(object):
             # Sleep
             if once:
                 break
-            time.sleep(10)
+            time.sleep(self.update_interval)
 
     
 class GlobalLogger(object):
@@ -330,19 +333,30 @@ class GlobalLogger(object):
     and :py:class:`StatusLogger` and runs their main methods as a unit.
     """
     
-    def __init__(self, log, id, args, queue, quota=None, shutdown_event=None):
+    def __init__(self, log, id, args, queue, quota=None, shutdown_event=None,
+                 update_interval_perf=10, update_interval_storage=60,
+                 update_interval_status=20):
         self.log = log
         self.args = args
         self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
+        self.update_interval_perf = update_interval_perf
+        self.update_interval_storage = update_interval_storage
+        self.update_interval_status = update_interval_status
+        self.update_internal = min([self.update_interval_perf,
+                                    self.update_interval_storage,
+                                    self.update_interval_status])
         
         self.id = id
-        self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event)
+        self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
+                                      update_interval=self.update_interval_perf)
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
-                                     shutdown_event=shutdown_event)
-        self.status = StatusLogger(log, id, queue, shutdown_event=shutdown_event)
+                                     shutdown_event=shutdown_event,
+                                     update_interval=self.update_interval_storage)
+        self.status = StatusLogger(log, id, queue, shutdown_event=shutdown_event,
+                                   update_interval=self.update_interval_status)
         
     @property
     def shutdown_event(self):
@@ -369,15 +383,15 @@ class GlobalLogger(object):
         while not self.shutdown_event.is_set():
             # Poll
             t_now = time.time()
-            if t_now - t_perf > 10.0:
+            if t_now - t_perf > self.update_interval_perf:
                 self.perf.main(once=True)
                 t_perf = t_now
-            if t_now - t_storage > 60.0:
+            if t_now - t_storage > self.update_interval_storage:
                 self.storage.main(once=True)
                 t_storage = t_now
-            if t_now - t_status > 10.0:
+            if t_now - t_status > self.update_interval_status:
                 self.status.main(once=True)
                 t_status = t_now
                 
             # Sleep
-            time.sleep(10)
+            time.sleep(self.update_internal)

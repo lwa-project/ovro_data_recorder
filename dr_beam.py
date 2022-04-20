@@ -22,12 +22,13 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
-from common import *
+from mnc.common import *
+from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
+
 from reductions import *
 from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import PowerBeamCommandProcessor
-from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -237,6 +238,7 @@ class SpectraOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             
+            nchan_pipeline = nchan // NPIPELINE
             frange = (numpy.arange(nchan) + chan0) * CHAN_BW
             last_save = 0.0
             
@@ -264,6 +266,13 @@ class SpectraOp(object):
                     ax.cla()
                     ax.plot(frange/1e6, numpy.log10(sdata[0,:,0])*10, color='#1F77B4')
                     ax.plot(frange/1e6, numpy.log10(sdata[0,:,1])*10, color='#FF7F0E')
+                    ylim = ax.get_ylim()
+                    for b in range(1, NPIPELINE):
+                        linestyle = ':'
+                        if b % 4 == 0:
+                            linestyle = '--'
+                        ax.vlines(frange[b*nchan_pipeline]/1e6, *ylim, linestyle=linestyle, color='black', alpha=0.2)
+                    ax.set_ylim(ylim)
                     ax.set_xlim((frange[0]/1e6,frange[-1]/1e6))
                     ax.set_xlabel('Frequency [MHz]')
                     ax.set_ylabel('Power [arb. dB]')
@@ -276,14 +285,6 @@ class SpectraOp(object):
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=tt.unix)
                     
-                    if True:
-                        ## Save again, this time to disk
-                        mjd, dt = tt.mjd, tt.datetime
-                        mjd = int(mjd)
-                        h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i.png' % (mjd, h, m, s)
-                        mp.to_file(filename)
-                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
@@ -390,9 +391,10 @@ class StatisticsOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None):
+    def __init__(self, log, iring, beam=1, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
+        self.beam       = beam
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
@@ -463,7 +465,7 @@ class WriterOp(object):
                     ### Recording active - write
                     if not QUEUE.active.is_started:
                         self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(1, chan0, navg, nchan, chan_bw, npol, pols)
+                        QUEUE.active.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     QUEUE.active.write(time_tag, idata)
                 elif was_active:
@@ -577,7 +579,7 @@ def main(argv):
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
-                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+                        beam=args.beam, ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota))
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
@@ -596,15 +598,6 @@ def main(argv):
         #thread.daemon = True
         thread.start()
         
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    c = Client()
-    r = c.send_command(mcs_id, 'record',
-                       start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000,
-                       time_avg=250)
-    print('III', r)
-    
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")

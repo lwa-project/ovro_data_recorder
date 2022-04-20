@@ -4,10 +4,13 @@ import shutil
 import threading
 from datetime import datetime, timedelta
 
-from common import LWATime, synchronize_time
+from astropy.time import TimeDelta
+
+from mnc.common import LWATime, synchronize_time
+from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
+
 from reductions import *
 from filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
-from mcs import MonitorPoint, CommandCallbackBase, Client
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
            'VoltageBeamCommandProcessor']
@@ -176,13 +179,14 @@ class HDF5Record(CommandBase):
     def action(self, sequence_id, start_mjd, start_mpm, duration_ms, stokes_mode=None, time_avg=1, chan_avg=1):
         try:
             if start_mjd == "now":
-                start = LWATime.now()
+                start = LWATime.now() + TimeDelta(15, format='sec')
                 start_mjd = int(start.mjd)
                 start = start.datetime
-                start = start + timedelta(seconds=15)
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            filename = os.path.join(self.directory, '%06i_%32s' % (start_mjd, sequence_id))
+            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
+                                                                      start.strftime('%H%M%S%f'),
+                                                                      sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -230,8 +234,8 @@ class MSStart(CommandBase):
         try:
             filename = os.path.join(self.directory, '')
             if start_mjd == "now":
-                start = LWATime.now().datetime
-                start = start + timedelta(seconds=15)
+                start = LWATime.now() + TimeDelta(15, format='sec')
+                start = start.datetime
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(days=365)
@@ -267,13 +271,14 @@ class RawRecord(CommandBase):
     def action(self, sequence_id, beam, start_mjd, start_mpm, duration_ms):
         try:
             if start_mjd == "now":
-                start = LWATime.now()
+                start = LWATime.now() + TimeDelta(15, format='sec')
                 start_mjd = int(start.mjd)
                 start = start.datetime
-                start = start + timedelta(seconds=15)
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            filename = os.path.join(self.directory, '%06i_%09i' % (start_mjd, id))
+            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
+                                                                      start.strftime('%H%M%S%f'),
+                                                                      sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -344,8 +349,8 @@ class MSStop(CommandBase):
     def action(self, sequence_id, stop_mjd, stop_mpm):
         try:
             if stop_mjd == "now":
-                stop = LWATime.now().datetime
-                stop = stop + timedelta(seconds=15)
+                stop = LWATime.now() + TimeDelta(15, format='sec')
+                stop = stop.datetime
             else:
                 stop = LWATime(stop_mjd, stop_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
         except (TypeError, ValueError) as e:

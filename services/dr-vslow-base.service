@@ -27,11 +27,13 @@ ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log 
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-python {{ path }}/dr_visibilities.py \
+source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
+         --cores                  {{ cores }} \
          --record-directory       {{ directory }} \
-         --record-directory-quota {{ quota }}
+         --record-directory-quota {{ quota }} \
          --logfile                /home/ubuntu/log/dr-vslow-{{ band }}.%H.log'
 
 [Install]

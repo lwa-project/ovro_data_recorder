@@ -26,7 +26,8 @@ ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-python {{ path }}/dr_dual_tengine.py \
+source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_dual_tengine.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --record-directory       {{ directory }} \

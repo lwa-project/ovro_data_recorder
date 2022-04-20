@@ -20,11 +20,12 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
-from common import *
+from mnc.common import *
+from mnc.mcs import MultiMonitorPoint, Client
+
 from operations import FileOperationsQueue, DrxOperationsQueue
 from monitoring import GlobalLogger
 from control import VoltageBeamCommandProcessor
-from mcs import MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -89,12 +90,14 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
+        time_tag = seq0*2*NCHAN     # Seems to be needed now
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
                'cfreq0':   chan0*CHAN_BW,
+               'nchan':    nchan,
                'bw':       nchan*CHAN_BW,
                'nbeam':    nbeam,
                'npol':     2,
@@ -1208,9 +1211,9 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     c = Client()
-    r0 = c.send_command(mcs_id_0, 'record',
+    r0 = c.send_command(mcs_id_0, 'record', beam=args.beam,
                         start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
-    r1 = c.send_command(mcs_id_1, 'record',
+    r1 = c.send_command(mcs_id_1, 'record', beam=args.beam+1,
                         start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r0, '&', r1)
     """

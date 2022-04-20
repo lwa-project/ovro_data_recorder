@@ -22,13 +22,14 @@ from datetime import datetime, timedelta
 
 from lwa_antpos.station import ovro
 
-from common import *
+from mnc.common import *
+from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
+
 from reductions import *
 from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
-from mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -341,24 +342,6 @@ class SpectraOp(object):
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=ts)
                     
-                    if True:
-                        ## Save again, this time to disk
-                        mjd, dt = tt.mjd, tt.datetime
-                        mjd = int(mjd)
-                        h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i_spectra.png' % (mjd, h, m, s)
-                        mp.to_file(filename)
-                        
-                        ## Save the raw spectra for comparison purposes
-                        filename = '%06i_%02i%02i%02i_spectra.npy' % (mjd, h, m, s)
-                        numpy.save(filename, adata)
-                        
-                        ## Save everything for comparison purposes
-                        odata = idata.view(numpy.int32)
-                        odata = odata.reshape(ishape+(2,))
-                        filename = '%06i_%02i%02i%02i_everything.npy' % (mjd, h, m, s)
-                        numpy.save(filename, odata)
-                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp
@@ -515,14 +498,6 @@ class BaselineOp(object):
                     self.client.write_monitor_point('diagnostics/baselines',
                                                     mp, timestamp=ts)
                     
-                    if True:
-                        ## Save again, this time to disk
-                        mjd, dt = tt.mjd, tt.datetime
-                        mjd = int(mjd)
-                        h, m, s = dt.hour, dt.minute, dt.second
-                        filename = '%06i_%02i%02i%02i_baselines.png' % (mjd, h, m, s)
-                        mp.to_file(filename)
-                        
                     last_save = time.time()
                     
                 time_tag += navg * self.ntime_gulp
@@ -681,7 +656,9 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size*(10 if self.fast else 1))
+            self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
+            
+            norm_factor = navg // (2*NCHAN)
             
             first_gulp = True
             was_active = False
@@ -706,6 +683,7 @@ class WriterOp(object):
                 idata = idata.view(numpy.int32)
                 idata = idata.reshape(ishape+(2,))
                 idata = idata[...,0] + 1j*idata[...,1]
+                idata /= norm_factor
                 idata = idata.astype(numpy.complex64)
                 
                 ## Determine what to do
@@ -750,7 +728,7 @@ def main(argv):
                         help='UDP port to receive data on')
     parser.add_argument('-o', '--offline', action='store_true',
                         help='run in offline using the specified file to read from')
-    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4',
+    parser.add_argument('-c', '--cores', type=str, default='0,1,2,3,4,5',
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1,
                         help='gulp size for ring buffers')
@@ -805,7 +783,9 @@ def main(argv):
         mcs_id += 'f'
     else:
         mcs_id += 's'
-    mcs_id += args.address.split('.')[-1]
+    base_ip = int(args.address.split('.')[-1], 10)
+    base_port = args.port % 100
+    mcs_id += str(base_ip*100 + base_port)
     
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
@@ -820,7 +800,6 @@ def main(argv):
         
     # Setup the rings
     capture_ring = Ring(name="capture")
-    write_ring   = Ring(name="write")
     
     # Setup antennas
     nant = len(station.antennas)
@@ -839,12 +818,12 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,
-                           ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
-                            core=cores.pop(0)))
+                           ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                           fast=args.quick, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
-                             ntime_gulp=args.gulp_size, slot_ntime=6, fast=args.quick,
-                             core=cores.pop(0)))
+                             ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                             fast=args.quick, core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
@@ -874,21 +853,6 @@ def main(argv):
         #thread.daemon = True
         thread.start()
         
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    c = Client()
-    r = c.send_command(mcs_id, 'start',
-                       start_mjd=mjd_now, start_mpm=mpm_now)
-    print('III', r)
-    
-    t_now = LWATime(datetime.utcnow() + timedelta(seconds=75), format='datetime', scale='utc')
-    mjd_now = int(t_now.mjd)
-    mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
-    r = c.send_command(mcs_id, 'stop',
-                       stop_mjd=mjd_now, stop_mpm=mpm_now)
-    print('III', r)
-    
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")

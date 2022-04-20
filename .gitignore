@@ -11,11 +11,16 @@ etcd.cfg
 *.npy
 *.png
 
+# Downloaded Python scripts
+utils/_data.etag
+utils/_data.py
+
 # Help files
 docs/source/*.help
 
 # Generated service files
 services/dr-beam-[0-9]*.service
+services/dr-tengine.service
 services/dr-vslow-[0-9]*.service
 services/dr-vfast-[0-9]*.service
 services/dr-manager-vslow.service

@@ -13,70 +13,72 @@ path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ## Power beam setup
 rdir = '/home/ubuntu/data/beam'
 quota = 0
-beams = { 1: ('enp216s0', 10000, rdir+'01', quota),
-          2: ('enp216s0', 10001, rdir+'02', quota),
-          3: ('enp216s0', 10002, rdir+'03', quota),
-          4: ('enp216s0', 10003, rdir+'04', quota),
-          5: ('enp216s0', 10004, rdir+'05', quota),
-          6: ('enp216s0', 10005, rdir+'06', quota),
-          7: ('enp216s0', 10006, rdir+'07', quota),
-          8: ('enp216s0', 10007, rdir+'08', quota),
-          9: ('enp216s0', 10008, rdir+'09', quota),
-         10: ('enp216s0', 10009, rdir+'10', quota),
-         11: ('enp216s0', 10010, rdir+'11', quota),
-         12: ('enp216s0', 10011, rdir+'12', quota),
+beams = { 1: ('10.41.0.25', 20001, rdir+'01', quota),
+          2: ('10.41.0.25', 20002, rdir+'02', quota),
+          3: ('10.41.0.25', 20003, rdir+'03', quota),
+          4: ('10.41.0.25', 20004, rdir+'04', quota),
+          5: ('10.41.0.25', 20005, rdir+'05', quota),
+          6: ('10.41.0.25', 20006, rdir+'06', quota),
+          7: ('10.41.0.25', 20007, rdir+'07', quota),
+          8: ('10.41.0.25', 20008, rdir+'08', quota),
+          9: ('10.41.0.25', 20009, rdir+'09', quota),
+         10: ('10.41.0.25', 20010, rdir+'10', quota),
+         11: ('10.41.0.25', 20011, rdir+'11', quota),
+         12: ('10.41.0.25', 20012, rdir+'12', quota),
         }
 
 ## Slow visibilities setup
 rdir = '/home/ubuntu/data/slow'
 quota = 0
-vslow = { 1: ('10.41.0.17', 10000, rdir, quota),
-          2: ('10.41.0.18', 10000, rdir, quota),
-          3: ('10.41.0.19', 10000, rdir, quota),
-          4: ('10.41.0.20', 10000, rdir, quota),
-          5: ('10.41.0.21', 10000, rdir, quota),
-          6: ('10.41.0.22', 10000, rdir, quota),
-          7: ('10.41.0.23', 10000, rdir, quota),
-          8: ('10.41.0.24', 10000, rdir, quota),
-          9: ('10.41.0.33', 10000, rdir, quota),
-         10: ('10.41.0.34', 10000, rdir, quota),
-         11: ('10.41.0.35', 10000, rdir, quota),
-         12: ('10.41.0.36', 10000, rdir, quota),
-         13: ('10.41.0.37', 10000, rdir, quota),
-         14: ('10.41.0.38', 10000, rdir, quota),
-         15: ('10.41.0.39', 10000, rdir, quota),
-         16: ('10.41.0.40', 10000, rdir, quota),
+vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB'),
+          2: ('10.41.0.73', 10001, rdir, quota),
+          3: ('10.41.0.25', 10002, rdir, quota),
+          4: ('10.41.0.73', 10002, rdir, quota),
+          5: ('10.41.0.25', 10003, rdir, quota),
+          6: ('10.41.0.73', 10003, rdir, quota),
+          7: ('10.41.0.25', 10004, rdir, quota),
+          8: ('10.41.0.73', 10004, rdir, quota),
+          9: ('10.41.0.25', 10005, rdir, quota),
+         10: ('10.41.0.73', 10005, rdir, quota),
+         11: ('10.41.0.25', 10006, rdir, quota),
+         12: ('10.41.0.73', 10006, rdir, quota),
+         13: ('10.41.0.25', 10007, rdir, quota),
+         14: ('10.41.0.73', 10007, rdir, quota),
+         15: ('10.41.0.25', 10008, rdir, quota),
+         16: ('10.41.0.73', 10008, rdir, quota),
         }
 
 ## Fast visibilities setup
 rdir = '/home/ubuntu/data/fast'
-quota = '10TB'
-vfast = { 1: ('10.41.0.17', 11000, rdir, quota),
-          2: ('10.41.0.18', 11000, rdir, quota),
-          3: ('10.41.0.19', 11000, rdir, quota),
-          4: ('10.41.0.20', 11000, rdir, quota),
-          5: ('10.41.0.21', 11000, rdir, quota),
-          6: ('10.41.0.22', 11000, rdir, quota),
-          7: ('10.41.0.23', 11000, rdir, quota),
-          8: ('10.41.0.24', 11000, rdir, quota),
-          9: ('10.41.0.33', 11000, rdir, quota),
-         10: ('10.41.0.34', 11000, rdir, quota),
-         11: ('10.41.0.35', 11000, rdir, quota),
-         12: ('10.41.0.36', 11000, rdir, quota),
-         13: ('10.41.0.37', 11000, rdir, quota),
-         14: ('10.41.0.38', 11000, rdir, quota),
-         15: ('10.41.0.39', 11000, rdir, quota),
-         16: ('10.41.0.40', 11000, rdir, quota),
+quota = 0
+vfast = { 1: ('10.41.0.25', 11001, rdir, '250GB'),
+          2: ('10.41.0.73', 11001, rdir, quota),
+          3: ('10.41.0.25', 11002, rdir, quota),
+          4: ('10.41.0.73', 11002, rdir, quota),
+          5: ('10.41.0.25', 11003, rdir, quota),
+          6: ('10.41.0.73', 11003, rdir, quota),
+          7: ('10.41.0.25', 11004, rdir, quota),
+          8: ('10.41.0.73', 11004, rdir, quota),
+          9: ('10.41.0.25', 11005, rdir, quota),
+         10: ('10.41.0.73', 11005, rdir, quota),
+         11: ('10.41.0.25', 11006, rdir, quota),
+         12: ('10.41.0.73', 11006, rdir, quota),
+         13: ('10.41.0.25', 11007, rdir, quota),
+         14: ('10.41.0.73', 11007, rdir, quota),
+         15: ('10.41.0.25', 11008, rdir, quota),
+         16: ('10.41.0.73', 11008, rdir, quota),
         }
 
 ## T-engine setup
 rdir = '/home/ubuntu/data/tengine'
 quota = 0
-tengines = {1: ('enp216s0', 10000, rdir, quota),
+tengines = {1: ('10.41.0.73', 21001, rdir, quota),
            }
 
 def main(args):
     # Pre-process
+    anaconda = args.anaconda_path
+    condaenv = args.conda_env
     if (not args.power_beams \
         and not args.slow_visibilities \
         and not args.fast_visibilities \
@@ -97,8 +99,9 @@ def main(args):
             template = env.get_template('dr-beam-base.service')
             for beam in beams:
                 address, port, directory, quota = beams[beam] 
-                service = template.render(path=path, beam=beam, address=address,
-                                          port=port, directory=directory, quota=quota)
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          beam=beam, address=address, port=port,
+                                          directory=directory, quota=quota)
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -112,10 +115,16 @@ def main(args):
         else:
             ### Recorders
             template = env.get_template('dr-vslow-base.service')
+            cores = [0,1,2,3,4,5]
             for band in vslow:
                 address, port, directory, quota = vslow[band]
-                service = template.render(path=path, band=band, address=address,
-                                          port=port, directory=directory, quota=quota)
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          band=band, address=address, port=port,
+                                          directory=directory, quota=quota,
+                                          cores=','.join([str(v) for v in cores]))
+                for c in range(len(cores)):
+                    cores[c] += len(cores)
+                    cores[c] %= 20
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
@@ -137,10 +146,16 @@ def main(args):
         else:
             ### Recorders
             template = env.get_template('dr-vfast-base.service')
+            cores = [0,1,2,3,4,5]
             for band in vfast:
                 address, port, directory, quota = vfast[band]
-                service = template.render(path=path, band=band, address=address,
-                                          port=port, directory=directory, quota=quota)
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          band=band, address=address, port=port,
+                                          directory=directory, quota=quota,
+                                          cores=','.join([str(v) for v in cores]))
+                for c in range(len(cores)):
+                    cores[c] += len(cores)
+                    cores[c] %= 20
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
@@ -162,7 +177,8 @@ def main(args):
             template = env.get_template('dr-tengine-base.service')
             for beam in tengines:
                 address, port, directory, quota = tengines[beam]
-                service = template.render(path=path, address=address, port=port,
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          address=address, port=port,
                                           directory=directory, quota=quota)
                 with open('dr-tengine.service', 'w') as fh:
                     fh.write(service)
@@ -174,6 +190,10 @@ if __name__ == '__main__':
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('-p', '--anaconda-path', type=str, default='/home/ubuntu/anaconda3',
+                       help='root path to anaconda install to use')
+    group.add_argument('-e', '--conda-env', type=str, default='casa',
+                       help='anaconda enviroment name to use')
     group.add_argument('-b', '--power-beams', action='store_true',
                        help='only generate/clean the power beam services')
     group.add_argument('-s', '--slow-visibilities', action='store_true',

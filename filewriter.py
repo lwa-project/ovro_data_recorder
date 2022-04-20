@@ -10,7 +10,8 @@ from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 
-from common import *
+from mnc.common import *
+
 from lwahdf import *
 from lwams import *
 
@@ -293,8 +294,8 @@ class MeasurementSetWriter(FileWriterBase):
         """
         
         # Setup
-        tint = navg / CHAN_BW
-        time_step = navg * (int(FS) / int(CHAN_BW))
+        tint = navg / FS
+        time_step = navg
         freq = numpy.arange(nchan)*chan_bw + chan_to_freq(chan0)
         if not isinstance(pols, (tuple, list)):
             pols = [p.strip().rstrip() for p in pols.split(',')]

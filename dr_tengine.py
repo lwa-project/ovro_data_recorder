@@ -20,11 +20,12 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
-from common import *
+from mnc.common import *
+from mnc.mcs import MultiMonitorPoint, Client
+
 from operations import FileOperationsQueue, DrxOperationsQueue
 from monitoring import GlobalLogger
 from control import VoltageBeamCommandProcessor
-from mcs import MultiMonitorPoint, Client
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -88,12 +89,14 @@ class CaptureOp(object):
         self.shutdown_event.set()
         
     def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
+        time_tag = seq0*2*NCHAN     # Seems to be needed now
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
                'cfreq0':   chan0*CHAN_BW,
+               'nchan':    nchan,
                'bw':       nchan*CHAN_BW,
                'nbeam':    nbeam,
                'npol':     2,
@@ -1069,7 +1072,7 @@ def main(argv):
         ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
                            ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     else:
-        ops.append(CaptureOp(log, isock, capture_ring, 16,
+        ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, tengine_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
@@ -1090,7 +1093,7 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     c = Client()
-    r = c.send_command(mcs_id, 'record',
+    r = c.send_command(mcs_id, 'record', beam=args.beam,
                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r)
     """
