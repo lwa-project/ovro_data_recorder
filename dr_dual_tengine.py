@@ -1134,7 +1134,7 @@ def main(argv):
         
     # Setup the subsystem ID
     mcs_id_0 = 'drt%i' % args.beam
-    mcd_id_1 = 'drt%i' % (args.beams+1,)
+    mcd_id_1 = 'drt%i' % (args.beam+1,)
     
     # Setup the cores and GPUs to use
     cores = [int(v, 10) for v in args.cores.split(',')]
