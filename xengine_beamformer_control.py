@@ -522,7 +522,7 @@ class BeamTracker(object):
             pass
 
 
-def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders'):
+def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders/caltables/latest/'):
     """
     Wraper to create a new BeamPointingControl instance and load bandpass
     calibration data from a directory.
