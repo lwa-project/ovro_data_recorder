@@ -250,6 +250,7 @@ class BeamPointingControl(object):
         # Find the pipelines that should correspond to the specified subband
         # TODO: Use the freuqency information to figure this out for the user
         subband_pipelines = []
+        subband_pipeline_index = []
         for i in range(NPIPELINE_SUBBAND):
             ## Get the frequency range for the pipeline in the subband and pull
             ## out the middle
@@ -261,6 +262,7 @@ class BeamPointingControl(object):
             try:
                 j = self._freq_to_pipeline(center_freq)
                 subband_pipelines.append(self.pipelines[j])
+                subband_pipeline_index.append(j)
                 if verbose:
                     print(f"Found pipeline {j} covering {self.freqs[j][0]/1e6:.3f} to {self.freqs[j][-1]/1e6:.3f} MHz")
             except ValueError:
@@ -274,7 +276,7 @@ class BeamPointingControl(object):
         # Set the coefficients - this is slow
         pb = progressbar.ProgressBar(redirect_stdout=True)
         pb.start(max_value=len(subband_pipelines)*NSTAND)
-        for i,p in enumerate(subband_pipelines):
+        for i,(p,ii) in enumerate(zip(subband_pipelines, subband_pipeline_index)):
             for j in range(NSTAND):
                 for pol in range(NPOL):
                     cal = 1./caldata[j,i*NCHAN_PIPELINE:(i+1)*NCHAN_PIPELINE,pol].ravel()
@@ -286,7 +288,7 @@ class BeamPointingControl(object):
                         p.beamform.update_calibration_gains(2*(self.beam-1)+pol, NPOL*j+pol, cal)
                         time.sleep(0.005)
                 pb += 1
-            self._cal_set[i] = True
+            self._cal_set[ii] = True
         pb.finish()
         
     def set_beam_gain(self, gain):
