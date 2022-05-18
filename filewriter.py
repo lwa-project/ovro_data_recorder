@@ -20,7 +20,7 @@ __all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
-_TEMP_BASEDIR = "/dev/shm"
+_TEMP_BASEDIR = "/tmp/"
 
 
 class FileWriterBase(object):
