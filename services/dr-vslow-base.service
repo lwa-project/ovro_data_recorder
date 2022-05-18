@@ -33,6 +33,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --cores                  {{ cores }} \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
+         --no-tar \
          --logfile                /home/ubuntu/log/dr-vslow-{{ band }}.%H.log'
 
 [Install]

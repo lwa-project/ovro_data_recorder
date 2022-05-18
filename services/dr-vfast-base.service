@@ -34,6 +34,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --quick \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
+         --no-tar \
          --logfile                /home/ubuntu/log/dr-vfast-{{ band }}.%H.log'
 
 [Install]
