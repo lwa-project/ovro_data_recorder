@@ -286,7 +286,7 @@ class MeasurementSetWriter(FileWriterBase):
         self.is_tarred = is_tarred
         
         # Cleanup
-        atexit.register(shutil.rmtree, self._tempdir)
+        atexit.register(shutil.rmtree, self._tempdir, ignore_errors=True)
         
     def start(self, station, chan0, navg, nchan, chan_bw, npol, pols):
         """
