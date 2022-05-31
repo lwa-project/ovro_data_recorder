@@ -14,6 +14,24 @@ from mnc.mcs import MonitorPoint, Client
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
 
+def getsize(filename):
+    """
+    Version of os.path.getsize that walks directories to get their total sizes.
+    """
+    
+    if os.path.isdir(filename):
+        filesize = 0
+        with os.scandir(filename) as items:
+            for name in items:
+                if name.is_file():
+                    filesize += name.stat().st_size
+                elif name.is_dir():
+                    filesize += getsize(name.path)
+    else:
+        filesize = os.path.getsize(filename)
+    return filesize
+
+
 class PerformanceLogger(object):
     """
     Monitoring class for logging how a Bifrost pipeline is performing.  This
@@ -164,7 +182,7 @@ class StorageLogger(object):
     def _update(self):
         self._files = glob.glob(os.path.join(self.directory, '*'))
         self._files.sort(key=lambda x: os.path.getmtime(x))
-        self._file_sizes = [os.path.getsize(filename) for filename in self._files]
+        self._file_sizes = [getsize(filename) for filename in self._files]
         
     def _manage_quota(self):
         total_size = sum(self._file_sizes)
