@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import numpy
 import argparse
 
 import logging
@@ -10,15 +11,30 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)-7s] %(
                 datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-from astropy.time import TimeDelta
+import astropy.units as u
+from astropy.time import Time, TimeDelta
+from astropy.coordinates import SkyCoord, Angle, EarthLocation, AltAz
+from astropy.coordinates import solar_system_ephemeris, get_body
+
+from lwa_antpos.station import ovro
 
 from mnc.mcs import Client as MCSClient
 from mnc.common import LWATime, NCHAN as NCHAN_NATIVE, CLOCK as CLOCK_NATIVE
 try:
-    from xengine_beamformer_control import BeamPointingControl, BeamTracker
+    from xengine_beamformer_control import BeamPointingControl
 except ImportError as e:
     BeamPointingControl = BeamTracker = None
     logger.warn(f"Cannot import BeamPointingControl, will not send beamformer commands")
+
+
+# Beam tracking update control
+#: Time step to use when determining beam pointings
+_BEAM_UPDATE_STEP = TimeDelta(1, format='sec')
+#: Maximum distance a source can move on the sky before a beam pointing update
+_BEAM_UPDATE_DISTANCE = Angle('0:04:48', unit='deg') # This set based on LWA1's MCS
+                                                     # step size of 0.2 degrees and
+                                                     # scaling that to an aperature
+                                                     # of 250 m.
 
 
 def _tag_to_step(tag):
@@ -31,17 +47,101 @@ def _tag_to_step(tag):
     return step
 
 
+def _separation(aa0, aa1):
+    """
+    Wrapper around the astropy angular_separation function that takes in two
+    AzAlt instances and returns the angular distance between them.
+    
+    From:
+      https://github.com/astropy/astropy/blob/main/astropy/coordinates/angle_utilities.py
+    """
+    
+    lon1, lat1 = aa0.az.rad, aa0.alt.rad
+    lon2, lat2 = aa1.az.rad, aa1.alt.rad
+    
+    sdlon = numpy.sin(lon2 - lon1)
+    cdlon = numpy.cos(lon2 - lon1)
+    slat1 = numpy.sin(lat1)
+    slat2 = numpy.sin(lat2)
+    clat1 = numpy.cos(lat1)
+    clat2 = numpy.cos(lat2)
+    
+    num1 = clat2 * sdlon
+    num2 = clat1 * slat2 - slat1 * clat2 * cdlon
+    denominator = slat1 * slat2 + clat1 * clat2 * cdlon
+    
+    return Angle(numpy.arctan2(numpy.hypot(num1, num2), denominator), unit='rad').to('deg')
+
+
+def _get_tracking_updates(obs):
+    """
+    Given an observations dictionary, figure out when/how to update the beam
+    pointing for the duration of the observation.  Returns a list of times/
+    pointings (unix timestamp for the update, azimuth in degrees, elevation in
+    degrees).
+    """
+    
+    # Load the site
+    site = EarthLocation.from_geocentric(*ovro.ecef, unit=u.m)
+    
+    # Load the start and stop times for this observation
+    start = LWATime(obs['mjd'], obs['mpm']/1000/86400, format='mjd', scale='utc')
+    stop =  LWATime(obs['mjd'], (obs['mpm']+obs['dur'])/1000/86400, format='mjd', scale='utc')
+    
+    # az/alt vs ra/dec step check - If we are in az/alt mode we only need to
+    # point once at the beginning of the observation
+    if obs['azalt']:
+        return [[start.utc.unix, obs['ra'], obs['dec']],]
+        
+    # Load in the target - coordinates or a solar system body
+    target_or_ra = obs['ra']
+    dec = obs['dec']
+    if dec is not None:
+        ra = Angle(target_or_ra, unit='hourangle')
+        dec = Angle(dec, unit='deg')
+        sc = SkyCoord(ra, dec, frame='fk5')
+    else:
+        sc = get_body(target_or_ra.lower(), start+(stop-start)/2, location=site)
+        
+    # Figure out when to update based on how far the sources moves
+    t = start
+    updates = [t,]
+    aa = sc.transform_to(AltAz(obstime=t, location=site))
+    last_azalt = aa
+    while t <= stop:
+        aa = sc.transform_to(AltAz(obstime=t, location=site))
+        if _separation(aa, last_azalt) >= _BEAM_UPDATE_DISTANCE:
+            updates.append(t)
+            last_azalt = aa
+        t += _BEAM_UPDATE_STEP
+    updates.append(stop)
+    
+    # Convert to updates into pointings that happen at t[i] but point to the
+    # position of the source at the midpoint between t[i] and t[i+1].
+    steps = []
+    for i in range(len(updates)-1):
+        t_diff = updates[i+1] - updates[i]
+        t_step = updates[i] + t_diff / 2.0
+        aa = sc.transform_to(AltAz(obstime=t_step, location=site))
+        steps.append([updates[i].utc.unix, aa.az.deg, aa.alt.deg])
+        
+    # Done
+    return steps
+
+
 def parse_sdf(filename):
     """
     Given an SDF beamformer filename, parse the file and return a list of
     dictionaries that describe all of pointing and dwell times that we needed.
     
     The dictionaries contain:
-     * 'mjd' - the start time of the observation as an integer MJD
-     * 'mpm' - the start time of the observation as an integer ms past midnight
-     * 'dur' - the observation duration in ms
-     * 'ra'  - the target RA in hours, J2000 -or- the Sun or Jupiter
-     * 'dec' - the target Dec in degrees, J2000 -or- None for the Sun/Jupiter
+     * 'mjd'   - the start time of the observation as an integer MJD
+     * 'mpm'   - the start time of the observation as an integer ms past midnight
+     * 'dur'   - the observation duration in ms
+     * 'ra'    - the target RA in hours, J2000 -or- the Sun or Jupiter
+     * 'dec'   - the target Dec in degrees, J2000 -or- None for the Sun/Jupiter
+     * 'azalt' - if 'ra' and 'dec' are actually azimuth and elevation, both in
+                 degrees
     """
     
     # Parse the SDF in a simple way that only keeps track of the pointing/durations
@@ -87,6 +187,7 @@ def parse_sdf(filename):
                     pass
                 else:
                     raise RuntimeError(f"Invalid observing mode '{mode}'")
+                temp['azalt'] = False
             elif line.startswith('OBS_RA'):
                 ## RA to track in hours, J2000
                 temp['ra'] = float(line.rsplit(None, 1)[1])
@@ -94,10 +195,10 @@ def parse_sdf(filename):
                 ## Dec. to track in degrees, J2000
                 temp['dec'] = float(line.rsplit(None, 1)[1])
             elif line.startswith('OBS_STP_RADEC'):
-                ## Stepped mode test - we only support RA/dec at this time
+                ## Stepped mode test - toggle azalt as needed
                 mode = int(line.rsplit(None, 1)[1], 10)
                 if mode != 1:
-                    raise RuntimeError(f"Invalid observing mode '{line}'")
+                    temp['azalt'] = True
             elif line.startswith('OBS_STP_N'):
                 ## Stepped mode setup
                 count = int(line.rsplit(None, 1)[1], 10)
@@ -143,19 +244,21 @@ def parse_sdf(filename):
     for o in obs:
         try:
             ## First step
-            expanded_obs.append({'mjd': o['mjd'],
-                                 'mpm': o['mpm'],
-                                 'dur': o['steps'][0]['dur'],
-                                 'ra':  o['steps'][0]['ra'],
-                                 'dec': o['steps'][0]['dec']})
+            expanded_obs.append({'mjd':   o['mjd'],
+                                 'mpm':   o['mpm'],
+                                 'dur':   o['steps'][0]['dur'],
+                                 'ra':    o['steps'][0]['ra'],
+                                 'dec':   o['steps'][0]['dec'],
+                                 'azalt': o['azalt']})
             ## Steps 2 through N so that the start time builds off the previous
             ## step's duration
             for s in o['steps'][1:]:
-                expanded_obs.append({'mjd': expanded_obs[-1]['mjd'],
-                                     'mpm': expanded_obs[-1]['mpm']+expanded_obs[-1]['dur'],
-                                     'dur': s['dur'],
-                                     'ra':  s['ra'],
-                                     'dec': s['dec']})
+                expanded_obs.append({'mjd':   expanded_obs[-1]['mjd'],
+                                     'mpm':   expanded_obs[-1]['mpm']+expanded_obs[-1]['dur'],
+                                     'dur':   s['dur'],
+                                     'ra':    s['ra'],
+                                     'dec':   s['dec'],
+                                     'azalt': expanded_obs[-1]['azalt']})
             
         except KeyError:
             ## Nope, it's a normal observation
@@ -198,24 +301,28 @@ def main(args):
         logger.error("Insufficient advanced notice to run this SDF, aborting")
         sys.exit(1)
     elif rec_start < LWATime.now():
-        logger.error("SDF appears to be in the past, aborting")
+        logger.error("SDF start time appears to be in the past, aborting")
         sys.exit(1)
         
+    # Setup the beamformer stepping
+    for o in obs:
+        o['sdf_steps'] = _get_tracking_updates(o)
+        for step in o['sdf_steps']:
+            logger.debug(f"Beam to az {step[1]:.3f} deg, alt {step[2]:.3f} deg at {step[0]:.3f}")
+            
     # Setup the control
     ## Recording
     try:
         dr = MCSClient()
     except Exception:
-        logger.warn(f"Cannot create DR control object, will not send DR commands")
+        logger.warn("Cannot create DR control object, will not send DR commands")
         dr = None
     ## Beamforming
     try:
         bf = BeamPointingControl(obs[0]['beam'])
-        bt = BeamTracker(bf, update_interval=15)
     except Exception:
-        logger.warn(f"Cannot create beamformer control objects, will not send beamformer commands")
+        logger.warn("Cannot create beamformer control object, will not send beamformer commands")
         bf = None
-        bt = None
         
     # Recording
     ## Wait for the right time
@@ -231,26 +338,29 @@ def main(args):
                                  start_mpm=obs[0]['mpm'],
                                  duration_ms=int(rec_dur*1000),
                                  time_avg=obs[0]['time_avg'])
-        if not status[0]:
+        if status[0]:
+            logger.info("Record command succeeded: %s" % str(status[1:]))
+        else:
             logger.error("Record command failed: %s", str(status[1]))
             
     # Beamforming/tracking
     ## Wait for the right time
     logger.info("Waiting for the start of the first observation...")
-    while LWATime.now() < start - TimeDelta(1, format='sec'):
+    while LWATime.now() + TimeDelta(1, format='sec') < start:
         time.sleep(0.01)
         
     ## Iterate through the observations
     for i,o in enumerate(obs):
-        obs_start = start = LWATime(o['mjd'], o['mpm']/1000/86400, format='mjd', scale='utc')
-        obs_start = obs_date.unix
         name = o['ra']
         if o['dec'] is not None:
             name = f"{o['ra']} hr, {o['dec']} deg"
         logger.info(f"Tracking pointing #{i+1} ('{name}') for {o['dur']/1000.0:.3f} s")
-        if bt is not None and not args.dry_run:
-            bt.track(o['ra'], dec=o['dec'], duration=o['dur']/1000.0, start_time=obs_start)
-            
+        for step in o['sdf_steps']:
+            while time.time() + 1 < step[0]:
+                time.sleep(0.01)
+            if bf is not None and not args.dry_run:
+                bf.set_beam_pointing(step[1], step[2], degrees=True, load_time=step[0])
+                
     # Close it out
     logger.info("Finished with the observations, waiting for the recording to finish...")
     while LWATime.now() < rec_stop:
