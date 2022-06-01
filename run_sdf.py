@@ -237,7 +237,7 @@ def main(args):
     # Beamforming/tracking
     ## Wait for the right time
     logger.info("Waiting for the start of the first observation...")
-    while LWATime.now() < start + TimeDelta(2, format='sec'):
+    while LWATime.now() < start - TimeDelta(1, format='sec'):
         time.sleep(0.01)
         
     ## Iterate through the observations
