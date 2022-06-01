@@ -7,8 +7,9 @@ import numpy
 import argparse
 
 import logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)-7s] %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s [%(levelname)-7s] %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
 import astropy.units as u
@@ -278,6 +279,16 @@ def parse_sdf(filename):
 
 
 def main(args):
+    # Setup another log handler that writes to a file as a crude form of metadata
+    metadata_name = os.path.basename(args.filename)
+    metadata_name = os.path.splitext(metadata_name)[0]+'.history'
+    metadata_handler = logging.basicConfig(filename=metadata_name,
+                                          filemode='w',
+                                          level=logging.DEBUG,
+                                          format='%(asctime)s [%(levelname)-7s] %(message)s',
+                                          datefmt='%Y-%m-%d %H:%M:%S')
+    logger.addHandler(metadata_handler)
+    
     # Parse the SDF
     obs = parse_sdf(args.filename)
     logger.info(f"Loaded '{os.path.basename(args.filename)}' with a sequence of {len(obs)} pointing(s)")
