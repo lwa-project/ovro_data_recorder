@@ -412,8 +412,13 @@ class BeamPointingControl(object):
                 if verbose:
                     print(f"Resolved '{target_or_ra}' to RA {sc.ra}, Dec. {sc.dec}")
                     
-            ## Figure out where it is right now
-            aa = sc.transform_to(AltAz(obstime=Time.now(), location=obs))
+            ## Figure out where it is right now (or at least at the load time)
+            if load_time is not None:
+                compute_time = Time(load_time, format='unix', scale='utc')
+            else:
+                compute_time = Time.now()
+                load_time = compute_time.utc.unix
+            aa = sc.transform_to(AltAz(obstime=compute_time, location=obs))
             az = aa.az.deg
             alt = aa.alt.deg
             if verbose:
