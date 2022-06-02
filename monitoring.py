@@ -270,12 +270,12 @@ class StatusLogger(object):
     an overall state of the pipeline.
     """
     
-    def __init__(self, log, id, queue, threads=None, gulp_time=None,
+    def __init__(self, log, id, queue, nthread=None, gulp_time=None,
                  shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
-        self.threads = threads
+        self.nthread = nthread
         self.gulp_time = gulp_time
         if shutdown_event is None:
             shutdown_event = threading.Event()
@@ -318,9 +318,6 @@ class StatusLogger(object):
                 
         return summary, info
         
-    def update_threads(self, threads):
-        self.threads = threads
-        
     def main(self, once=False):
         """
         Main logging loop.  May be run only once with the "once" keyword set to
@@ -344,9 +341,9 @@ class StatusLogger(object):
             old_summary = old_summary.value
             
             # Get the current metrics that matter
-            active = [True,]
-            if self.threads is not None:
-                active = [t.is_alive() for t in self.threads]
+            active = 0
+            if self.nthread is not None:
+                active = threading.active_count()
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is None:
                 missing = MonitorPoint(0.0)
@@ -360,12 +357,13 @@ class StatusLogger(object):
             ts = min([v.timestamp for v in (missing, processing, total, free)])
             summary = 'normal'
             info = 'System operating normally'
-            if not all(active):
-                ## Thread check
-                new_summary = 'error'
-                new_info = "Only %i of %i threads active" % (sum(active), len(active))
-                summary, info = self._combine_status(summary, info,
-                                                     new_summary, new_info)
+            if self.nthread is not None:
+                if active != self.nthread:
+                    ## Thread check
+                    new_summary = 'error'
+                    new_info = "Only %i of %i threads active" % (sum(active), len(active))
+                    summary, info = self._combine_status(summary, info,
+                                                         new_summary, new_info)
             if dfree > 0.99:
                 ## Out of space check
                 new_summary = 'error'
@@ -435,7 +433,7 @@ class GlobalLogger(object):
     and :py:class:`StatusLogger` and runs their main methods as a unit.
     """
     
-    def __init__(self, log, id, args, queue, quota=None, threads=None,
+    def __init__(self, log, id, args, queue, quota=None, nthread=None,
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
                  update_interval_storage=60, update_interval_status=20):
         self.log = log
@@ -457,7 +455,7 @@ class GlobalLogger(object):
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
                                      shutdown_event=shutdown_event,
                                      update_interval=self.update_interval_storage)
-        self.status = StatusLogger(log, id, queue, threads=threads,
+        self.status = StatusLogger(log, id, queue, nthread=nthread,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=self.update_interval_status)
@@ -475,9 +473,6 @@ class GlobalLogger(object):
                 continue
             logger.shutdown_event = event
             
-    def update_threads(self, threads):
-        self.status.update_threads(threads)
-        
     def main(self):
         """
         Main logging loop that calls the main methods of all child loggers.
