@@ -29,7 +29,7 @@ from control import VoltageBeamCommandProcessor
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
-from bifrost.packet_capture import PacketCaptureCallback, UDPCapture, DiskReader
+from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture as UDPCapture, DiskReader
 from bifrost.packet_writer import HeaderInfo, DiskWriter
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
@@ -1051,6 +1051,7 @@ def main(argv):
         iaddr = Address(args.address, args.port)
         isock = UDPSocket()
         isock.bind(iaddr)
+        isock.timeout = 1
         
     # Setup the rings
     capture_ring = Ring(name="capture", space='cuda_host')
