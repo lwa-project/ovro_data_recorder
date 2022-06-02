@@ -270,10 +270,13 @@ class StatusLogger(object):
     an overall state of the pipeline.
     """
     
-    def __init__(self, log, id, queue, shutdown_event=None, update_interval=10):
+    def __init__(self, log, id, queue, threads=None, gulp_time=None,
+                 shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
+        self.threads = threads
+        self.gulp_time = gulp_time
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
@@ -283,6 +286,40 @@ class StatusLogger(object):
         
     def _update(self):
         pass
+        
+    @staticmethod
+    def _combine_status(summary, info, new_summary, new_info):
+        """
+        Combine together an old summary/info pair with a new summary/info while
+        respecting the hiererarchy of summaries:
+         * normal is overridden by warning and error
+         * warning overrides normal but not error
+         * error overrides normal and warning
+         * if the new summary is the same as the old summary and is either
+           warning or error then the infos are combined.
+        """
+        
+        if new_summary == 'error':
+            if summary != 'error':
+                info = ''
+            if len(info):
+                info += ', '
+            summary = 'error'
+            info += new_info
+            
+        elif new_summary == 'warning':
+            if summary == 'normal':
+                info = ''
+            if summary == 'warning':
+                if len(info):
+                    info += ', '
+                summary = 'warning'
+                info += new_info
+                
+        return summary, info
+        
+    def update_threads(self, threads):
+        self.threads = threads
         
     def main(self, once=False):
         """
@@ -302,33 +339,80 @@ class StatusLogger(object):
             self.client.write_monitor_point('op-type', active_filename, timestamp=ts)
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
-            # TODO: Overall system system/health
-            #  What goes into this?
-            #   * RX rate/missing packets?
-            #   * Block processing time?
-            #   * Free disk space?
-            #   * Thread check?
-            #   * ???
+            # Get the old summary
+            old_summary = client.read_monitor_point('summary')
+            old_summary = old_summary.value
+            
+            # Get the current metrics that matter
+            active = [True,]
+            if self.threads is not None:
+                active = [t.is_alive() for t in self.threads]
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is None:
                 missing = MonitorPoint(0.0)
             processing = self.client.read_monitor_point('bifrost/max_process')
+            if processing is None:
+                processing = MonitorPoint(0.0)
             total = self.client.read_monitor_point('storage/active_disk_size')
             free = self.client.read_monitor_point('storage/active_disk_free')
             dfree = 1.0*free.value / total.value
+            
             ts = min([v.timestamp for v in (missing, processing, total, free)])
-            if dfree < 0.99 and missing.value < 0.01:
-                self.client.write_monitor_point('summary', 'normal', timestamp=ts)
-                self.client.write_monitor_point('info', 'A-OK', timestamp=ts)
-            elif dfree > 0.99 and missing.value < 0.01:
-                self.client.write_monitor_point('summary', 'warning', timestamp=ts)
-                self.client.write_monitor_point('info', "no space (%.1f%% used)" % (dfree*100.0,), timestamp=ts)
-            elif dfree < 0.99 and missing.value > 0.01:
-                self.client.write_monitor_point('summary', 'warning', timestamp=ts)
-                self.client.write_monitor_point('info', "missing packets (%.1f%% missing)" % (missing.value*100.0,), timestamp=ts)
-            else:
-                self.client.write_monitor_point('summary', 'error', timestamp=ts)
-                self.client.write_monitor_point('info', "it's bad", timestamp=ts)
+            summary = 'normal'
+            info = 'System operating normally'
+            if not all(active):
+                ## Thread check
+                new_summary = 'error'
+                new_info = "Only %i of %i threads active" % (sum(active), len(active))
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            if dfree > 0.99:
+                ## Out of space check
+                new_summary = 'error'
+                new_info = "No recording space (%.1f%% used)" % (dfree*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            elif dfree > 0.95:
+                ## Low space check
+                new_summary = 'warning'
+                new_info = "Low recording space (%.1f%% used)" % (dfree*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            if missing.value > 0.10:
+                ## Massive packet loss check
+                new_summary = 'error'
+                new_info = "Packet loss during receive >10%% (%.1f%% missing)" % (missing.value*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            elif missing.value > 0.01:
+                ## Light packet loss check
+                new_summary = 'warning'
+                new_info = "Packet loss during receive >1%% (%.1f%% missing)" % (missing.value*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+                
+            if self.gulp_time is not None:
+                if processing.value > self.gulp_time*1.25:
+                    ## Heavy load processing time check
+                    new_summary = 'error'
+                    new_info = "Max. processing time at >125%% of gulp (%.3f s = %.1f%% )" % (processing.value, 100.0*processing.value/self.gulp_time)
+                    summary, info = self._combine_status(summary, info,
+                                                         new_summary, new_info)
+                elif processing.value > self.gulp_time*1.05:
+                    ## Light load processig time check
+                    new_summary = 'warning'
+                    new_info = "Max. processing time at >105%% of gulp (%.3f s = %.1f%% )" % (processing.value, 100.0*processing.value/self.gulp_time)
+                    summary, info = self._combine_status(summary, info,
+                                                         new_summary, new_info)
+                    
+            if summary == 'normal':
+                ## De-escelation message
+                if old_summary == 'warning':
+                    info = 'Warning condition(s) cleared'
+                elif old_summary == 'error':
+                    info = 'Error condition(s) cleared'
+            self.client.write_monitor_point('summary', summary, timestamp=ts)
+            self.client.write_monitor_point('info', info, timestamp=ts)
                 
             # Report
             self.log.debug("=== Status Report ===")
@@ -351,9 +435,9 @@ class GlobalLogger(object):
     and :py:class:`StatusLogger` and runs their main methods as a unit.
     """
     
-    def __init__(self, log, id, args, queue, quota=None, shutdown_event=None,
-                 update_interval_perf=10, update_interval_storage=60,
-                 update_interval_status=20):
+    def __init__(self, log, id, args, queue, quota=None, threads=None,
+                 gulp_time=None, shutdown_event=None, update_interval_perf=10,
+                 update_interval_storage=60, update_interval_status=20):
         self.log = log
         self.args = args
         self.queue = queue
@@ -373,7 +457,9 @@ class GlobalLogger(object):
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
                                      shutdown_event=shutdown_event,
                                      update_interval=self.update_interval_storage)
-        self.status = StatusLogger(log, id, queue, shutdown_event=shutdown_event,
+        self.status = StatusLogger(log, id, queue, threads=threads,
+                                   gulp_time=gulp_time,
+                                   shutdown_event=shutdown_event,
                                    update_interval=self.update_interval_status)
         
     @property
@@ -389,6 +475,9 @@ class GlobalLogger(object):
                 continue
             logger.shutdown_event = event
             
+    def update_threads(self, threads):
+        self.status.update_threads(threads)
+        
     def main(self):
         """
         Main logging loop that calls the main methods of all child loggers.
