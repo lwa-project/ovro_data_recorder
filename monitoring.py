@@ -84,11 +84,11 @@ class PerformanceLogger(object):
             for block,contents in self._state[1][1].items():
                 try:
                     perf = contents['perf']
+                    acquire = max([acquire, perf['acquire_time']])
+                    process = max([process, perf['process_time']])
+                    reserve = max([reserve, perf['reserve_time']])
                 except KeyError:
                     continue
-                acquire = max([acquire, perf['acquire_time']])
-                process = max([process, perf['process_time']])
-                reserve = max([reserve, perf['reserve_time']])
             self.client.write_monitor_point('bifrost/max_acquire',
                                             acquire, timestamp=ts, unit='s')
             self.client.write_monitor_point('bifrost/max_process',
