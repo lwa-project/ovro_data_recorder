@@ -378,7 +378,7 @@ class TEngineOp(object):
         
         self._pending = deque()
         self.gain = [6, 6]
-        self.rFreq = [40e6, 60e6]
+        self.rFreq = [30e6, 60e6]
         self.filt = 7
         self.nchan_out = FILTER2CHAN[self.filt]
         
@@ -496,7 +496,7 @@ class TEngineOp(object):
                     chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
                     fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*50e3 - 50e3 / 2
                 except AttributeError:
-                    chan0 = int(40e6 / 50e3 + 0.5)
+                    chan0 = int(30e6 / 50e3 + 0.5)
                     self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*50e3 + 50e3 / 2
                     fDiff = 0.0
                 self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
@@ -539,7 +539,7 @@ class TEngineOp(object):
                 
                 self.log.info("TEngine: Start of new sequence: %s", str(ihdr))
                 
-                self.rFreq[0] = 40e6
+                self.rFreq[0] = 30e6
                 self.rFreq[1] = 60e6
                 self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
                 
