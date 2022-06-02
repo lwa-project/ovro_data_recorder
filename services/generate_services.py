@@ -97,11 +97,16 @@ def main(args):
                 os.unlink(filename)
         else:
             template = env.get_template('dr-beam-base.service')
+            cores = [0,1,2,3]
             for beam in beams:
                 address, port, directory, quota = beams[beam] 
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
-                                          directory=directory, quota=quota)
+                                          directory=directory, quota=quota,
+                                          cores=','.join([str(v) for v in cores])
+                for c in range(len(cores)):
+                    cores[c] += len(cores)
+                    cores[c] %= 20
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 

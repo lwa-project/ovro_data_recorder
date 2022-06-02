@@ -31,6 +31,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --address                {{ address }} \
          --port                   {{ port }} \
          --beam                   {{ beam }} \
+         --cores                  {{ cores }} \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --logfile                /home/ubuntu/log/dr-beam-{{ beam }}.%H.log'
