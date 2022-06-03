@@ -425,7 +425,15 @@ class StatusLogger(object):
             if once:
                 break
             time.sleep(self.update_interval)
-
+            
+        if not once:
+            # If this seems like it is its own thread, change the summary to
+            # 'shutdown' when we leave the main loop.
+            summary = 'shutdown'
+            info = 'System has been shutdown'
+            
+            self.client.write_monitor_point('summary', summary, timestamp=ts)
+            self.client.write_monitor_point('info', info, timestamp=ts)
     
 class GlobalLogger(object):
     """
@@ -497,3 +505,10 @@ class GlobalLogger(object):
                 
             # Sleep
             time.sleep(self.update_internal)
+            
+        # Change the summary to 'shutdown' when we leave the main loop.
+        summary = 'shutdown'
+        info = 'System has been shutdown'
+        
+        self.client.write_monitor_point('summary', summary, timestamp=ts)
+        self.client.write_monitor_point('info', info, timestamp=ts)
