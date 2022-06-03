@@ -97,8 +97,6 @@ class CaptureOp(object):
                         sequence_callback=seq_callback, core=self.core) as capture:
             while not self.shutdown_event.is_set():
                 status = capture.recv()
-                if status in (1,4,5,6):
-                    break
         del capture
 
 
@@ -550,6 +548,7 @@ def main(argv):
         iaddr = Address(args.address, args.port)
         isock = UDPSocket()
         isock.bind(iaddr)
+        isock.timeout = 1
         
     # Setup the rings
     capture_ring = Ring(name="capture")
