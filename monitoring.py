@@ -325,6 +325,7 @@ class StatusLogger(object):
         
     def _halt(self):
         # Change the summary to 'shutdown' when we leave exit this class
+        ts = time.time()
         for entry in ('op-type', 'op-tag'):
             self.client.write_monitor_point(entry, None, timestamp=ts)
             
