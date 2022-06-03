@@ -52,8 +52,22 @@ class PerformanceLogger(object):
         
         self._pid = os.getpid()
         self._state = deque([], 2)
+        self._reset()
         self._update()
         
+    def _reset(self):
+        ts = time.time()
+        for entry in ('pipeline_lag', 'max_acquire', 'max_process', 'max_reserve'):
+            self.client.write_monitor_point(f"bifrost/{entry}",
+                                            0.0, timestamp=ts, unit='s')
+        self.client.write_monitor_point('bifrost/rx_rate',
+                                        0.0, timestamp=ts, unit='B/s')
+        self.client.write_monitor_point('bifrost/rx_missing',
+                                        0.0, timestamp=ts)
+        for entry in ('one_minute', 'five_minute', 'fifteen_minute'):
+            self.client.write_monitor_point(f"system/load_average/{entry}",
+                                            0.0, timestamp=ts)
+            
     def _update(self):
         new_state = load_by_pid(self._pid)
         new_state_time = time.time()
@@ -179,6 +193,9 @@ class StorageLogger(object):
         self._files = []
         self._file_sizes = []
         
+    def _reset(self):
+        pass
+        
     def _update(self):
         self._files = glob.glob(os.path.join(self.directory, '*'))
         self._files.sort(key=lambda x: os.path.getmtime(x))
@@ -284,6 +301,17 @@ class StatusLogger(object):
         
         self.client = Client(id)
         self.last_summary = 'booting'
+        self._reset()
+        
+    def _reset(self):
+        ts = time.time()
+        for entry in ('op-type', 'op-tag'):
+            self.client.write_monitor_point(entry, None, timestamp=ts)
+        summary = 'booting'
+        info = 'System is starting up'
+        self.client.write_monitor_point('summary', summary, timestamp=ts)
+        self.client.write_monitor_point('info', info, timestamp=ts)
+        self.last_summary = summary
         
     def _update(self):
         pass
