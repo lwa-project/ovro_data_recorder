@@ -834,7 +834,7 @@ def main(argv):
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            nthread=len(ops)+3, gulp_size=args.gulp_size*24000*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+5, gulp_size=args.gulp_size*24000*8192/196e6))  # Ugh, hard coded
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
