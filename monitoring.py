@@ -510,5 +510,6 @@ class GlobalLogger(object):
         summary = 'shutdown'
         info = 'System has been shutdown'
         
-        self.client.write_monitor_point('summary', summary, timestamp=ts)
-        self.client.write_monitor_point('info', info, timestamp=ts)
+        client = Client(self.id)
+        client.write_monitor_point('summary', summary, timestamp=ts)
+        client.write_monitor_point('info', info, timestamp=ts)
