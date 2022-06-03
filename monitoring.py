@@ -283,6 +283,7 @@ class StatusLogger(object):
         self.update_interval = update_interval
         
         self.client = Client(id)
+        self.last_summary = 'booting'
         
     def _update(self):
         pass
@@ -335,10 +336,6 @@ class StatusLogger(object):
                 time_left = self.queue.active.stop_time - self.queue.active.utcnow()
             self.client.write_monitor_point('op-type', active_filename, timestamp=ts)
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
-            
-            # Get the old summary
-            old_summary = self.client.read_monitor_point('summary')
-            old_summary = old_summary.value
             
             # Get the current metrics that matter
             nactive = 0
@@ -405,13 +402,14 @@ class StatusLogger(object):
                     
             if summary == 'normal':
                 ## De-escelation message
-                if old_summary == 'warning':
+                if self.last_summary == 'warning':
                     info = 'Warning condition(s) cleared'
-                elif old_summary == 'error':
+                elif self.last_summary == 'error':
                     info = 'Error condition(s) cleared'
             self.client.write_monitor_point('summary', summary, timestamp=ts)
             self.client.write_monitor_point('info', info, timestamp=ts)
-                
+            self.last_summary = summary
+            
             # Report
             self.log.debug("=== Status Report ===")
             self.log.debug(" summary: %s", summary)
