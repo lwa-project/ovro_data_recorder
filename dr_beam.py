@@ -579,7 +579,7 @@ def main(argv):
     ops.append(WriterOp(log, capture_ring,
                         beam=args.beam, ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            nthread=len(ops)+2, gulp_time=args.gulp_size*24*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+3, gulp_time=args.gulp_size*24*8192/196e6))  # Ugh, hard coded
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     # Setup the threads
