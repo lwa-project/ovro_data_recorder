@@ -361,7 +361,7 @@ class StatusLogger(object):
                 if nactive != self.nthread:
                     ## Thread check
                     new_summary = 'error'
-                    new_info = "Only %i of %i threads active" % (nactive, nthread)
+                    new_info = "Only %i of %i threads active" % (nactive, self.nthread)
                     summary, info = self._combine_status(summary, info,
                                                          new_summary, new_info)
             if dfree > 0.99:
