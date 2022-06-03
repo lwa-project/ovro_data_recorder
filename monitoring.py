@@ -74,6 +74,9 @@ class PerformanceLogger(object):
         
         self._state.append((new_state_time,new_state))
         
+    def _halt(self):
+        self._reset()
+        
     def main(self, once=False):
         """
         Main logging loop.  May be run only once with the "once" keyword set to
@@ -201,6 +204,9 @@ class StorageLogger(object):
         self._files.sort(key=lambda x: os.path.getmtime(x))
         self._file_sizes = [getsize(filename) for filename in self._files]
         
+    def _halt(self):
+        pass
+        
     def _manage_quota(self):
         total_size = sum(self._file_sizes)
         
@@ -307,6 +313,7 @@ class StatusLogger(object):
         ts = time.time()
         for entry in ('op-type', 'op-tag'):
             self.client.write_monitor_point(entry, None, timestamp=ts)
+            
         summary = 'booting'
         info = 'System is starting up'
         self.client.write_monitor_point('summary', summary, timestamp=ts)
@@ -315,6 +322,17 @@ class StatusLogger(object):
         
     def _update(self):
         pass
+        
+    def _halt(self):
+        # Change the summary to 'shutdown' when we leave exit this class
+        for entry in ('op-type', 'op-tag'):
+            self.client.write_monitor_point(entry, None, timestamp=ts)
+            
+        summary = 'shutdown'
+        info = 'System has been shutdown'
+        self.client.write_monitor_point('summary', summary, timestamp=ts)
+        self.client.write_monitor_point('info', info, timestamp=ts)
+        self.last_summary = summary
         
     @staticmethod
     def _combine_status(summary, info, new_summary, new_info):
@@ -455,15 +473,10 @@ class StatusLogger(object):
             time.sleep(self.update_interval)
             
         if not once:
-            # If this seems like it is its own thread, change the summary to
-            # 'shutdown' when we leave the main loop.
-            summary = 'shutdown'
-            info = 'System has been shutdown'
-            
-            ts = time.time()
-            self.client.write_monitor_point('summary', summary, timestamp=ts)
-            self.client.write_monitor_point('info', info, timestamp=ts)
-    
+            # If this seems like it is its own thread, call _halt
+            self._halt()
+
+
 class GlobalLogger(object):
     """
     Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`StorageLogger`,
@@ -536,10 +549,4 @@ class GlobalLogger(object):
             time.sleep(self.update_internal)
             
         # Change the summary to 'shutdown' when we leave the main loop.
-        summary = 'shutdown'
-        info = 'System has been shutdown'
-        
-        client = Client(self.id)
-        ts = time.time()
-        client.write_monitor_point('summary', summary, timestamp=ts)
-        client.write_monitor_point('info', info, timestamp=ts)
+        self.status._halt()
