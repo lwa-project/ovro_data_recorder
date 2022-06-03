@@ -341,9 +341,9 @@ class StatusLogger(object):
             old_summary = old_summary.value
             
             # Get the current metrics that matter
-            active = 0
+            nactive = 0
             if self.nthread is not None:
-                active = threading.active_count()
+                nactive = threading.active_count()
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is None:
                 missing = MonitorPoint(0.0)
@@ -358,10 +358,10 @@ class StatusLogger(object):
             summary = 'normal'
             info = 'System operating normally'
             if self.nthread is not None:
-                if active != self.nthread:
+                if nactive != self.nthread:
                     ## Thread check
                     new_summary = 'error'
-                    new_info = "Only %i of %i threads active" % (sum(active), len(active))
+                    new_info = "Only %i of %i threads active" % (nactive, nthread)
                     summary, info = self._combine_status(summary, info,
                                                          new_summary, new_info)
             if dfree > 0.99:
