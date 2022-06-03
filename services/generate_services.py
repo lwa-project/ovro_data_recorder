@@ -103,7 +103,7 @@ def main(args):
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
                                           directory=directory, quota=quota,
-                                          cores=','.join([str(v) for v in cores])
+                                          cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
                     cores[c] %= 20
@@ -187,6 +187,11 @@ def main(args):
                                           directory=directory, quota=quota)
                 with open('dr-tengine.service', 'w') as fh:
                     fh.write(service)
+                    
+    if not args.clean:
+        print("To enable/update these services:")
+        print(" * copy the relevant .service files to /etc/systemd/system")
+        print(" * reload systemd with 'systemctl daemon-reload'")
 
 
 if __name__ == '__main__':
