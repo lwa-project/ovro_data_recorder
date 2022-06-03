@@ -171,6 +171,9 @@ class PerformanceLogger(object):
             if once:
                 break
             time.sleep(self.update_interval)
+            
+        if not once:
+            self.log.info("PerformanceLogger - Done")
 
 
 class StorageLogger(object):
@@ -284,6 +287,9 @@ class StorageLogger(object):
             if once:
                 break
             time.sleep(self.update_interval)
+            
+        if not once:
+            self.log.info("StorageLogger - Done")
 
 
 class StatusLogger(object):
@@ -476,6 +482,7 @@ class StatusLogger(object):
         if not once:
             # If this seems like it is its own thread, call _halt
             self._halt()
+            self.log.info("StatusLogger - Done")
 
 
 class GlobalLogger(object):
@@ -551,3 +558,4 @@ class GlobalLogger(object):
             
         # Change the summary to 'shutdown' when we leave the main loop.
         self.status._halt()
+        self.log.info("GlobalLogger - Done")
