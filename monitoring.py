@@ -337,7 +337,7 @@ class StatusLogger(object):
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
             # Get the old summary
-            old_summary = client.read_monitor_point('summary')
+            old_summary = self.client.read_monitor_point('summary')
             old_summary = old_summary.value
             
             # Get the current metrics that matter
@@ -414,6 +414,8 @@ class StatusLogger(object):
                 
             # Report
             self.log.debug("=== Status Report ===")
+            self.log.debug(" summary: %s", summary)
+            self.log.debug(" info: %s", info)
             self.log.debug(" queue size: %i", len(self.queue))
             self.log.debug(" active operation: %s", is_active)
             if is_active:
