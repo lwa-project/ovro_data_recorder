@@ -78,7 +78,7 @@ class CaptureOp(object):
         self.sock    = sock
         self.oring   = oring
         self.nserver = nserver
-        self.beam0   = beam0
+        self.beam0   = beam0 - 1
         self.ntime_gulp   = ntime_gulp
         self.slot_ntime   = slot_ntime
         if shutdown_event is None:
@@ -650,9 +650,6 @@ class TEngineOp(object):
                 sample_count = numpy.array([0,]*ntune, dtype=numpy.int64)
                 copy_array(self.sampleCount, sample_count)
                 
-                tchan0 = int(self.rFreq[0] / INT_CHAN_BW + 0.5) - self.nchan_out//2
-                tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
-                
                 ohdr = {}
                 ohdr['nbeam']   = nbeam
                 ohdr['ntune']   = ntune
@@ -674,6 +671,10 @@ class TEngineOp(object):
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
                     ohdr_str = json.dumps(ohdr)
+                    
+                    # Update the channels to pull in
+                    tchan0 = int(self.rFreq[0] / 50e3 + 0.5) - self.nchan_out//2
+                    tchan1 = int(self.rFreq[1] / 50e3 + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 15
@@ -812,9 +813,11 @@ class TEngineOp(object):
                         ## Clean-up
                         try:
                             del pdata
+                            del bdata
                             del gdata
                             del fdata
                             del qdata
+                            del tdata
                         except NameError:
                             pass
                             
@@ -1152,13 +1155,13 @@ def main(argv):
         isock.timeout = 1
         
     # Setup the rings
-    capture_ring = Ring(name="capture", space='cuda_host')
-    split0_ring = Ring(name="split0", space='cuda_host')
-    split1_ring = Ring(name="split1", space='cuda_host')
-    tengine0_ring = Ring(name="tengine0", space='cuda_host')
-    tengine1_ring = Ring(name="tengine1", space='cuda_host')
-    write0_ring   = Ring(name="write0", space='cuda_host')
-    write1_ring   = Ring(name="write1", space='cuda_host')
+    capture_ring = Ring(name="capture", space='cuda_host', core=cores[0])
+    split0_ring = Ring(name="split0", space='cuda_host', core=cores[0])
+    split1_ring = Ring(name="split1", space='cuda_host', core=cores[0])
+    tengine0_ring = Ring(name="tengine0", space='cuda_host', core=cores[0])
+    tengine1_ring = Ring(name="tengine1", space='cuda_host', core=cores[0])
+    write0_ring   = Ring(name="write0", space='cuda_host', core=cores[0])
+    write1_ring   = Ring(name="write1", space='cuda_host', core=cores[0])
     
     # Setup the recording directory, if needed
     if not os.path.exists(args.record_directory):
@@ -1173,10 +1176,10 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
-                           ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+                           ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
-                             ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+                             ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
     ops.append(BeamSelectOp(log, capture_ring, split0_ring, 0,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(BeamSelectOp(log, capture_ring, split1_ring, 1,
@@ -1198,9 +1201,9 @@ def main(argv):
     ops.append(WriterOp(log, write1_ring, beam0=args.beam+1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id_0, args, FILE_QUEUE_0, quota=args.record_directory_quota,
-                            nthread=len(ops)+7, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+10, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
     ops.append(GlobalLogger(log, mcs_id_1, args, FILE_QUEUE_1, quota=args.record_directory_quota,
-                            nthread=len(ops)+6, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+9, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_0, args.record_directory, FILE_QUEUE_0, DRX_QUEUE_0))
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_1, args.record_directory, FILE_QUEUE_1, DRX_QUEUE_1))
     
