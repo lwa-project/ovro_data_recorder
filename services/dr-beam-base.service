@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 # Run as the specified user
-User=ubuntu
+User=pipeline
 
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
@@ -20,7 +20,7 @@ StandardError=syslog
 SyslogIdentifier=dr-beam-{{ beam }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+ExecStartPre=/bin/bash -c '[ -d /fast/log ] || mkdir -p /fast/log'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
@@ -34,7 +34,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --cores                  {{ cores }} \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
-         --logfile                /home/ubuntu/log/dr-beam-{{ beam }}.%H.log'
+         --logfile                /fast/log/dr-beam-{{ beam }}.%H.log'
 
 [Install]
 WantedBy=multi-user.target

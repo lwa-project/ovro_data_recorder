@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 # Run as the specified user
-User=ubuntu
+User=pipeline
 
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
@@ -20,7 +20,7 @@ StandardError=syslog
 SyslogIdentifier=dr-vfast-{{ band }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+ExecStartPre=/bin/bash -c '[ -d /fast/log ] || mkdir -p /fast/log'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
@@ -35,7 +35,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --no-tar \
-         --logfile                /home/ubuntu/log/dr-vfast-{{ band }}.%H.log'
+         --logfile                /fast/log/dr-vfast-{{ band }}.%H.log'
 
 [Install]
 WantedBy=multi-user.target
