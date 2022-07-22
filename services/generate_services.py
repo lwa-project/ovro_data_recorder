@@ -11,7 +11,7 @@ import argparse
 path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ## Power beam setup
-rdir = '/fast/data/beam'
+rdir = '/data{{ calim_host }}/beam'
 quota = '500GB'
 beams = { 1: ('10.41.0.76', 20001, rdir+'01', quota),
           2: ('10.41.0.76', 20002, rdir+'02', quota),
@@ -28,7 +28,7 @@ beams = { 1: ('10.41.0.76', 20001, rdir+'01', quota),
         }
 
 ## Slow visibilities setup
-rdir = '/fast/data/slow'
+rdir = '/data{{ calim_host }}/slow'
 quota = 0
 vslow = { 1: ('10.41.0.76', 10001, rdir, '500GB'),
           2: ('10.41.0.76', 10002, rdir, quota),
@@ -49,7 +49,7 @@ vslow = { 1: ('10.41.0.76', 10001, rdir, '500GB'),
         }
 
 ## Fast visibilities setup
-rdir = '/fast/data/fast'
+rdir = '/data{{ calim_host }}/fast'
 quota = 0
 vfast = { 1: ('10.41.0.76', 11001, rdir, '250GB'),
           2: ('10.41.0.76', 11002, rdir, quota),
@@ -100,11 +100,15 @@ def main(args):
             last_address = None
             for beam in beams:
                 address, port, directory, quota = beams[beam]
+                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
                 if address != last_address:
                     cores = [72,73,74,75]
                     last_address = address
+                directory = env.from_string(directory)
+                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
+                                          calim_host=calim_host,
                                           directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
@@ -126,11 +130,15 @@ def main(args):
             last_address = None
             for band in vslow:
                 address, port, directory, quota = vslow[band]
+                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
                 if address != last_address:
                     cores = [50,51,52,53,54,55]
                     last_address = address
+                directory = env.from_string(directory)
+                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
+                                          calim_host=calim_host,
                                           directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
@@ -160,11 +168,15 @@ def main(args):
             last_address = None
             for band in vfast:
                 address, port, directory, quota = vfast[band]
+                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
                 if address != last_address:
                     cores = [62,63,64,65,66,67]
                     last_address = address
+                directory = env.from_string(directory)
+                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
+                                          calim_host=calim_host,
                                           directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
