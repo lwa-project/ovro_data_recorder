@@ -181,7 +181,7 @@ def main(args):
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 20
+                    cores[c] %= 96
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
