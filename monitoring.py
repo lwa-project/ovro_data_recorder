@@ -403,6 +403,7 @@ class StatusLogger(object):
             total = self.client.read_monitor_point('storage/active_disk_size')
             free = self.client.read_monitor_point('storage/active_disk_free')
             dfree = 1.0*free.value / total.value
+            dused = 1.0 - dfree
             
             ts = min([v.timestamp for v in (missing, processing, total, free)])
             summary = 'normal'
@@ -414,16 +415,16 @@ class StatusLogger(object):
                     new_info = "Only %i of %i threads active" % (nactive, self.nthread)
                     summary, info = self._combine_status(summary, info,
                                                          new_summary, new_info)
-            if dfree > 0.99:
+            if dused > 0.99:
                 ## Out of space check
                 new_summary = 'error'
-                new_info = "No recording space (%.1f%% used)" % (dfree*100.0,)
+                new_info = "No recording space (%.1f%% used)" % (dused*100.0,)
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
-            elif dfree > 0.95:
+            elif dused > 0.95:
                 ## Low space check
                 new_summary = 'warning'
-                new_info = "Low recording space (%.1f%% used)" % (dfree*100.0,)
+                new_info = "Low recording space (%.1f%% used)" % (dused*100.0,)
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
             if missing.value > 0.10:
