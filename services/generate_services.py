@@ -221,7 +221,7 @@ if __name__ == '__main__':
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('-p', '--anaconda-path', type=str, default='/home/pipeline/anaconda3',
+    group.add_argument('-p', '--anaconda-path', type=str, default='/opt/miniconda3',
                        help='root path to anaconda install to use')
     group.add_argument('-e', '--conda-env', type=str, default='datarecorder',
                        help='anaconda enviroment name to use')
