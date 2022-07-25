@@ -26,8 +26,8 @@ ExecStartPre=/bin/bash -c '[ -d /data{{ calim_host }}/log ] || mkdir -p /data{{ 
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_visibilities.py \
+source {{ anaconda }}/bin/activate {{ condaenv }} && \
+python3 {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --cores                  {{ cores }} \
