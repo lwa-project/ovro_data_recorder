@@ -26,8 +26,8 @@ ExecStartPre=/bin/bash -c '[ -d /fast/log ] || mkdir -p /fast/log'
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_manager_visibilites.py \
+source {{ anaconda }}/bin/activate {{ condaenv }} && \
+python3 {{ path }}/dr_manager_visibilites.py \
          --begin-band {{ begin_band }} \
          --end-band   {{ end_band }} \
          --logfile    /fast/log/dr-manager-vslow.%H.log'
