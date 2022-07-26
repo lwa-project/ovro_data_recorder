@@ -62,14 +62,16 @@ def send_command(subsystem, command, **kwargs):
         t0 = time.time()
         while not found and (time.time() - t0) < 0.25:
             event = response_queue.get(timeout=0.25)
+            event = event.events[0]
             value = json.loads(event.value)
             if value['sequence_id'] == sequence_id:
                 found = value
                 break
-    except etcd3.exceptions.Etcd3Exception as e:
-        return False, str(e)
+    
     except queue.Empty:
         return False, s_id
+    except Exception as e:
+        return False, str(e)
     finally:
         client.cancel_watch(watch_id)
         
