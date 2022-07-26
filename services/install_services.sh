@@ -11,6 +11,8 @@ if [[ "${HOST}" == "01" ]]; then
   for SUB in 1 2; do
     cp -v dr-v*-${SUB}.service /etc/systemd/system/
     cp -v dr-beam-${SUB}.service /etc/systemd/system/
+    cp -v dr-manager-vslow.service /etc/systemd/system/
+    cp -v dr-manager-vfast.service /etc/systemd/system/
   done
   RELOAD=1
 fi
