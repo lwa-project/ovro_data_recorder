@@ -8,8 +8,11 @@ except NameError:
     
 import os
 import sys
+import json
 import time
 import uuid
+import etcd3
+import queue
 import signal
 import logging
 import argparse
@@ -46,20 +49,27 @@ def send_command(client, subsystem, command, **kwargs):
     payload = json.dumps(payload)
     
     try:
-        client.put(full_name, payload)
+        response_queue = queue.Queue()
+        def callback(response, response_queue=response_queue):
+            response_queue.put(response)
+            
+        watch_id = client.client.add_watch_callback(resp_name, callback)
+        client.client.put(full_name, payload)
         
         found = None
         t0 = time.time()
-        while not found and (time.time() - t0) < self.timeout:
-            event = client.watch_once(resp_name, timeout=5.0)
+        while not found and (time.time() - t0) < 0.25:
+            event = response_queue.get(timeout=0.25)
             value = json.loads(event.value)
             if value['sequence_id'] == sequence_id:
                 found = value
                 break
     except etcd3.exceptions.Etcd3Exception as e:
-        raise e
-    except MCSError as e:
+        return False, str(e)
+    except queue.Empty:
         return False, s_id
+    finally:
+        client.client.cancel_watch(watch_id)
         
     return True, found
 
@@ -119,13 +129,17 @@ def main(argv):
     
     for cmd in ('ping', 'sync', 'start', 'stop'):
         cb = CommandCallbackBase(c.client)
-        def wrapper(**value):
+        def wrapper(cmd=cmd, manage_id=MANAGE_ID, **value):
             status = True
             response = {}
-            for id in MANAGE_ID:
-                s, r = send_command(c, id, cmd, **value)
-                status &= s
-                response[id] = r
+            for id in manage_id:
+                try:
+                    s, r = send_command(c, id, cmd, **value)
+                    status &= s
+                    response[id] = r
+                except:
+                    status = False
+                    response[id] = '???'
             return status, response
         cb.action = wrapper
         c.set_command_callback(cmd, cb)
