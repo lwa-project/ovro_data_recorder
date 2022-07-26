@@ -158,7 +158,7 @@ def main(argv):
                     svalue = MonitorPoint("timeout", timestamp=0)
                 if ivalue is None:
                     ivalue = MonitorPoint("timeout", timestamp=0)
-                age = svalue.timestamp - t0
+                age = t0 - svalue.timestamp
                 log.info("%s -> %s (%s) at %.0f (%.0f s ago)", id, svalue.value, ivalue.value, svalue.timestamp, age)
                 
                 if age > 120:
