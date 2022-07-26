@@ -23,7 +23,7 @@ def main(argv):
                  description="Data recorder manager for slow/fast visibility data"
                  )
     parser.add_argument('-b', '--band-id', type=str, default='1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16',
-                        help='comma separated list of dr_visibility.py band ID number to manage')
+                        help='comma separated list of dr_visibility.py band ID numbers to manage')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('-q', '--quick', action='store_true',
