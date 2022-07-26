@@ -1,10 +1,9 @@
 #!/bin/bash
 
-BASEDIR=`realpath $0 | xargs dirname`
+BASEDIR=/home/pipeline/ovro_data_recorder/services/
 HOST=`hostname | sed -e 's/lwacalim//g;'`
 
 cd ${BASEDIR}
-python3 ./generate_services.py
 
 RELOAD=0
 if [[ "${HOST}" == "01" ]]; then
