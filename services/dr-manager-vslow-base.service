@@ -20,7 +20,7 @@ StandardError=syslog
 SyslogIdentifier=dr-manager-vslow
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /fast/log ] || mkdir -p /fast/log'
+ExecStartPre=/bin/bash -c '[ -d /data01/log ] || mkdir -p /data01/log'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
