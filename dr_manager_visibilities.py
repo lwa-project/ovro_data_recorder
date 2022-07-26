@@ -22,10 +22,8 @@ def main(argv):
     parser = argparse.ArgumentParser(
                  description="Data recorder manager for slow/fast visibility data"
                  )
-    parser.add_argument('-b', '--begin-band', type=int, default=1,
-                        help='beginning dr_visibility.py band number to manage')
-    parser.add_argument('-e', '--end-band', type=int, default=16,
-                        help='ending dr_visibility.py IP band number to manage')
+    parser.add_argument('-b', '--band-id', type=str, default='1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16',
+                        help='comma separated list of dr_visibility.py band ID number to manage')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('-q', '--quick', action='store_true',
@@ -64,7 +62,7 @@ def main(argv):
     else:
         mcs_id += 's'
     MANAGE_ID = []
-    for band in range(args.begin_band, args.end_band+1):
+    for band in args.band_id.split(','):
         sub_id = mcs_id+str(band)
         MANAGE_ID.append(sub_id)
         
