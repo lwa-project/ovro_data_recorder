@@ -71,7 +71,7 @@ def send_command(subsystem, command, **kwargs):
     except queue.Empty:
         return False, s_id
     except Exception as e:
-        return False, str(e)
+        return False, s_id
     finally:
         client.cancel_watch(watch_id)
         
