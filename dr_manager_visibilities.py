@@ -172,7 +172,7 @@ def main(argv):
                         
                 if not first:
                     info +="; "
-                info += "%s: %s (%s)" % (id, svalue.value, ivalue.value)
+                info += "%s: %s%s (%s%s)" % (id, svalue.value, ' - stale' if age > 120 else '', ivalue.value)
                 first = False
                 
             ts = time.time()
