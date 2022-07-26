@@ -158,15 +158,16 @@ def main(argv):
                     svalue = MonitorPoint("timeout", timestamp=0)
                 if ivalue is None:
                     ivalue = MonitorPoint("timeout", timestamp=0)
-                log.info("%s -> %s (%s) at %.0f", id, svalue.value, ivalue.value, svalue.timestamp)
-                
                 age = svalue.timestamp - t0
+                log.info("%s -> %s (%s) at %.0f (%.0f s ago)", id, svalue.value, ivalue.value, svalue.timestamp, age)
+                
                 if age > 120:
-                    status = "timeout"
-                if status == "error":
+                    if status == 'normal':
+                        status = "timeout"
+                elif svalue.value == 'error':
                     status = svalue.value
-                elif svalue.value == "warning":
-                    if status == "normal":
+                elif svalue.value == 'warning':
+                    if status == 'normal':
                         status = svalue.value
                         
                 if not first:
