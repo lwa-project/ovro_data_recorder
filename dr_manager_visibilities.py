@@ -9,6 +9,7 @@ except NameError:
 import os
 import sys
 import time
+import uuid
 import signal
 import logging
 import argparse
@@ -16,6 +17,51 @@ import threading
 
 from mnc.common import *
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
+
+
+def send_command(client, subsystem, command, **kwargs):
+    """
+    Send a command to the given subsystem and wait for a response.  The 
+    arguments for the command are given as keywords.  If a response is
+    received within the timeout window, that response is returned as a two-
+    element tuple of (True, the response as a dictionary).  If a response
+    was not received within the timeout window or another error occurred,
+    return a two-element tuple of (False, sequence_id).
+    """
+    
+    if command.startswith('/'):
+        command = command[1:]
+        
+    full_name = '/cmd/%s/%s' % (subsystem, command)
+    resp_name = '/resp/'+full_name[5:]
+    sequence_id = uuid.uuid1().hex
+    try:
+        s_id = sequence_id.decode()
+    except AttributeError:
+        s_id = sequence_id
+    payload = {'sequence_id': sequence_id,
+               'timestamp': time.time(),
+               'command': command,
+               'kwargs': kwargs}
+    payload = json.dumps(payload)
+    
+    try:
+        client.put(full_name, payload)
+        
+        found = None
+        t0 = time.time()
+        while not found and (time.time() - t0) < self.timeout:
+            event = client.watch_once(resp_name, timeout=5.0)
+            value = json.loads(event.value)
+            if value['sequence_id'] == sequence_id:
+                found = value
+                break
+    except etcd3.exceptions.Etcd3Exception as e:
+        raise e
+    except MCSError as e:
+        return False, s_id
+        
+    return True, found
 
 
 def main(argv):
@@ -73,11 +119,11 @@ def main(argv):
     
     for cmd in ('ping', 'sync', 'start', 'stop'):
         cb = CommandCallbackBase(c.client)
-        def wrapper(value):
+        def wrapper(**value):
             status = True
             response = {}
             for id in MANAGE_ID:
-                s, r = c.send_command(id, cmd, **value)
+                s, r = send_command(c, id, cmd, **value)
                 status &= s
                 response[id] = r
             return status, response
