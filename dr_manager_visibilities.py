@@ -22,7 +22,7 @@ from mnc.common import *
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
 
-def send_command(client, subsystem, command, **kwargs):
+def send_command(subsystem, command, **kwargs):
     """
     Send a command to the given subsystem and wait for a response.  The 
     arguments for the command are given as keywords.  If a response is
@@ -31,6 +31,8 @@ def send_command(client, subsystem, command, **kwargs):
     was not received within the timeout window or another error occurred,
     return a two-element tuple of (False, sequence_id).
     """
+    
+    client = etcd3.client(host=ETCD_HOST, port=ETCD_PORT)
     
     if command.startswith('/'):
         command = command[1:]
@@ -53,8 +55,8 @@ def send_command(client, subsystem, command, **kwargs):
         def callback(response, response_queue=response_queue):
             response_queue.put(response)
             
-        watch_id = client.client.add_watch_callback(resp_name, callback)
-        client.client.put(full_name, payload)
+        watch_id = client.add_watch_callback(resp_name, callback)
+        client.put(full_name, payload)
         
         found = None
         t0 = time.time()
@@ -69,7 +71,7 @@ def send_command(client, subsystem, command, **kwargs):
     except queue.Empty:
         return False, s_id
     finally:
-        client.client.cancel_watch(watch_id)
+        client.cancel_watch(watch_id)
         
     return True, found
 
@@ -133,13 +135,9 @@ def main(argv):
             status = True
             response = {}
             for id in manage_id:
-                try:
-                    s, r = send_command(c, id, cmd, **value)
-                    status &= s
-                    response[id] = r
-                except:
-                    status = False
-                    response[id] = '???'
+                s, r = send_command(id, cmd, **value)
+                status &= s
+                response[id] = r
             return status, response
         cb.action = wrapper
         c.set_command_callback(cmd, cb)
