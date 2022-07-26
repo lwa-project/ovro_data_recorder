@@ -149,9 +149,15 @@ def main(args):
 
             ### Manager
             template = env.get_template('dr-manager-vslow-base.service')
-            begin_band = min([band for band in vslow])
-            end_band = max([band for band in vslow])
-            service = template.render(path=path, begin_band=begin_band, end_band=end_band)
+            band_id = []
+            for band in vslow:
+                address, port, directory, quota = vslow[band]
+                base_ip = int(address.split('.')[-1], 10)
+                base_port = port % 100
+                band_id.append(str(base_ip*100 + base_port))
+            band_id = ','.join(band_id)
+            service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                      band_id=band_id)
             with open('dr-manager-vslow.service', 'w') as fh:
                 fh.write(service)
 
@@ -187,9 +193,15 @@ def main(args):
                     
             ### Manager
             template = env.get_template('dr-manager-vfast-base.service')
-            begin_band = min([band for band in vfast])
-            end_band = max([band for band in vfast])
-            service = template.render(path=path, begin_band=begin_band, end_band=end_band)
+            band_id = []
+            for band in vfast:
+                address, port, directory, quota = vfast[band]
+                base_ip = int(address.split('.')[-1], 10)
+                base_port = port % 100
+                band_id.append(str(base_ip*100 + base_port))
+            band_id = ','.join(band_id)
+            service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                      band_id=band_id)
             with open('dr-manager-vfast.service', 'w') as fh:
                 fh.write(service)
                 
