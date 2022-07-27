@@ -17,7 +17,7 @@ TimeoutStopSec=20
 # Logging
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=dr-manager-vslow
+SyslogIdentifier=dr-manager-vfast
 
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d /data01/log ] || mkdir -p /data01/log'
