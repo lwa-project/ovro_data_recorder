@@ -30,7 +30,7 @@ source {{ anaconda }}/bin/activate {{ condaenv }} && \
 python3 {{ path }}/dr_manager_visibilities.py \
          --band-id  {{ band_id }} \
          --quick \
-         --logfile  /data01/log/dr-manager-vslow.%H.log'
+         --logfile  /data01/log/dr-manager-vfast.%H.log'
 
 [Install]
 WantedBy=multi-user.target
