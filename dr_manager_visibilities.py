@@ -239,7 +239,7 @@ def main(argv):
                 if info[-2:] == '; ':
                     info = info[:-2]
                     
-            elif status_any('warning'):
+            elif status_any('warning', summaries):
                 ## Any that are in warning leads to a warning
                 summary = 'warning'
                 info = ''
