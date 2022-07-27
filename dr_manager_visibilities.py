@@ -157,11 +157,11 @@ def main(argv):
     c = Client(mcs_id)
     
     # Start up
-    ts = time.time()
+    tlast = time.time()
     summary = 'booting'
     info = 'System is starting up'
-    c.write_monitor_point('summary', summary, timestamp=ts)
-    c.write_monitor_point('info', info, timestamp=ts)
+    c.write_monitor_point('summary', summary, timestamp=tlast)
+    c.write_monitor_point('info', info, timestamp=tlast)
     last_summary = summary
     
     # Setup the commands
@@ -179,7 +179,6 @@ def main(argv):
         c.set_command_callback(cmd, cb)
         
     # Enter the main polling loop
-    tlast = 0.0
     while not shutdown_event.is_set():
         if time.time() - tlast > args.poll_interval:
             # Poll each of the sub-bands being monitored
@@ -266,15 +265,16 @@ def main(argv):
             tlast = time.time()
             c.write_monitor_point('summary', summary, timestamp=tlast)
             c.write_monitor_point('info', info, timestamp=tlast)
+            last_summary = summary
             
-        time.sleep(2)
+        time.sleep(1)
         
     # Done
-    ts = time.time()
+    tlast = time.time()
     summary = 'shutdown'
     info = 'System has been shutdown'
-    c.write_monitor_point('summary', summary, timestamp=ts)
-    c.write_monitor_point('info', info, timestamp=ts)
+    c.write_monitor_point('summary', summary, timestamp=tlast)
+    c.write_monitor_point('info', info, timestamp=tlast)
     last_summary = summary
         
     return 0
