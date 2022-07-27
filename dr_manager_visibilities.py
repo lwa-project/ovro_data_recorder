@@ -263,9 +263,9 @@ def main(argv):
                     info = 'Warning condition(s) cleared'
                 elif last_summary == 'error':
                     info = 'Error condition(s) cleared'
-            tLast = time.time()
-            c.write_monitor_point('summary', summary, timestamp=tLast)
-            c.write_monitor_point('info', info, timestamp=tLast)
+            tlast = time.time()
+            c.write_monitor_point('summary', summary, timestamp=tlast)
+            c.write_monitor_point('info', info, timestamp=tlast)
             
         time.sleep(2)
         
