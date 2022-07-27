@@ -234,9 +234,9 @@ def main(argv):
                         
                         if code == 'error':
                             info += ': '
-                            for i,s in zip(MANAGE_ID, summaries):
+                            for i,s,d in zip(MANAGE_ID, summaries, infos):
                                 if s == 'error':
-                                    info += f"{i}={s}; "
+                                    info += f"{i}={d}; "
                 if info[-2:] == '; ':
                     info = info[:-2]
                     
@@ -250,9 +250,9 @@ def main(argv):
                     if len(info) > 0:
                         info += '; '
                     info += f"{len(in_state)} sub-bands warning: "
-                    for i,s in zip(MANAGE_ID, summaries):
+                    for i,s,d in zip(MANAGE_ID, summaries, infos):
                         if s == 'warning':
-                            info += f"{i}={s}; "
+                            info += f"{i}={d}; "
                 if info[-2:] == '; ':
                     info = info[:-2]
                     
