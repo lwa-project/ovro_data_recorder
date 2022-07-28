@@ -275,9 +275,6 @@ class MeasurementSetWriter(FileWriterBase):
     set.  Each call to write leads to a new measurement set.
     """
     
-    # +/- time margin for whether or not a file is active or finished.
-    _margin = timedelta(seconds=10)
-    
     def __init__(self, filename, start_time, stop_time, nint_per_file=1, is_tarred=True):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
@@ -306,6 +303,10 @@ class MeasurementSetWriter(FileWriterBase):
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
         create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
+        
+        # Update the file completion margin
+        self._margin = timedelta(seconds=max([1, int(round(time_step / FS))]))
+        self._padded_stop_time = self.stop_time + self._margin
         
         # Save
         self._station = station
