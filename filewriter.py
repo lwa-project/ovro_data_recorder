@@ -275,6 +275,9 @@ class MeasurementSetWriter(FileWriterBase):
     set.  Each call to write leads to a new measurement set.
     """
     
+    # +/- time margin for whether or not a file is active or finished.
+    _margin = timedelta(seconds=10)
+    
     def __init__(self, filename, start_time, stop_time, nint_per_file=1, is_tarred=True):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
@@ -362,7 +365,10 @@ class MeasurementSetWriter(FileWriterBase):
         Close out the file and then call the 'post_stop_task' method.
         """
         
-        shutil.rmtree(self._template)
+        try:
+            shutil.rmtree(self._template)
+        except OSError:
+            pass
         try:
             os.rmdir(self._tempdir)
         except OSError:
