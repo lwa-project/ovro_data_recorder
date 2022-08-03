@@ -832,7 +832,7 @@ def _write_spectralwindow_table(filename, config):
                                   col10, col11, col12, col13, col14])
     tb = table("%s/SPECTRAL_WINDOW" % filename, desc, nrow=1, ack=False)
     
-    tb.putcell('MEAS_FREQ_REF', 0, 0)
+    tb.putcell('MEAS_FREQ_REF', 0, 5)
     tb.putcell('CHAN_FREQ', 0, freq)
     tb.putcell('REF_FREQUENCY', 0, freq[0])
     tb.putcell('CHAN_WIDTH', 0, [chan_bw,]*nchan)
