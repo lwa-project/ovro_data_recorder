@@ -232,10 +232,12 @@ def main(argv):
                             info += '; '
                         info += f"{len(in_state)} sub-bands {code}"
                         
-                        if code == 'error':
-                            info += ': '
-                            for i,s,d in zip(MANAGE_ID, summaries, infos):
-                                if s == 'error':
+                        info += ': '
+                        for i,s,d in zip(MANAGE_ID, summaries, infos):
+                            if s == code:
+                                if s in ('booting', 'shutdown'):
+                                    info += f"{i}; "
+                                elif s == 'error':
                                     info += f"{i}={d}; "
                 if info[-2:] == '; ':
                     info = info[:-2]
