@@ -232,7 +232,7 @@ def update_pointing(filename, scan, ra, dec):
     
     # Source table
     tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
-    tb.putcell('DIRECTION', scan, numpy.array([[ra,dec],]))
+    tb.putcell('DIRECTION', scan, numpy.array([ra,dec]))
     tb.flush()
     tb.close()
     
@@ -652,12 +652,12 @@ def _write_observation_table(filename, config):
     
     # Source
     
-    col1  = tableutil.makearrcoldesc('DIRECTION', 0.0, 2,
+    col1  = tableutil.makearrcoldesc('DIRECTION', 0.0, 1,
                                      comment='Direction (e.g. RA, DEC).', 
                                      keywords={'QuantumUnits':['rad','rad'], 
                                                'MEASINFO':{'type':'direction', 'Ref':'J2000'}
                                                })
-    col2  = tableutil.makearrcoldesc('PROPER_MOTION', 0.0, 2,
+    col2  = tableutil.makearrcoldesc('PROPER_MOTION', 0.0, 1,
                                      comment='Proper motion', 
                                      keywords={'QuantumUnits':['rad/s',]})
     col3  = tableutil.makescacoldesc('CALIBRATION_GROUP', 0, 
@@ -699,8 +699,8 @@ def _write_observation_table(filename, config):
                                   col10, col11, col12, col13])
     tb = table("%s/SOURCE" % filename, desc, nrow=nint, ack=False)
     
-    tb.putcol('DIRECTION', numpy.zeros((nint, 1, 2)), 0, nint)
-    tb.putcol('PROPER_MOTION', numpy.zeros((nint, 1, 2)), 0, nint)
+    tb.putcol('DIRECTION', numpy.zeros((nint, 2)), 0, nint)
+    tb.putcol('PROPER_MOTION', numpy.zeros((nint, 2)), 0, nint)
     tb.putcol('CALIBRATION_GROUP', [0,]*nint, 0, nint)
     tb.putcol('CODE', ['none',]*nint, 0, nint)
     tb.putcol('INTERVAL', [tint,]*nint, 0, nint)
