@@ -4,6 +4,7 @@ import json
 import time
 import numpy
 import warnings
+import ipaddress
 import progressbar
 from threading import RLock
 from textwrap import fill as tw_fill
@@ -155,16 +156,21 @@ class BeamPointingControl(object):
         
         return all(self._cal_set)
         
-    def set_beam_dest(self, addr='10.41.0.25', port=None, port_base=20001):
+    def set_beam_dest(self, addr=None, port=None, addr_base='10.41.0.76', port_base=20001):
         """
         Set the destination IP address and UDP port for the beam data.  Defaults
         to what is currently used by the "dr-beam-N" services on lxdlwagpu09.
         """
         
+        # If an address is not explicitly provided, find what is should be using
+        # addr_base and the beam number.
+        if addr is None:
+            addr = ipaddress.IPv4Address(addr_base) + (self.beam - 1) // 2
+            addr = str(addr)
         # If a port was not explicitly provided, find what is should be using
         # port_base and the beam number.
         if port is None:
-            port = port_base + self.beam - 1
+            port = port_base + (self.beam - 1) % 2
             
         with _BEAM_DEST_LOCK:
             for p in self.pipelines:

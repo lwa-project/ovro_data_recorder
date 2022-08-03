@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 # Run as the specified user
-User=ubuntu
+User=pipeline
 
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
@@ -20,14 +20,14 @@ StandardError=syslog
 SyslogIdentifier=dr-vfast-{{ band }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+ExecStartPre=/bin/bash -c '[ -d /data{{ calim_host }}/log ] || mkdir -p /data{{ calim_host }}/log'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_visibilities.py \
+source {{ anaconda }}/bin/activate {{ condaenv }} && \
+python3 {{ path }}/dr_visibilities.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --cores                  {{ cores }} \
@@ -35,7 +35,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --no-tar \
-         --logfile                /home/ubuntu/log/dr-vfast-{{ band }}.%H.log'
+         --logfile                /data{{ calim_host }}/log/dr-vfast-{{ band }}.%H.log'
 
 [Install]
 WantedBy=multi-user.target

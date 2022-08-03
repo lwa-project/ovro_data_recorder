@@ -11,62 +11,62 @@ import argparse
 path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ## Power beam setup
-rdir = '/home/ubuntu/data/beam'
-quota = 0
-beams = { 1: ('10.41.0.25', 20001, rdir+'01', quota),
-          2: ('10.41.0.25', 20002, rdir+'02', quota),
-          3: ('10.41.0.25', 20003, rdir+'03', quota),
-          4: ('10.41.0.25', 20004, rdir+'04', quota),
-          5: ('10.41.0.25', 20005, rdir+'05', quota),
-          6: ('10.41.0.25', 20006, rdir+'06', quota),
-          7: ('10.41.0.25', 20007, rdir+'07', quota),
-          8: ('10.41.0.25', 20008, rdir+'08', quota),
-          9: ('10.41.0.25', 20009, rdir+'09', quota),
-         10: ('10.41.0.25', 20010, rdir+'10', quota),
-         11: ('10.41.0.25', 20011, rdir+'11', quota),
-         12: ('10.41.0.25', 20012, rdir+'12', quota),
+rdir = '/data{{ calim_host }}/beam'
+quota = '500GB'
+beams = { 1: ('10.41.0.76', 20001, rdir+'01', quota),
+          2: ('10.41.0.76', 20002, rdir+'02', quota),
+          3: ('10.41.0.77', 20001, rdir+'03', quota),
+          4: ('10.41.0.77', 20002, rdir+'04', quota),
+          5: ('10.41.0.78', 20001, rdir+'05', quota),
+          6: ('10.41.0.78', 20002, rdir+'06', quota),
+          7: ('10.41.0.79', 20001, rdir+'07', quota),
+          8: ('10.41.0.79', 20002, rdir+'08', quota),
+          9: ('10.41.0.80', 20001, rdir+'09', quota),
+         10: ('10.41.0.80', 20002, rdir+'10', quota),
+         11: ('10.41.0.81', 20001, rdir+'11', quota),
+         12: ('10.41.0.81', 20001, rdir+'12', quota),
         }
 
 ## Slow visibilities setup
-rdir = '/home/ubuntu/data/slow'
-quota = 0
-vslow = { 1: ('10.41.0.25', 10001, rdir, '250GB'),
-          2: ('10.41.0.73', 10001, rdir, quota),
-          3: ('10.41.0.25', 10002, rdir, quota),
-          4: ('10.41.0.73', 10002, rdir, quota),
-          5: ('10.41.0.25', 10003, rdir, quota),
-          6: ('10.41.0.73', 10003, rdir, quota),
-          7: ('10.41.0.25', 10004, rdir, quota),
-          8: ('10.41.0.73', 10004, rdir, quota),
-          9: ('10.41.0.25', 10005, rdir, quota),
-         10: ('10.41.0.73', 10005, rdir, quota),
-         11: ('10.41.0.25', 10006, rdir, quota),
-         12: ('10.41.0.73', 10006, rdir, quota),
-         13: ('10.41.0.25', 10007, rdir, quota),
-         14: ('10.41.0.73', 10007, rdir, quota),
-         15: ('10.41.0.25', 10008, rdir, quota),
-         16: ('10.41.0.73', 10008, rdir, quota),
+rdir = '/data{{ calim_host }}/slow'
+quota = '500GB'
+vslow = { 1: ('10.41.0.76', 10001, rdir, quota),
+          2: ('10.41.0.76', 10002, rdir, 0),
+          3: ('10.41.0.77', 10001, rdir, quota),
+          4: ('10.41.0.77', 10002, rdir, 0),
+          5: ('10.41.0.78', 10001, rdir, quota),
+          6: ('10.41.0.78', 10002, rdir, 0),
+          7: ('10.41.0.79', 10001, rdir, quota),
+          8: ('10.41.0.79', 10002, rdir, 0),
+          9: ('10.41.0.80', 10001, rdir, quota),
+         10: ('10.41.0.80', 10002, rdir, 0),
+         11: ('10.41.0.81', 10001, rdir, quota),
+         12: ('10.41.0.81', 10002, rdir, 0),
+         13: ('10.41.0.82', 10001, rdir, quota),
+         14: ('10.41.0.82', 10002, rdir, 0),
+         15: ('10.41.0.83', 10001, rdir, quota),
+         16: ('10.41.0.83', 10002, rdir, 0),
         }
 
 ## Fast visibilities setup
-rdir = '/home/ubuntu/data/fast'
-quota = 0
-vfast = { 1: ('10.41.0.25', 11001, rdir, '250GB'),
-          2: ('10.41.0.73', 11001, rdir, quota),
-          3: ('10.41.0.25', 11002, rdir, quota),
-          4: ('10.41.0.73', 11002, rdir, quota),
-          5: ('10.41.0.25', 11003, rdir, quota),
-          6: ('10.41.0.73', 11003, rdir, quota),
-          7: ('10.41.0.25', 11004, rdir, quota),
-          8: ('10.41.0.73', 11004, rdir, quota),
-          9: ('10.41.0.25', 11005, rdir, quota),
-         10: ('10.41.0.73', 11005, rdir, quota),
-         11: ('10.41.0.25', 11006, rdir, quota),
-         12: ('10.41.0.73', 11006, rdir, quota),
-         13: ('10.41.0.25', 11007, rdir, quota),
-         14: ('10.41.0.73', 11007, rdir, quota),
-         15: ('10.41.0.25', 11008, rdir, quota),
-         16: ('10.41.0.73', 11008, rdir, quota),
+rdir = '/data{{ calim_host }}/fast'
+quota = '250GB'
+vfast = { 1: ('10.41.0.76', 11001, rdir, quota),
+          2: ('10.41.0.76', 11002, rdir, 0),
+          3: ('10.41.0.77', 11001, rdir, quota),
+          4: ('10.41.0.77', 11002, rdir, 0),
+          5: ('10.41.0.78', 11001, rdir, quota),
+          6: ('10.41.0.78', 11002, rdir, 0),
+          7: ('10.41.0.79', 11001, rdir, quota),
+          8: ('10.41.0.79', 11002, rdir, 0),
+          9: ('10.41.0.80', 11001, rdir, quota),
+         10: ('10.41.0.80', 11002, rdir, 0),
+         11: ('10.41.0.81', 11001, rdir, quota),
+         12: ('10.41.0.81', 11002, rdir, 0),
+         13: ('10.41.0.82', 11001, rdir, quota),
+         14: ('10.41.0.82', 11002, rdir, 0),
+         15: ('10.41.0.83', 11001, rdir, quota),
+         16: ('10.41.0.83', 11002, rdir, 0),
         }
 
 ## T-engine setup
@@ -97,16 +97,23 @@ def main(args):
                 os.unlink(filename)
         else:
             template = env.get_template('dr-beam-base.service')
-            cores = [0,1,2,3]
+            last_address = None
             for beam in beams:
-                address, port, directory, quota = beams[beam] 
+                address, port, directory, quota = beams[beam]
+                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
+                if address != last_address:
+                    cores = [72,73,74,75]
+                    last_address = address
+                directory = env.from_string(directory)
+                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
+                                          calim_host=calim_host,
                                           directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 20
+                    cores[c] %= 96
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -120,24 +127,37 @@ def main(args):
         else:
             ### Recorders
             template = env.get_template('dr-vslow-base.service')
-            cores = [0,1,2,3,4,5]
+            last_address = None
             for band in vslow:
                 address, port, directory, quota = vslow[band]
+                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
+                if address != last_address:
+                    cores = [50,51,52,53,54,55]
+                    last_address = address
+                directory = env.from_string(directory)
+                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
+                                          calim_host=calim_host,
                                           directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 20
+                    cores[c] %= 96
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
             ### Manager
             template = env.get_template('dr-manager-vslow-base.service')
-            begin_band = min([band for band in vslow])
-            end_band = max([band for band in vslow])
-            service = template.render(path=path, begin_band=begin_band, end_band=end_band)
+            band_id = []
+            for band in vslow:
+                address, port, directory, quota = vslow[band]
+                base_ip = int(address.split('.')[-1], 10)
+                base_port = port % 100
+                band_id.append(str(base_ip*100 + base_port))
+            band_id = ','.join(band_id)
+            service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                      band_id=band_id)
             with open('dr-manager-vslow.service', 'w') as fh:
                 fh.write(service)
 
@@ -151,24 +171,37 @@ def main(args):
         else:
             ### Recorders
             template = env.get_template('dr-vfast-base.service')
-            cores = [0,1,2,3,4,5]
+            last_address = None
             for band in vfast:
                 address, port, directory, quota = vfast[band]
+                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
+                if address != last_address:
+                    cores = [62,63,64,65,66,67]
+                    last_address = address
+                directory = env.from_string(directory)
+                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
+                                          calim_host=calim_host,
                                           directory=directory, quota=quota,
                                           cores=','.join([str(v) for v in cores]))
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 20
+                    cores[c] %= 96
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
             ### Manager
             template = env.get_template('dr-manager-vfast-base.service')
-            begin_band = min([band for band in vfast])
-            end_band = max([band for band in vfast])
-            service = template.render(path=path, begin_band=begin_band, end_band=end_band)
+            band_id = []
+            for band in vfast:
+                address, port, directory, quota = vfast[band]
+                base_ip = int(address.split('.')[-1], 10)
+                base_port = port % 100
+                band_id.append(str(base_ip*100 + base_port))
+            band_id = ','.join(band_id)
+            service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                      band_id=band_id)
             with open('dr-manager-vfast.service', 'w') as fh:
                 fh.write(service)
                 
@@ -200,9 +233,9 @@ if __name__ == '__main__':
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('-p', '--anaconda-path', type=str, default='/home/ubuntu/anaconda3',
+    group.add_argument('-p', '--anaconda-path', type=str, default='/opt/miniconda3',
                        help='root path to anaconda install to use')
-    group.add_argument('-e', '--conda-env', type=str, default='casa',
+    group.add_argument('-e', '--conda-env', type=str, default='datarecorder',
                        help='anaconda enviroment name to use')
     group.add_argument('-b', '--power-beams', action='store_true',
                        help='only generate/clean the power beam services')

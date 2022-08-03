@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 # Run as the specified user
-User=ubuntu
+User=pipeline
 
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
@@ -20,17 +20,16 @@ StandardError=syslog
 SyslogIdentifier=dr-manager-vslow
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+ExecStartPre=/bin/bash -c '[ -d /data01/log ] || mkdir -p /data01/log'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_manager_visibilites.py \
-         --begin-band {{ begin_band }} \
-         --end-band   {{ end_band }} \
-	       --logfile    /home/ubuntu/log/dr-manager-vslow.%H.log'
+source {{ anaconda }}/bin/activate {{ condaenv }} && \
+python3 {{ path }}/dr_manager_visibilities.py \
+         --band-id  {{ band_id }} \
+	       --logfile  /data01/log/dr-manager-vslow.%H.log'
 
 [Install]
 WantedBy=multi-user.target

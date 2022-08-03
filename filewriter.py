@@ -304,6 +304,10 @@ class MeasurementSetWriter(FileWriterBase):
         self._template = os.path.join(self._tempdir, 'template')
         create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
         
+        # Update the file completion margin
+        self._margin = timedelta(seconds=max([1, int(round(time_step / FS))]))
+        self._padded_stop_time = self.stop_time + self._margin
+        
         # Save
         self._station = station
         self._tint = tint
@@ -362,7 +366,10 @@ class MeasurementSetWriter(FileWriterBase):
         Close out the file and then call the 'post_stop_task' method.
         """
         
-        shutil.rmtree(self._template)
+        try:
+            shutil.rmtree(self._template)
+        except OSError:
+            pass
         try:
             os.rmdir(self._tempdir)
         except OSError:

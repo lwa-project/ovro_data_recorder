@@ -1,7 +1,7 @@
 #!/bin/bash
 
-if [[ -e /home/ubuntu/anaconda3/envs/casa ]]; then
-  mkdir -p /home/ubuntu/anaconda3/envs/casa/lib/casa/data/
-  cd /home/ubuntu/anaconda3/envs/casa/lib/casa/data/
+if [[ -e /home/pipeline/.conda/envs/datarecorder ]]; then
+  mkdir -p /home/pipeline/.conda/envs/datarecorder/lib/casa/data/
+  cd /home/pipeline/.conda/envs/datarecorder/lib/casa/data/
   rsync -avz rsync://casa-rsync.nrao.edu/casa-data .
 fi
