@@ -224,7 +224,7 @@ def main(argv):
             elif status_all('idle', actives):
                 op_type = 'idle'
             else:
-                narecording = len(list(filter(lambda x: x == 'recording', actives)))
+                nrecording = len(list(filter(lambda x: x == 'recording', actives)))
                 nidle = len(list(filter(lambda x: x == 'idle', actives)))
                 ntimeout = len(actives) - nrecording - nidle
                 op_type = f"{nrecording} recording; {nidle} idle"
