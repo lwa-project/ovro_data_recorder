@@ -226,7 +226,10 @@ def main(argv):
             else:
                 narecording = len(list(filter(lambda x: x == 'recording', actives)))
                 nidle = len(list(filter(lambda x: x == 'idle', actives)))
+                nother = len(actives) - nrecording - nidle
                 op_type = f"{nrecording} recording; {nidle} idle"
+                if nother > 0:
+                    op_type += f"; {nother} offline"
             op_tag = '; '.join(tags)
             
             tlast = time.time()
