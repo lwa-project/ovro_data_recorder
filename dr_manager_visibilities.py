@@ -230,7 +230,7 @@ def main(argv):
                 op_type = f"{nrecording} recording; {nidle} idle"
                 if ntimeout > 0:
                     op_type += f"; {ntimeout} timed out"
-            op_tag = '; '.join(tags)
+            op_tag = '; '.join([str(t) for t in tags])
             
             tlast = time.time()
             c.write_monitor_point('op-type', op_type, timestamp=tlast)
