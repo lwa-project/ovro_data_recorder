@@ -183,19 +183,27 @@ def main(argv):
         if time.time() - tlast > args.poll_interval:
             # Poll each of the sub-bands being monitored
             t0 = time.time()
-            summaries, infos = [], []
+            summaries, infos, actives, tags = [], [], [], []
             for id in MANAGE_ID:
                 ## Poll
                 svalue = c.read_monitor_point('summary', id=id)
                 ivalue = c.read_monitor_point('info', id=id)
+                avalue = c.read_monitor_point('op-type', id=id)
+                tvalue = c.read_monitor_point('op-tag', id=id)
                 ## Deal with timeouts
                 if svalue is None:
                     svalue = MonitorPoint("timeout", timestamp=0)
                 if ivalue is None:
                     ivalue = MonitorPoint("timeout", timestamp=0)
+                if avalue is None:
+                    avalue = MonitorPoint("timeout", timestamp=0)
+                if tvalue is None:
+                    tvalue = MonitorPoint("timeout", timestamp=0)
                 ## Save
                 summaries.append(svalue)
                 infos.append(ivalue)
+                actives.append(avalue)
+                tags.append(tvalue)
                 ## Report
                 log.info("%s -> %s (%s) at %.0f (%.0f s ago)", id, svalue.value, ivalue.value, svalue.timestamp, time.time() - svalue.timestamp)
             t0 = (time.time() + t0)/2.0
@@ -206,6 +214,23 @@ def main(argv):
             # Convert to simple strings
             summaries = [s.value for s in summaries]
             infos = [i.value for i in infos]
+            actives = [a.value for a in actives]
+            tags = [t.value for t in tags]
+            
+            # Create the overall op-type and op-tag values
+            if status_all('recording', actives):
+                op_type = 'recording'
+            elif status_all('idle', actives):
+                op_type = 'idle'
+            else:
+                narecording = len(list(filter(lambda x: x == 'recording', actives)))
+                nidle = len(list(filter(lambda x: x == 'idle', actives)))
+                op_type = f"{nrecording} recording; {nidle} idle"
+            op_tag = '; '.join(tags)
+            
+            tlast = time.time()
+            c.write_monitor_point('op-type', op_type, timestamp=tlast)
+            c.write_monitor_point('op-tag', op_tag, timestamp=tlast)
             
             # Create an overall status
             summary = 'normal'
