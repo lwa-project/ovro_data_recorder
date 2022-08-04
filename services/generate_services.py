@@ -12,7 +12,7 @@ path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ## Power beam setup
 rdir = '/data{{ calim_host }}/beam'
-quota = '500GB'
+quota = '1TB'
 beams = { 1: ('10.41.0.76', 20001, rdir+'01', quota),
           2: ('10.41.0.76', 20002, rdir+'02', quota),
           3: ('10.41.0.77', 20001, rdir+'03', quota),
@@ -29,7 +29,7 @@ beams = { 1: ('10.41.0.76', 20001, rdir+'01', quota),
 
 ## Slow visibilities setup
 rdir = '/data{{ calim_host }}/slow'
-quota = '500GB'
+quota = '2TB'
 vslow = { 1: ('10.41.0.76', 10001, rdir, quota),
           2: ('10.41.0.76', 10002, rdir, 0),
           3: ('10.41.0.77', 10001, rdir, quota),
@@ -50,7 +50,7 @@ vslow = { 1: ('10.41.0.76', 10001, rdir, quota),
 
 ## Fast visibilities setup
 rdir = '/data{{ calim_host }}/fast'
-quota = '250GB'
+quota = '1TB'
 vfast = { 1: ('10.41.0.76', 11001, rdir, quota),
           2: ('10.41.0.76', 11002, rdir, 0),
           3: ('10.41.0.77', 11001, rdir, quota),
