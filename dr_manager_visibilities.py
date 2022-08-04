@@ -206,6 +206,7 @@ def main(argv):
                 tags.append(tvalue)
                 ## Report
                 log.info("%s -> %s (%s) at %.0f (%.0f s ago)", id, svalue.value, ivalue.value, svalue.timestamp, time.time() - svalue.timestamp)
+                log.info("%s -> operation is '%s' (%s)", id, avalue.value, tvalue.value)
             t0 = (time.time() + t0)/2.0
             
             # Get the ages
