@@ -387,7 +387,7 @@ class StatusLogger(object):
             if is_active:
                 active_filename = self.queue.active.filename
                 time_left = self.queue.active.stop_time - self.queue.active.utcnow()
-            self.client.write_monitor_point('op-type', active_filename, timestamp=ts)
+            self.client.write_monitor_point('op-type', 'recording' if is_active else 'idle', timestamp=ts)
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
             # Get the current metrics that matter
