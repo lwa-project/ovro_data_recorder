@@ -1,79 +1,32 @@
 #!/bin/bash
 
 BASEDIR=/home/pipeline/ovro_data_recorder/services/
-HOST=`hostname | sed -e 's/lwacalim//g;'`
+HOST=`hostname | grep lwacalim`
+if [[ ${HOST} == "" ]]; then
+  echo "Must be run on a calim node"
+  exit 1
+fi
+HOST=`echo ${HOST} | sed -e 's/lwacalim//g;'`
+HOST=`echo "10#${HOST}"`
+SUB0=$(((${HOST}-1)*2+1))
+SUB1=$(((${HOST}-1)*2+2))
+if (( ${SUB0} > 16 )); then
+  echo "No sub-bands or beams are recorded on this node"
+  exit 1
+fi
 
 cd ${BASEDIR}
+./generate_services.py
 
-RELOAD=0
-if [[ "${HOST}" == "01" ]]; then
-  for SUB in 1 2; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    cp -v dr-beam-${SUB}.service /etc/systemd/system/
-    cp -v dr-manager-vslow.service /etc/systemd/system/
-    cp -v dr-manager-vfast.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
+mkdir -p /home/pipeline/.config/systemd/user/
 
-if [[ "${HOST}" == "02" ]]; then
-  for SUB in 3 4; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
+for SUB in `seq 1 1 16`; do
+  cp -v dr-v*-${SUB}.service /home/pipeline/.config/systemd/user/
+done
+for BEAM in `seq 1 1 12`; do
+  cp -v dr-beam-${BEAM}.service /home/pipeline/.config/systemd/user/
+done
+cp -v dr-manager-vslow.service /etc/systemd/system/user/
+cp -v dr-manager-vfast.service /etc/systemd/system/user/
 
-if [[ "${HOST}" == "03" ]]; then
-  for SUB in 5 6; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
-
-if [[ "${HOST}" == "04" ]]; then
-  for SUB in 7 8; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
-
-if [[ "${HOST}" == "05" ]]; then
-  for SUB in 9 10; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
-
-if [[ "${HOST}" == "06" ]]; then
-  for SUB in 11 12; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
-
-if [[ "${HOST}" == "07" ]]; then
-  for SUB in 13 14; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    #cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
-
-if [[ "${HOST}" == "08" ]]; then
-  for SUB in 15 16; do
-    cp -v dr-v*-${SUB}.service /etc/systemd/system/
-    #cp -v dr-beam-${SUB}.service /etc/systemd/system/
-  done
-  RELOAD=1
-fi
-
-if [[ "${RELOAD}" == "1" ]]; then
-  systemctl daemon-reload
-else
-  echo "No services installed"
-fi
+systemctl --user --deamon-reload
