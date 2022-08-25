@@ -4,9 +4,6 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-# Run as the specified user
-User=pipeline
-
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
 
