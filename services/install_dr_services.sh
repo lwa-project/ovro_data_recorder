@@ -26,7 +26,7 @@ done
 for BEAM in `seq 1 1 12`; do
   cp -v dr-beam-${BEAM}.service /home/pipeline/.config/systemd/user/
 done
-cp -v dr-manager-vslow.service /etc/systemd/system/user/
-cp -v dr-manager-vfast.service /etc/systemd/system/user/
+cp -v dr-manager-vslow.service /home/pipeline/.config/systemd/user/
+cp -v dr-manager-vfast.service /home/pipeline/.config/systemd/user/
 
 systemctl --user daemon-reload
