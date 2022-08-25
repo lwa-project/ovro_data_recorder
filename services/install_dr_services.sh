@@ -29,4 +29,4 @@ done
 cp -v dr-manager-vslow.service /etc/systemd/system/user/
 cp -v dr-manager-vfast.service /etc/systemd/system/user/
 
-systemctl --user --deamon-reload
+systemctl --user daemon-reload
