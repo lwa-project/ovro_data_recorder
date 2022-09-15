@@ -34,4 +34,4 @@ python3 {{ path }}/dr_visibilities.py \
          --logfile                /data{{ calim_host }}/log/dr-vslow-{{ band }}.%H.log'
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

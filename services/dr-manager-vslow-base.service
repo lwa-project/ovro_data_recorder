@@ -29,4 +29,4 @@ python3 {{ path }}/dr_manager_visibilities.py \
 	       --logfile  /data01/log/dr-manager-vslow.%H.log'
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
