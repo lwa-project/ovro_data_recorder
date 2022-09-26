@@ -340,8 +340,8 @@ class ReChannelizerOp(object):
                                 bfft.init(fdata, gdata, axes=1, apply_fftshift=True)
                                 bfft.execute(fdata, gdata, inverse=True)
                                 
-                            t3 = time.time()
                             ### Inversion matrix setup
+                            t3 = time.time()
                             try:
                                 imatrix
                             except NameError:
@@ -361,22 +361,16 @@ class ReChannelizerOp(object):
                                 
                                 # For a threshold of 0.3
                                 wft = 0.3
-                                # BFMap(f"""
-                                #       auto temp = a(i,j,k,l,m).mag2();
-                                #       auto filt = temp / (temp + {wft}*{wft}) * (1+{wft}*{wft});
-                                #       a(i,j,k,l,m) = 1 / a(i,j,k,l,m).conj();
-                                #       """,
-                                #       {'a':imatrix},
-                                #       axis_names=('i','j','k','l','m'),
-                                #       shape=imatrix.shape)
                                 BFMap(f"""
                                       a = (a.mag2() / (a.mag2() + {wft}*{wft})) * (1+{wft}*{wft}) / a.conj();
                                       """,
                                       {'a':imatrix})
                                 
                                 imatrix = imatrix.reshape(-1, 4, NCHAN*nbeam*npol)
+                                del matrix
+                                del pfft
                                 
-                            # The actual inversion
+                            ### The actual inversion
                             t4 = time.time()
                             gdata = gdata.reshape(imatrix.shape)
                             try:
@@ -388,7 +382,7 @@ class ReChannelizerOp(object):
                                 pfft2.init(gdata, gdata2, axes=1)
                                 pfft2.execute(gdata, gdata2, inverse=False)
                                 
-                            BFMap("a *= b",
+                            BFMap("a *= b / (%i*2)" % NCHAN,
                                   {'a':gdata2, 'b':imatrix})
                                  
                             pfft2.execute(gdata2, gdata, inverse=True)
@@ -405,12 +399,12 @@ class ReChannelizerOp(object):
                                 ffft.init(gdata, rdata, axes=1, apply_fftshift=True)
                                 ffft.execute(gdata, rdata, inverse=False)
                                 
-                            t6 = t7 = time.time()
+                            t6 = time.time()
                             ## Save
                             copy_array(odata, rdata)
                             
-                            t8 = time.time()
-                            # print(t8-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t8-t7)
+                            t7 = time.time()
+                            # print(t7-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
                             
                         curr_time = time.time()
                         process_time = curr_time - prev_time
@@ -423,6 +417,8 @@ class ReChannelizerOp(object):
                 del fdata
                 del gdata
                 del bfft
+                del imatrix
+                del pfft2
                 del rdata
                 del ffft
             except NameError:
