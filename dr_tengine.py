@@ -20,6 +20,8 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
+from scipy.signal import get_window as scipy_window, firwin as scipy_firwin
+
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
@@ -68,6 +70,14 @@ DRX_NSAMPLE_PER_PKT = 4096
 
 FILE_QUEUE = FileOperationsQueue()
 DRX_QUEUE = DrxOperationsQueue()
+
+
+def pfb_window(P):
+    win_coeffs = scipy_window("hamming", 4*P)
+    sinc       = scipy_firwin(4*P, cutoff=1.0/P, window="rectangular")
+    win_coeffs *= sinc
+    win_coeffs /= win_coeffs.max()
+    return win_coeffs
 
 
 class CaptureOp(object):
@@ -262,13 +272,13 @@ class ReChannelizerOp(object):
                 npol     = ihdr['npol']
                 
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8        # complex64
-                ishape = (self.ntime_gulp,nchan,nbeam,npol)
-                self.iring.resize(igulp_size, 10*igulp_size)
+                ishape = (self.ntime_gulp,nchan,nbeam*npol)
+                self.iring.resize(igulp_size, 20*igulp_size)
                 
                 ochan = int(round(CLOCK / 2 / 50e3))
                 otime_gulp = self.ntime_gulp*NCHAN // ochan
                 ogulp_size = otime_gulp*ochan*nbeam*npol*8 # complex64
-                oshape = (otime_gulp,ochan,nbeam,npol)
+                oshape = (otime_gulp,ochan,nbeam*npol)
                 self.oring.resize(ogulp_size)
                 
                 ohdr = ihdr.copy()
@@ -294,46 +304,113 @@ class ReChannelizerOp(object):
                             
                             idata = ispan.data_view(numpy.complex64).reshape(ishape)
                             odata = ospan.data_view(numpy.complex64).reshape(oshape)
-                            
-                            # Pad out to the full 98 MHz bandwidth
-                            try:
-                                fdata[:,chan0:chan0+nchan,:,:] = idata
-                            except NameError:
-                                fdata = numpy.zeros((self.ntime_gulp,NCHAN,nbeam,npol), dtype=numpy.complex64)
-                                fdata = BFAsArray(fdata, space='cuda_host')
-                                fdata[:,chan0:chan0+nchan,:,:] = idata
-                                
+                           
+                            t0 = time.time() 
                             ### From here until going to the output ring we are on the GPU
                             try:
-                                bdata = bdata.reshape(*fdata.shape)
-                                copy_array(bdata, fdata)
+                                copy_array(bdata, idata)
                             except NameError:
-                                bdata = fdata.copy(space='cuda')
+                                bdata = idata.copy(space='cuda')
                                 
-                            ## IFFT
+                            t1 = time.time()
+                            # Pad out to the full 98 MHz bandwidth
                             try:
-                                gdata = gdata.reshape(*bdata.shape)
-                                bfft.execute(bdata, gdata, inverse=True)
+                                fdata
                             except NameError:
-                                gdata = BFArray(shape=bdata.shape, dtype=numpy.complex64, space='cuda')
+                                fdata = numpy.zeros((self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64)
+                                fdata = BFAsArray(fdata, space='cuda')
+                            BFMap(f"""
+                                  a(i,j+{chan0},0) = b(i,j,0);
+                                  a(i,j+{chan0},1) = b(i,j,1);
+                                  """,
+                                  {'a': fdata, 'b': bdata},
+                                  axis_names=('i','j'),
+                                  shape=(self.ntime_gulp,nchan))
+                            
+                            ## PFB inversion
+                            t2 = time.time()
+                            ### Initial IFFT
+                            try:
+                                gdata = gdata.reshape(fdata.shape)
+                                bfft.execute(fdata, gdata, inverse=True)
+                            except NameError:
+                                gdata = BFArray(shape=fdata.shape, dtype=numpy.complex64, space='cuda')
                                 
                                 bfft = Fft()
-                                bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
-                                bfft.execute(bdata, gdata, inverse=True)
-                            gdata = gdata.reshape(otime_gulp,ochan,nbeam,npol)
+                                bfft.init(fdata, gdata, axes=1, apply_fftshift=True)
+                                bfft.execute(fdata, gdata, inverse=True)
+                                
+                            t3 = time.time()
+                            ### Inversion matrix setup
+                            try:
+                                imatrix
+                            except NameError:
+                                matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
+                                imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+                                
+                                pfb = pfb_window(NCHAN)
+                                pfb = pfb.reshape(4, -1)
+                                pfb.shape += (1,)
+                                pfb.shape = (1,)+pfb.shape
+                                matrix[:,:4,:,:] = pfb
+                                matrix = matrix.copy(space='cuda')
+                                
+                                pfft = Fft()
+                                pfft.init(matrix, imatrix, axes=1)
+                                pfft.execute(matrix, imatrix, inverse=False)
+                                
+                                # For a threshold of 0.3
+                                wft = 0.3
+                                # BFMap(f"""
+                                #       auto temp = a(i,j,k,l,m).mag2();
+                                #       auto filt = temp / (temp + {wft}*{wft}) * (1+{wft}*{wft});
+                                #       a(i,j,k,l,m) = 1 / a(i,j,k,l,m).conj();
+                                #       """,
+                                #       {'a':imatrix},
+                                #       axis_names=('i','j','k','l','m'),
+                                #       shape=imatrix.shape)
+                                BFMap(f"""
+                                      a = (a.mag2() / (a.mag2() + {wft}*{wft})) * (1+{wft}*{wft}) / a.conj();
+                                      """,
+                                      {'a':imatrix})
+                                
+                                imatrix = imatrix.reshape(-1, 4, NCHAN*nbeam*npol)
+                                
+                            # The actual inversion
+                            t4 = time.time()
+                            gdata = gdata.reshape(imatrix.shape)
+                            try:
+                                pfft2.execute(gdata, gdata2, inverse=False)
+                            except NameError:
+                                gdata2 = BFArray(shape=gdata.shape, dtype=numpy.complex64, space='cuda')
+                                
+                                pfft2 = Fft()
+                                pfft2.init(gdata, gdata2, axes=1)
+                                pfft2.execute(gdata, gdata2, inverse=False)
+                                
+                            BFMap("a *= b",
+                                  {'a':gdata2, 'b':imatrix})
+                                 
+                            pfft2.execute(gdata2, gdata, inverse=True)
                             
-                            ## FFT
+                            t5 = time.time()
+                            ## FFT to re-channelize
+                            gdata = gdata.reshape(-1, ochan, nbeam*npol)
                             try:
                                 ffft.execute(gdata, rdata, inverse=False)
                             except NameError:
-                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam,npol), dtype=numpy.complex64, space='cuda')
+                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam*npol), dtype=numpy.complex64, space='cuda')
                                 
                                 ffft = Fft()
                                 ffft.init(gdata, rdata, axes=1, apply_fftshift=True)
                                 ffft.execute(gdata, rdata, inverse=False)
                                 
+                            t6 = t7 = time.time()
                             ## Save
                             copy_array(odata, rdata)
+                            
+                            t8 = time.time()
+                            # print(t8-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t8-t7)
                             
                         curr_time = time.time()
                         process_time = curr_time - prev_time
@@ -641,7 +718,7 @@ class TEngineOp(object):
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap("""
-                                      auto k = (j / 2) % 2;
+                                      auto k = (j / 2);// % 2;
                                       a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
@@ -1091,7 +1168,6 @@ def main(argv):
     # Setup the threads
     threads = [threading.Thread(target=op.main) for op in ops]
     
-    """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
@@ -1099,7 +1175,6 @@ def main(argv):
     r = c.send_command(mcs_id, 'record', beam=args.beam,
                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r)
-    """
     
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
