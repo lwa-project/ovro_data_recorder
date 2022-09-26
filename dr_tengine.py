@@ -36,7 +36,7 @@ from bifrost.packet_writer import HeaderInfo, DiskWriter
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
-from bifrost.ndarray import copy_array
+from bifrost.ndarray import copy_array, memset_array
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.fft import Fft
@@ -251,6 +251,7 @@ class ReChannelizerOp(object):
         ## Metadata
         nbeam, npol = self.nbeam_max, 2
         ## PFB data arrays
+        self.fdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
         self.gdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
         self.gdata2 = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
         ## PFB inversion matrix
@@ -319,6 +320,9 @@ class ReChannelizerOp(object):
                 ohdr['bw']    = CLOCK / 2
                 ohdr_str = json.dumps(ohdr)
                 
+                # Zero out self.fdata in case chan0 has changed
+                memset_array(self.fdata, 0)
+                
                 with oring.begin_sequence(time_tag=time_tag, header=ohdr_str) as oseq:
                     prev_time = time.time()
                     iseq_spans = iseq.read(igulp_size)
@@ -346,29 +350,24 @@ class ReChannelizerOp(object):
                                 
                             # Pad out to the full 98 MHz bandwidth
                             t1 = time.time()
-                            try:
-                                fdata
-                            except NameError:
-                                fdata = numpy.zeros((self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64)
-                                fdata = BFAsArray(fdata, space='cuda')
                             BFMap(f"""
                                   a(i,j+{chan0},0) = b(i,j,0);
                                   a(i,j+{chan0},1) = b(i,j,1);
                                   """,
-                                  {'a': fdata, 'b': bdata},
+                                  {'a': self.fdata, 'b': bdata},
                                   axis_names=('i','j'),
                                   shape=(self.ntime_gulp,nchan))
                             
                             ## PFB inversion
                             ### Initial IFFT
                             t2 = time.time()
-                            self.gdata = self.gdata.reshape(fdata.shape)
+                            self.gdata = self.gdata.reshape(self.fdata.shape)
                             try:
-                                bfft.execute(fdata, self.gdata, inverse=True)
+                                bfft.execute(self.fdata, self.gdata, inverse=True)
                             except NameError:
                                 bfft = Fft()
-                                bfft.init(fdata, self.gdata, axes=1, apply_fftshift=True)
-                                bfft.execute(fdata, self.gdata, inverse=True)
+                                bfft.init(self.fdata, self.gdata, axes=1, apply_fftshift=True)
+                                bfft.execute(self.fdata, self.gdata, inverse=True)
                                 
                             ### The actual inversion
                             t4 = time.time()
@@ -412,7 +411,6 @@ class ReChannelizerOp(object):
                                                   'process_time': process_time,})
                         
             try:
-                del fdata
                 del bfft
                 del pfft
                 del rdata
