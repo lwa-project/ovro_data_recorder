@@ -20,6 +20,8 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
+from scipy.signal import get_window as scipy_window, firwin as scipy_firwin
+
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
@@ -69,6 +71,14 @@ FILE_QUEUE_0 = FileOperationsQueue()
 FILE_QUEUE_1 = FileOperationsQueue()
 DRX_QUEUE_0 = DrxOperationsQueue()
 DRX_QUEUE_1 = DrxOperationsQueue()
+
+
+def pfb_window(P):
+    win_coeffs = scipy_window("hamming", 4*P)
+    sinc       = scipy_firwin(4*P, cutoff=1.0/P, window="rectangular")
+    win_coeffs *= sinc
+    win_coeffs /= win_coeffs.max()
+    return win_coeffs
 
 
 class CaptureOp(object):
@@ -379,45 +389,106 @@ class ReChannelizerOp(object):
                             idata = ispan.data_view(numpy.complex64).reshape(ishape)
                             odata = ospan.data_view(numpy.complex64).reshape(oshape)
                             
-                            # Pad out to the full 98 MHz bandwidth
-                            try:
-                                fdata[:,chan0:chan0+nchan,:,:] = idata
-                            except NameError:
-                                fdata = numpy.zeros((self.ntime_gulp,NCHAN,nbeam,npol), dtype=numpy.complex64)
-                                fdata = BFAsArray(fdata, space='cuda_host')
-                                fdata[:,chan0:chan0+nchan,:,:] = idata
-                                
                             ### From here until going to the output ring we are on the GPU
+                            t0 = time.time() 
                             try:
-                                bdata = bdata.reshape(*fdata.shape)
-                                copy_array(bdata, fdata)
+                                copy_array(bdata, idata)
                             except NameError:
-                                bdata = fdata.copy(space='cuda')
+                                bdata = idata.copy(space='cuda')
                                 
-                            ## IFFT
+                            # Pad out to the full 98 MHz bandwidth
+                            t1 = time.time()
                             try:
-                                gdata = gdata.reshape(*bdata.shape)
-                                bfft.execute(bdata, gdata, inverse=True)
+                                fdata
                             except NameError:
-                                gdata = BFArray(shape=bdata.shape, dtype=numpy.complex64, space='cuda')
+                                fdata = numpy.zeros((self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64)
+                                fdata = BFAsArray(fdata, space='cuda')
+                            BFMap(f"""
+                                  a(i,j+{chan0},0) = b(i,j,0);
+                                  a(i,j+{chan0},1) = b(i,j,1);
+                                  """,
+                                  {'a': fdata, 'b': bdata},
+                                  axis_names=('i','j'),
+                                  shape=(self.ntime_gulp,nchan))
+                            
+                            ## PFB inversion
+                            ### Initial IFFT
+                            t2 = time.time()
+                            try:
+                                gdata = gdata.reshape(fdata.shape)
+                                bfft.execute(fdata, gdata, inverse=True)
+                            except NameError:
+                                gdata = BFArray(shape=fdata.shape, dtype=numpy.complex64, space='cuda')
                                 
                                 bfft = Fft()
-                                bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
-                                bfft.execute(bdata, gdata, inverse=True)
-                            gdata = gdata.reshape(otime_gulp,ochan,nbeam,npol)
+                                bfft.init(fdata, gdata, axes=1, apply_fftshift=True)
+                                bfft.execute(fdata, gdata, inverse=True)
+                                
+                            ### Inversion matrix setup
+                            t3 = time.time()
+                            try:
+                                imatrix
+                            except NameError:
+                                matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
+                                imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+                                
+                                pfb = pfb_window(NCHAN)
+                                pfb = pfb.reshape(4, -1)
+                                pfb.shape += (1,)
+                                pfb.shape = (1,)+pfb.shape
+                                matrix[:,:4,:,:] = pfb
+                                matrix = matrix.copy(space='cuda')
+                                
+                                pfft = Fft()
+                                pfft.init(matrix, imatrix, axes=1)
+                                pfft.execute(matrix, imatrix, inverse=False)
+                                
+                                # For a threshold of 0.3
+                                wft = 0.3
+                                BFMap(f"""
+                                      a = (a.mag2() / (a.mag2() + {wft}*{wft})) * (1+{wft}*{wft}) / a.conj();
+                                      """,
+                                      {'a':imatrix})
+                                
+                                imatrix = imatrix.reshape(-1, 4, NCHAN*nbeam*npol)
+                                del matrix
+                                del pfft
+                                
+                            ### The actual inversion
+                            t4 = time.time()
+                            gdata = gdata.reshape(imatrix.shape)
+                            try:
+                                pfft2.execute(gdata, gdata2, inverse=False)
+                            except NameError:
+                                gdata2 = BFArray(shape=gdata.shape, dtype=numpy.complex64, space='cuda')
+                                
+                                pfft2 = Fft()
+                                pfft2.init(gdata, gdata2, axes=1)
+                                pfft2.execute(gdata, gdata2, inverse=False)
+                                
+                            BFMap("a *= b / (%i*2)" % NCHAN,
+                                  {'a':gdata2, 'b':imatrix})
+                                 
+                            pfft2.execute(gdata2, gdata, inverse=True)
                             
-                            ## FFT
+                            ## FFT to re-channelize
+                            t5 = time.time()
+                            gdata = gdata.reshape(-1, ochan, nbeam*npol)
                             try:
                                 ffft.execute(gdata, rdata, inverse=False)
                             except NameError:
-                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam,npol), dtype=numpy.complex64, space='cuda')
+                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam*npol), dtype=numpy.complex64, space='cuda')
                                 
                                 ffft = Fft()
                                 ffft.init(gdata, rdata, axes=1, apply_fftshift=True)
                                 ffft.execute(gdata, rdata, inverse=False)
                                 
                             ## Save
+                            t6 = time.time()
                             copy_array(odata, rdata)
+                            
+                            t7 = time.time()
+                            # print(t7-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
                             
                         curr_time = time.time()
                         process_time = curr_time - prev_time
@@ -430,6 +501,8 @@ class ReChannelizerOp(object):
                 del fdata
                 del gdata
                 del bfft
+                del imatrix
+                del pfft2
                 del rdata
                 del ffft
             except NameError:
