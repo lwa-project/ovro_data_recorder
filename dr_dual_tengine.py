@@ -334,6 +334,9 @@ class ReChannelizerOp(object):
         # Setup the PFB inverter
         ## Metadata
         nbeam, npol = self.nbeam_max, 2
+        ## PFB data arrays
+        self.gdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        self.gdata2 = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
         ## PFB inversion matrix
         matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
         self.imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
@@ -443,44 +446,40 @@ class ReChannelizerOp(object):
                             ## PFB inversion
                             ### Initial IFFT
                             t2 = time.time()
+                            self.gdata = self.gdata.reshape(fdata.shape)
                             try:
-                                gdata = gdata.reshape(fdata.shape)
-                                bfft.execute(fdata, gdata, inverse=True)
+                                bfft.execute(fdata, self.gdata, inverse=True)
                             except NameError:
-                                gdata = BFArray(shape=fdata.shape, dtype=numpy.complex64, space='cuda')
-                                
                                 bfft = Fft()
-                                bfft.init(fdata, gdata, axes=1, apply_fftshift=True)
-                                bfft.execute(fdata, gdata, inverse=True)
+                                bfft.init(fdata, self.gdata, axes=1, apply_fftshift=True)
+                                bfft.execute(fdata, self.gdata, inverse=True)
                                 
                             ### The actual inversion
                             t4 = time.time()
-                            gdata = gdata.reshape(self.imatrix.shape)
+                            self.gdata = self.gdata.reshape(self.imatrix.shape)
                             try:
-                                pfft2.execute(gdata, gdata2, inverse=False)
+                                pfft.execute(self.gdata, self.gdata2, inverse=False)
                             except NameError:
-                                gdata2 = BFArray(shape=gdata.shape, dtype=numpy.complex64, space='cuda')
-                                
-                                pfft2 = Fft()
-                                pfft2.init(gdata, gdata2, axes=1)
-                                pfft2.execute(gdata, gdata2, inverse=False)
+                                pfft = Fft()
+                                pfft.init(self.gdata, self.gdata2, axes=1)
+                                pfft.execute(self.gdata, self.gdata2, inverse=False)
                                 
                             BFMap("a *= b / (%i*2)" % NCHAN,
-                                  {'a':gdata2, 'b':self.imatrix})
+                                  {'a':self.gdata2, 'b':self.imatrix})
                                  
-                            pfft2.execute(gdata2, gdata, inverse=True)
+                            pfft.execute(self.gdata2, self.gdata, inverse=True)
                             
                             ## FFT to re-channelize
                             t5 = time.time()
-                            gdata = gdata.reshape(-1, ochan, nbeam*npol)
+                            self.gdata = self.gdata.reshape(-1, ochan, nbeam*npol)
                             try:
-                                ffft.execute(gdata, rdata, inverse=False)
+                                ffft.execute(self.gdata, rdata, inverse=False)
                             except NameError:
                                 rdata = BFArray(shape=(otime_gulp,ochan,nbeam*npol), dtype=numpy.complex64, space='cuda')
                                 
                                 ffft = Fft()
-                                ffft.init(gdata, rdata, axes=1, apply_fftshift=True)
-                                ffft.execute(gdata, rdata, inverse=False)
+                                ffft.init(self.gdata, rdata, axes=1, apply_fftshift=True)
+                                ffft.execute(self.gdata, rdata, inverse=False)
                                 
                             ## Save
                             t6 = time.time()
@@ -498,9 +497,8 @@ class ReChannelizerOp(object):
                         
             try:
                 del fdata
-                del gdata
                 del bfft
-                del pfft2
+                del pfft
                 del rdata
                 del ffft
             except NameError:
