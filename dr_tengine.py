@@ -351,12 +351,12 @@ class ReChannelizerOp(object):
                             # Pad out to the full 98 MHz bandwidth
                             t1 = time.time()
                             BFMap(f"""
-                                  a(i,j+{chan0},0) = b(i,j,0);
-                                  a(i,j+{chan0},1) = b(i,j,1);
+                                  a(i,j+{chan0},k) = b(i,j,k);
+                                  a(i,j+{chan0},k) = b(i,j,k);
                                   """,
                                   {'a': self.fdata, 'b': bdata},
-                                  axis_names=('i','j'),
-                                  shape=(self.ntime_gulp,nchan))
+                                  axis_names=('i','j','k'),
+                                  shape=(self.ntime_gulp,nchan,nbeam*npol))
                             
                             ## PFB inversion
                             ### Initial IFFT
