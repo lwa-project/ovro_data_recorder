@@ -495,6 +495,7 @@ class ReChannelizerOp(object):
                                                   'process_time': process_time,})
                         
             try:
+                del bdata
                 del bfft
                 del pfft
                 del rdata
