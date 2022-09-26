@@ -306,7 +306,7 @@ class ReChannelizerOp(object):
                 
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8        # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam*npol)
-                self.iring.resize(igulp_size, 20*igulp_size)
+                self.iring.resize(igulp_size, 15*igulp_size)
                 
                 ochan = int(round(CLOCK / 2 / 50e3))
                 otime_gulp = self.ntime_gulp*NCHAN // ochan
