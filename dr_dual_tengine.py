@@ -310,11 +310,12 @@ class BeamSelectOp(object):
 
 
 class ReChannelizerOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, guarantee=True, core=None, gpu=None):
+    def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, guarantee=True, core=None, gpu=None):
         self.log        = log
         self.iring      = iring
         self.oring      = oring
         self.ntime_gulp = ntime_gulp
+        self.nbeam_max  = nbeam_max
         self.guarantee  = guarantee
         self.core       = core
         self.gpu        = gpu
@@ -329,6 +330,34 @@ class ReChannelizerOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+        # Setup the PFB inverter
+        ## Metadata
+        nbeam, npol = self.nbeam_max, 2
+        ## PFB inversion matrix
+        matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
+        self.imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        
+        pfb = pfb_window(NCHAN)
+        pfb = pfb.reshape(4, -1)
+        pfb.shape += (1,)
+        pfb.shape = (1,)+pfb.shape
+        matrix[:,:4,:,:] = pfb
+        matrix = matrix.copy(space='cuda')
+        
+        pfft = Fft()
+        pfft.init(matrix, self.imatrix, axes=1)
+        pfft.execute(matrix, self.imatrix, inverse=False)
+        
+        wft = 0.3
+        BFMap(f"""
+              a = (a.mag2() / (a.mag2() + {wft}*{wft})) * (1+{wft}*{wft}) / a.conj();
+              """,
+              {'a':self.imatrix})
+        
+        self.imatrix = self.imatrix.reshape(-1, 4, NCHAN*nbeam*npol)
+        del matrix
+        del pfft
         
     def main(self):
         if self.core is not None:
@@ -424,39 +453,9 @@ class ReChannelizerOp(object):
                                 bfft.init(fdata, gdata, axes=1, apply_fftshift=True)
                                 bfft.execute(fdata, gdata, inverse=True)
                                 
-                            ### Inversion matrix setup
-                            t3 = time.time()
-                            try:
-                                imatrix
-                            except NameError:
-                                matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
-                                imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
-                                
-                                pfb = pfb_window(NCHAN)
-                                pfb = pfb.reshape(4, -1)
-                                pfb.shape += (1,)
-                                pfb.shape = (1,)+pfb.shape
-                                matrix[:,:4,:,:] = pfb
-                                matrix = matrix.copy(space='cuda')
-                                
-                                pfft = Fft()
-                                pfft.init(matrix, imatrix, axes=1)
-                                pfft.execute(matrix, imatrix, inverse=False)
-                                
-                                # For a threshold of 0.3
-                                wft = 0.3
-                                BFMap(f"""
-                                      a = (a.mag2() / (a.mag2() + {wft}*{wft})) * (1+{wft}*{wft}) / a.conj();
-                                      """,
-                                      {'a':imatrix})
-                                
-                                imatrix = imatrix.reshape(-1, 4, NCHAN*nbeam*npol)
-                                del matrix
-                                del pfft
-                                
                             ### The actual inversion
                             t4 = time.time()
-                            gdata = gdata.reshape(imatrix.shape)
+                            gdata = gdata.reshape(self.imatrix.shape)
                             try:
                                 pfft2.execute(gdata, gdata2, inverse=False)
                             except NameError:
@@ -467,7 +466,7 @@ class ReChannelizerOp(object):
                                 pfft2.execute(gdata, gdata2, inverse=False)
                                 
                             BFMap("a *= b / (%i*2)" % NCHAN,
-                                  {'a':gdata2, 'b':imatrix})
+                                  {'a':gdata2, 'b':self.imatrix})
                                  
                             pfft2.execute(gdata2, gdata, inverse=True)
                             
@@ -501,7 +500,6 @@ class ReChannelizerOp(object):
                 del fdata
                 del gdata
                 del bfft
-                del imatrix
                 del pfft2
                 del rdata
                 del ffft
