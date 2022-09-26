@@ -48,6 +48,7 @@ from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
 BFNoSpinZone()
 
+INT_CHAN_BW = 50e3
 
 FILTER2BW = {1:   250000, 
              2:   500000, 
@@ -226,15 +227,16 @@ class DummyOp(object):
 
 
 class ReChannelizerOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, guarantee=True, core=None, gpu=None):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.ntime_gulp = ntime_gulp
-        self.nbeam_max  = nbeam_max
-        self.guarantee  = guarantee
-        self.core       = core
-        self.gpu        = gpu
+    def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, pfb_inverter=True, guarantee=True, core=None, gpu=None):
+        self.log          = log
+        self.iring        = iring
+        self.oring        = oring
+        self.ntime_gulp   = ntime_gulp
+        self.nbeam_max    = nbeam_max
+        self.pfb_inverter = pfb_inverter
+        self.guarantee    = guarantee
+        self.core         = core
+        self.gpu          = gpu
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -308,7 +310,7 @@ class ReChannelizerOp(object):
                 ishape = (self.ntime_gulp,nchan,nbeam*npol)
                 self.iring.resize(igulp_size, 15*igulp_size)
                 
-                ochan = int(round(CLOCK / 2 / 50e3))
+                ochan = int(round(CLOCK / 2 / INT_CHAN_BW))
                 otime_gulp = self.ntime_gulp*NCHAN // ochan
                 ogulp_size = otime_gulp*ochan*nbeam*npol*8 # complex64
                 oshape = (otime_gulp,ochan,nbeam*npol)
@@ -369,21 +371,22 @@ class ReChannelizerOp(object):
                                 bfft.init(self.fdata, self.gdata, axes=1, apply_fftshift=True)
                                 bfft.execute(self.fdata, self.gdata, inverse=True)
                                 
-                            ### The actual inversion
-                            t4 = time.time()
-                            self.gdata = self.gdata.reshape(self.imatrix.shape)
-                            try:
-                                pfft.execute(self.gdata, self.gdata2, inverse=False)
-                            except NameError:
-                                pfft = Fft()
-                                pfft.init(self.gdata, self.gdata2, axes=1)
-                                pfft.execute(self.gdata, self.gdata2, inverse=False)
+                            if self.pfb_inverter:
+                                ### The actual inversion
+                                t4 = time.time()
+                                self.gdata = self.gdata.reshape(self.imatrix.shape)
+                                try:
+                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
+                                except NameError:
+                                    pfft = Fft()
+                                    pfft.init(self.gdata, self.gdata2, axes=1)
+                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
+                                    
+                                BFMap("a *= b / (%i*2)" % NCHAN,
+                                      {'a':self.gdata2, 'b':self.imatrix})
+                                     
+                                pfft.execute(self.gdata2, self.gdata, inverse=True)
                                 
-                            BFMap("a *= b / (%i*2)" % NCHAN,
-                                  {'a':self.gdata2, 'b':self.imatrix})
-                                 
-                            pfft.execute(self.gdata2, self.gdata, inverse=True)
-                            
                             ## FFT to re-channelize
                             t5 = time.time()
                             self.gdata = self.gdata.reshape(-1, ochan, nbeam*npol)
@@ -534,15 +537,15 @@ class TEngineOp(object):
             self.nchan_out = FILTER2CHAN[filt]
             self.gain[tuning] = gain
             
-            chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
-            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*50e3 - 50e3 / 2
+            chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - INT_CHAN_BW / 2
             self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
             
             if self.gpu is not None:
                 BFSetGPU(self.gpu)
                 
             phaseState = self.phaseState.copy(space='system')
-            phaseState[tuning] = fDiff/(self.nchan_out*50e3)
+            phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
             try:
                 phaseRot = self.phaseRot.copy(space='system')
             except AttributeError:
@@ -559,11 +562,11 @@ class TEngineOp(object):
             
             for tuning in (0, 1):
                 try:
-                    chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
-                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*50e3 - 50e3 / 2
+                    chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - INT_CHAN_BW / 2
                 except AttributeError:
-                    chan0 = int(30e6 / 50e3 + 0.5)
-                    self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*50e3 + 50e3 / 2
+                    chan0 = int(30e6 / INT_CHAN_BW + 0.5)
+                    self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW + INT_CHAN_BW / 2
                     fDiff = 0.0
                 self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
                 
@@ -571,7 +574,7 @@ class TEngineOp(object):
                     BFSetGPU(self.gpu)
                     
                 phaseState = self.phaseState.copy(space='system')
-                phaseState[tuning] = fDiff/(self.nchan_out*50e3)
+                phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
                 try:
                     phaseRot = self.phaseRot.copy(space='system')
                 except AttributeError:
@@ -624,7 +627,7 @@ class TEngineOp(object):
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                 self.oring.resize(ogulp_size)
                 
-                ticksPerTime = int(FS) // int(50e3)
+                ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
                 sample_count = numpy.array([0,]*ntune, dtype=numpy.int64)
                 copy_array(self.sampleCount, sample_count)
@@ -645,15 +648,15 @@ class TEngineOp(object):
                     ohdr['time_tag'] = base_time_tag
                     ohdr['cfreq0']   = self.rFreq[0]
                     ohdr['cfreq1']   = self.rFreq[1]
-                    ohdr['bw']       = self.nchan_out*50e3
+                    ohdr['bw']       = self.nchan_out*INT_CHAN_BW
                     ohdr['gain0']    = self.gain[0]
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
                     ohdr_str = json.dumps(ohdr)
                     
                     # Update the channels to pull in
-                    tchan0 = int(self.rFreq[0] / 50e3 + 0.5) - self.nchan_out//2
-                    tchan1 = int(self.rFreq[1] / 50e3 + 0.5) - self.nchan_out//2
+                    tchan0 = int(self.rFreq[0] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+                    tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 15
@@ -1072,6 +1075,8 @@ def main(argv):
                         help='GPU to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1960,
                         help='gulp size for ring buffers')
+    parser.add_argument('-n', '--no-pfb-inverter', dest='pfb-inverter', action='store_false',
+                        help='disable the PFB inverter')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
@@ -1145,7 +1150,8 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, tengine_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
+                               ntime_gulp=args.gulp_size, pfb_inverter=args.pfb_inverter,
+                               core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine_ring, write_ring,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, write_ring,

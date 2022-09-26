@@ -310,15 +310,16 @@ class BeamSelectOp(object):
 
 
 class ReChannelizerOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, guarantee=True, core=None, gpu=None):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.ntime_gulp = ntime_gulp
-        self.nbeam_max  = nbeam_max
-        self.guarantee  = guarantee
-        self.core       = core
-        self.gpu        = gpu
+    def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, pfb_inverter=True, guarantee=True, core=None, gpu=None):
+        self.log          = log
+        self.iring        = iring
+        self.oring        = oring
+        self.ntime_gulp   = ntime_gulp
+        self.nbeam_max    = nbeam_max
+        self.pfb_inverter = pfb_inverter
+        self.guarantee    = guarantee
+        self.core         = core
+        self.gpu          = gpu
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -453,21 +454,22 @@ class ReChannelizerOp(object):
                                 bfft.init(fdata, self.gdata, axes=1, apply_fftshift=True)
                                 bfft.execute(fdata, self.gdata, inverse=True)
                                 
-                            ### The actual inversion
-                            t4 = time.time()
-                            self.gdata = self.gdata.reshape(self.imatrix.shape)
-                            try:
-                                pfft.execute(self.gdata, self.gdata2, inverse=False)
-                            except NameError:
-                                pfft = Fft()
-                                pfft.init(self.gdata, self.gdata2, axes=1)
-                                pfft.execute(self.gdata, self.gdata2, inverse=False)
+                            if self.pfb_inverter:
+                                ### The actual inversion
+                                t4 = time.time()
+                                self.gdata = self.gdata.reshape(self.imatrix.shape)
+                                try:
+                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
+                                except NameError:
+                                    pfft = Fft()
+                                    pfft.init(self.gdata, self.gdata2, axes=1)
+                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
+                                    
+                                BFMap("a *= b / (%i*2)" % NCHAN,
+                                      {'a':self.gdata2, 'b':self.imatrix})
+                                     
+                                pfft.execute(self.gdata2, self.gdata, inverse=True)
                                 
-                            BFMap("a *= b / (%i*2)" % NCHAN,
-                                  {'a':self.gdata2, 'b':self.imatrix})
-                                 
-                            pfft.execute(self.gdata2, self.gdata, inverse=True)
-                            
                             ## FFT to re-channelize
                             t5 = time.time()
                             self.gdata = self.gdata.reshape(-1, ochan, nbeam*npol)
@@ -741,8 +743,8 @@ class TEngineOp(object):
                     ohdr_str = json.dumps(ohdr)
                     
                     # Update the channels to pull in
-                    tchan0 = int(self.rFreq[0] / 50e3 + 0.5) - self.nchan_out//2
-                    tchan1 = int(self.rFreq[1] / 50e3 + 0.5) - self.nchan_out//2
+                    tchan0 = int(self.rFreq[0] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+                    tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 15
@@ -1168,6 +1170,8 @@ def main(argv):
                         help='comma separated list of GPUs to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1960,
                         help='gulp size for ring buffers')
+    parser.add_argument('-n', '--no-pfb-inverter', dest='pfb-inverter', action='store_false',
+                        help='disable the PFB inverter')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
@@ -1253,9 +1257,11 @@ def main(argv):
     ops.append(BeamSelectOp(log, capture_ring, split1_ring, 1,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, split0_ring, tengine0_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
+                               ntime_gulp=args.gulp_size, pfb_inverter=args.pfb_inverter,
+                               core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(ReChannelizerOp(log, split1_ring, tengine1_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
+                               ntime_gulp=args.gulp_size, pfb_inverter=args.pfb_inverter,
+                               core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine0_ring, write0_ring, beam0=args.beam,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine1_ring, write1_ring, beam0=args.beam+1,
