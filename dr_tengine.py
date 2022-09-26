@@ -304,16 +304,16 @@ class ReChannelizerOp(object):
                             
                             idata = ispan.data_view(numpy.complex64).reshape(ishape)
                             odata = ospan.data_view(numpy.complex64).reshape(oshape)
-                           
-                            t0 = time.time() 
+                            
                             ### From here until going to the output ring we are on the GPU
+                            t0 = time.time()
                             try:
                                 copy_array(bdata, idata)
                             except NameError:
                                 bdata = idata.copy(space='cuda')
                                 
-                            t1 = time.time()
                             # Pad out to the full 98 MHz bandwidth
+                            t1 = time.time()
                             try:
                                 fdata
                             except NameError:
@@ -328,8 +328,8 @@ class ReChannelizerOp(object):
                                   shape=(self.ntime_gulp,nchan))
                             
                             ## PFB inversion
-                            t2 = time.time()
                             ### Initial IFFT
+                            t2 = time.time()
                             try:
                                 gdata = gdata.reshape(fdata.shape)
                                 bfft.execute(fdata, gdata, inverse=True)
@@ -387,8 +387,8 @@ class ReChannelizerOp(object):
                                  
                             pfft2.execute(gdata2, gdata, inverse=True)
                             
-                            t5 = time.time()
                             ## FFT to re-channelize
+                            t5 = time.time()
                             gdata = gdata.reshape(-1, ochan, nbeam*npol)
                             try:
                                 ffft.execute(gdata, rdata, inverse=False)
@@ -399,8 +399,8 @@ class ReChannelizerOp(object):
                                 ffft.init(gdata, rdata, axes=1, apply_fftshift=True)
                                 ffft.execute(gdata, rdata, inverse=False)
                                 
-                            t6 = time.time()
                             ## Save
+                            t6 = time.time()
                             copy_array(odata, rdata)
                             
                             t7 = time.time()
