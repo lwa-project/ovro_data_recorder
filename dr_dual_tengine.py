@@ -1170,7 +1170,7 @@ def main(argv):
                         help='comma separated list of GPUs to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1960,
                         help='gulp size for ring buffers')
-    parser.add_argument('-n', '--no-pfb-inverter', dest='pfb-inverter', action='store_false',
+    parser.add_argument('-n', '--no-pfb-inverter', dest='pfb_inverter', action='store_false',
                         help='disable the PFB inverter')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
