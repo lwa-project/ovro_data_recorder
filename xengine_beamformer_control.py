@@ -22,7 +22,7 @@ speedOfLight = speedOfLight.to('m/ns').value
 
 from lwa_antpos.station import ovro
 
-from mnc.common import NPIPELINE, chan_to_freq
+from mnc.common import NPIPELINE, chan_to_freq, ETCD_HOST
 
 
 NCHAN_PIPELINE = 96
@@ -100,7 +100,7 @@ class BeamPointingControl(object):
     Class to provide high level control over a beam.
     """
     
-    def __init__(self, beam, servers=None, nserver=8, npipeline_per_server=4, station=ovro):
+    def __init__(self, beam, servers=None, nserver=8, npipeline_per_server=4, station=ovro, etcdhost=ETCD_HOST):
         # Validate
         assert(beam in list(range(1,16+1)))
         assert(nserver <= NSERVER)
@@ -124,7 +124,7 @@ class BeamPointingControl(object):
         self.pipelines = []
         for hostname in servers:
             for i in range(npipeline_per_server):
-                p = Lwa352PipelineControl(hostname, i, etcdhost='etcdv3service')
+                p = Lwa352PipelineControl(hostname, i, etcdhost=etcdhost)
                 self.pipelines.append(p)
                 
         # Query the pipelines to figure out the frequency ranges they are sending
@@ -535,7 +535,7 @@ class BeamTracker(object):
             pass
 
 
-def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders/caltables/latest/'):
+def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, cal_directory='/home/ubuntu/mmanders/caltables/latest/', etcdhost=ETCD_HOST):
     """
     Wraper to create a new BeamPointingControl instance and load bandpass
     calibration data from a directory.
@@ -546,7 +546,8 @@ def create_and_calibrate(beam, servers=None, nserver=8, npipeline_per_server=4, 
                                            servers=servers,
                                            nserver=nserver,
                                            npipeline_per_server=npipeline_per_server,
-                                           station=ovro)
+                                           station=ovro,
+                                           etcdhost=etcdhost)
     
     # Find the calibration files
     calfiles = glob.glob(os.path.join(cal_directory, '*.bcal'))
