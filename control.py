@@ -223,21 +223,21 @@ class MSStart(CommandBase):
     Command to schedule a recording start of visibility data to a measurement set.
     The input data should have:
      * id - a MCS command id
-     * start_mjd - the MJD for the start of the recording or "now" to start the
+     * mjd - the MJD for the start of the recording or "now" to start the
        recording 15 s from when the command is received
-     * start_mpm - the MPM for the start of the recording
+     * mpm - the MPM for the start of the recording
     """
     
-    _required = ('sequence_id', 'start_mjd', 'start_mpm')
+    _required = ('sequence_id', 'mjd', 'mpm')
     
-    def action(self, sequence_id, start_mjd, start_mpm):
+    def action(self, sequence_id, mjd, mpm):
         try:
             filename = os.path.join(self.directory, '')
-            if start_mjd == "now":
+            if mjd == "now":
                 start = LWATime.now() + TimeDelta(15, format='sec')
                 start = start.datetime
             else:
-                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+                start = LWATime(mjd, mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
             duration = timedelta(days=365)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -339,20 +339,20 @@ class MSStop(CommandBase):
     Command to schedule a recording stop of visibility data to a measurement set.
     The input data should have:
      * id - a MCS command id
-     * stop_mjd - the MJD for the start of the recording or "now" to stop the
+     * mjd - the MJD for the start of the recording or "now" to stop the
        recording 15 s from when the command is received
-     * stop_mpm - the MPM for the start of the recording
+     * mpm - the MPM for the start of the recording
     """
     
-    _required = ('sequence_id', 'stop_mjd', 'stop_mpm')
+    _required = ('sequence_id', 'mjd', 'mpm')
     
-    def action(self, sequence_id, stop_mjd, stop_mpm):
+    def action(self, sequence_id, mjd, mpm):
         try:
-            if stop_mjd == "now":
+            if mjd == "now":
                 stop = LWATime.now() + TimeDelta(15, format='sec')
                 stop = stop.datetime
             else:
-                stop = LWATime(stop_mjd, stop_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+                stop = LWATime(mjd, mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
