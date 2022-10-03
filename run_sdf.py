@@ -182,6 +182,10 @@ def parse_sdf(filename):
                     ### Looking at Jupiter is ok
                     temp['ra'] = 'jupiter'
                     temp['dec'] = None
+                elif mode == 'TRK_LUN':
+                    ### Looking at the Moon is ok
+                    temp['ra'] = 'moon'
+                    temp['dec'] = None
                 elif mode in ('TRK_RADEC', 'STEPPED'):
                     ### Tracking a point on the sky is ok as is a stepped observation
                     ### so long as it is in RA/dec. (more on that later).
