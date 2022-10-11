@@ -160,7 +160,7 @@ def parse_sdf(filename):
                     obs.append(temp)
                 except NameError:
                     pass
-                temp = {}
+                temp = {'gain1': 6, 'gain2': 6}
             elif line.startswith('OBS_START_MJD'):
                 ## Observation start MJD
                 temp['mjd'] = int(line.rsplit(None, 1)[1], 10)
@@ -199,6 +199,12 @@ def parse_sdf(filename):
             elif line.startswith('OBS_DEC'):
                 ## Dec. to track in degrees, J2000
                 temp['dec'] = float(line.rsplit(None, 1)[1])
+            elif line.startswith('OBS_FREQ1'):
+                if line.find('+') == -1:
+                    temp['freq1'] = float(line.rsplit(None, 1)[1]) / 2**32 * 196e6
+            elif line.startswith('OBS_FREQ2'):
+                if line.find('+') == -1:
+                    temp['freq2'] = float(line.rsplit(None, 1)[1]) / 2**32 * 196e6
             elif line.startswith('OBS_STP_RADEC'):
                 ## Stepped mode test - toggle azalt as needed
                 mode = int(line.rsplit(None, 1)[1], 10)
@@ -207,7 +213,7 @@ def parse_sdf(filename):
             elif line.startswith('OBS_STP_N'):
                 ## Stepped mode setup
                 count = int(line.rsplit(None, 1)[1], 10)
-                temp['steps'] = [{'ra':None, 'dec': None, 'dur':0} for i in range(count)]
+                temp['steps'] = [{'ra':None, 'dec': None, 'dur':0, 'gain1':6, 'gain2':6} for i in range(count)]
             elif line.startswith('OBS_STP_C1'):
                 ## Stepped mode ra in hours, J2000
                 tag, ra = line.rsplit(None, 1)
@@ -229,6 +235,37 @@ def parse_sdf(filename):
                 dur = int(dur, 10)
                 for i in range(step, len(temp['steps'])):
                     temp['steps'][i]['dur'] = dur
+            elif line.startswith('OBS_STP_FREQ1'):
+                if line.find('+') == -1:
+                    tag, freq1 = line.rsplit(None, 1)
+                    step = _tag_to_step(tag)
+                    freq1 = float(freq1) / 2**32 * 196e6
+                    for i in range(step, len(temp['steps'])):
+                        temp['steps'][i]['freq1'] = freq1
+            elif line.startswith('OBS_STP_FREQ2'):
+                if line.find('+') == -1:
+                    tag, freq2 = line.rsplit(None, 1)
+                    step = _tag_to_step(tag)
+                    freq2 = float(freq2) / 2**32 * 196e6
+                    for i in range(step, len(temp['steps'])):
+                        temp['steps'][i]['freq2'] = freq2
+            elif line.startswith('OBS_BW'):
+                if line.find('+') == -1:
+                    temp['filter'] = int(line.rsplit(None, 1)[1], 10)
+                    
+                    try:
+                        for i in range(len(temp['steps'])):
+                            temp['steps'][i]['filter'] = temp['filter']
+                    except KeyError:
+                        pass
+            elif line.startswith('OBS_DRX_GAIN'):
+                combined_gain = int(line.rsplit(None, 1)[1], 10)
+                if combined_gain < 16:
+                    temp['gain1'] = combined_gain
+                    temp['gain2'] = combined_gain
+                else:
+                    temp['gain1'] = (combined_gain >> 4) & 0xF
+                    temp['gain2'] = combined_gain & 0xF
             elif line.startswith('SESSION_DRX_BEAM'):
                 beam = int(line.rsplit(None, 1)[1], 10)
             elif line.startswith('SESSION_SPC'):
@@ -254,7 +291,14 @@ def parse_sdf(filename):
                                  'dur':   o['steps'][0]['dur'],
                                  'ra':    o['steps'][0]['ra'],
                                  'dec':   o['steps'][0]['dec'],
-                                 'azalt': o['azalt']})
+                                 'azalt': o['azalt'],
+                                 'gain1': o['gain1'],
+                                 'gain2': o['gain2']})
+            try:
+                expanded_obs[-1]['freq1'] = o['steps'][0]['freq1']
+                expanded_obs[-1]['freq2'] = o['steps'][0]['freq2']
+            except KeyError:
+                pass
             ## Steps 2 through N so that the start time builds off the previous
             ## step's duration
             for s in o['steps'][1:]:
@@ -263,8 +307,15 @@ def parse_sdf(filename):
                                      'dur':   s['dur'],
                                      'ra':    s['ra'],
                                      'dec':   s['dec'],
-                                     'azalt': expanded_obs[-1]['azalt']})
-            
+                                     'azalt': expanded_obs[-1]['azalt'],
+                                     'gain1': expanded_obs[-1]['gain1'],
+                                     'gain2': expanded_obs[-1]['gain2']})
+                try:
+                    expanded_obs[-1]['freq1'] = s['freq1']
+                    expanded_obs[-1]['freq2'] = s['freq2']
+                except KeyError:
+                    pass
+                    
         except KeyError:
             ## Nope, it's a normal observation
             expanded_obs.append(o)
@@ -273,9 +324,11 @@ def parse_sdf(filename):
     if time_avg > 0:
         if round(tint, 3) != round(time_avg*tint_native, 3):
             logger.warn(f"Requested {tint*1000:.1f} ms spectrometer time resolution will not but used, {time_avg*tint_native*1000:.1f} ms will be used instead")
-    else:
+    elif beam != 1:
         time_avg = 1
         logger.warn(f"Spectrometer mode was not requested but will be used anyway with an integration time of {tint_native*1000:.1f} ms")
+    else:
+        logger.info("Running as a voltage beam observation")
     expanded_obs[0]['time_avg'] = time_avg
     expanded_obs[0]['beam'] = beam
     
@@ -348,7 +401,10 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        status = dr.send_command(f"dr{obs[0]['beam']}", 'record',
+        dr_mod = ''
+        if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
+            dr_mod = 't'
+        status = dr.send_command(f"dr{dr_mod}{obs[0]['beam']}", 'record',
                                  start_mjd=obs[0]['mjd'],
                                  start_mpm=obs[0]['mpm'],
                                  duration_ms=int(rec_dur*1000),
@@ -365,7 +421,33 @@ def main(args):
         time.sleep(0.01)
         
     ## Iterate through the observations
+    last_freq1 = 0
+    last_gain1 = -1
+    last_freq2 = 0
+    last_gain2 = -1
     for i,o in enumerate(obs):
+        if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
+            if o['freq1'] != last_freq1 or o['gain1'] != last_gain1:
+                if dr is not None and not args.dry_run:
+                    dr.send_command(f"drt{obs[0]['beam']}", 'drx',
+                                    beam=obs[0]['beam'],
+                                    tuning=1,
+                                    central_freq=o['freq1'],
+                                    filter=o['filter'],
+                                    gain=o['gain1'])
+                last_freq1 = o['freq1']
+                last_gain1 = o['gain1']
+            if o['freq2'] != last_freq2 or o['gain2'] != last_gain2:
+                if dr is not None and not args.dry_run:
+                    dr.send_command(f"drt{obs[0]['beam']}", 'drx',
+                                    beam=obs[0]['beam'],
+                                    tuning=2,
+                                    central_freq=o['freq2'],
+                                    filter=o['filter'],
+                                    gain=o['gain2'])
+                last_freq2 = o['freq2']
+                last_gain2 = o['gain2']
+                
         name = o['ra']
         if o['dec'] is not None:
             name = f"{o['ra']} hr, {o['dec']} deg"
