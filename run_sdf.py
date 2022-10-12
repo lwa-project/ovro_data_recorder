@@ -336,14 +336,18 @@ def parse_sdf(filename):
 
 
 def main(args):
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s [%(levelname)-7s] %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
     # Setup another log handler that writes to a file as a crude form of metadata
     metadata_name = os.path.basename(args.filename)
     metadata_name = os.path.splitext(metadata_name)[0]+'.history'
-    metadata_handler = logging.basicConfig(filename=metadata_name,
-                                          filemode='w',
-                                          level=logging.DEBUG,
-                                          format='%(asctime)s [%(levelname)-7s] %(message)s',
-                                          datefmt='%Y-%m-%d %H:%M:%S')
+    metadata_handler = logging.FileHandler(metadata_name, mode='w')
+    metadata_handler.setLevel(logging.DEBUG)
+    metadata_handler.setFormatter(formatter)
     logger.addHandler(metadata_handler)
     
     # Parse the SDF
