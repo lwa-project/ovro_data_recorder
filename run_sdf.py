@@ -270,6 +270,7 @@ def parse_sdf(filename):
                 beam = int(line.rsplit(None, 1)[1], 10)
             elif line.startswith('SESSION_SPC'):
                 _, nchan, nwin = line.rsplit(None, 2)
+                nwin = nwin.split('{')[0]
                 nchan = int(nchan, 10)
                 nwin = int(nwin, 10)
                 tint = (nchan*nwin / 19.6e6)
