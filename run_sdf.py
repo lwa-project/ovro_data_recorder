@@ -149,6 +149,7 @@ def parse_sdf(filename):
     obs = []
     beam = 1
     time_avg = 0
+    stokes_mode = None
     tint_native = 2*NCHAN_NATIVE / CLOCK_NATIVE * 24
     with open(filename, 'r') as fh:
         for line in fh:
@@ -270,7 +271,12 @@ def parse_sdf(filename):
                 beam = int(line.rsplit(None, 1)[1], 10)
             elif line.startswith('SESSION_SPC'):
                 _, nchan, nwin = line.rsplit(None, 2)
-                nwin = nwin.split('{')[0]
+                try:
+                    nwin, stokes_mode = nwin.split('{')
+                    stokes_mode = stokes_mode.split('=', 1)[1]
+                    stokes_mode = stokes_mode.replace('}', '')
+                except ValueError:
+                    pass
                 nchan = int(nchan, 10)
                 nwin = int(nwin, 10)
                 tint = (nchan*nwin / 19.6e6)
@@ -331,6 +337,7 @@ def parse_sdf(filename):
     else:
         logger.info("Running as a voltage beam observation")
     expanded_obs[0]['time_avg'] = time_avg
+    expanded_obs[0]['stokes_mode'] = stokes_mode
     expanded_obs[0]['beam'] = beam
     
     return expanded_obs
@@ -414,7 +421,8 @@ def main(args):
                                      start_mjd=obs[0]['mjd'],
                                      start_mpm=obs[0]['mpm'],
                                      duration_ms=int(rec_dur*1000),
-                                     time_avg=obs[0]['time_avg'])
+                                     time_avg=obs[0]['time_avg'],
+                                     stokes_mode=obs[0]['stokes_mode'])
         if status[0]:
             logger.info("Record command succeeded: %s" % str(status[1:]))
         else:
