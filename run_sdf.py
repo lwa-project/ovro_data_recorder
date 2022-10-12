@@ -428,7 +428,7 @@ def main(args):
     for i,o in enumerate(obs):
         if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
             if o['freq1'] != last_freq1 or o['gain1'] != last_gain1:
-                logger.info(f"Moving tuning 1 to {(o['freq1']/1e6).3f} MHz at gain {o['gain1']}")
+                logger.info(f"Moving tuning 1 to {(o['freq1']/1e6):.3f} MHz at gain {o['gain1']}")
                 if dr is not None and not args.dry_run:
                     dr.send_command(f"drt{obs[0]['beam']}", 'drx',
                                     beam=obs[0]['beam'],
@@ -439,7 +439,7 @@ def main(args):
                 last_freq1 = o['freq1']
                 last_gain1 = o['gain1']
             if o['freq2'] != last_freq2 or o['gain2'] != last_gain2:
-                logger.info(f"Moving tuning 2 to {(o['freq2']/1e6).3f} MHz at gain {o['gain2']}")
+                logger.info(f"Moving tuning 2 to {(o['freq2']/1e6):.3f} MHz at gain {o['gain2']}")
                 if dr is not None and not args.dry_run:
                     dr.send_command(f"drt{obs[0]['beam']}", 'drx',
                                     beam=obs[0]['beam'],
