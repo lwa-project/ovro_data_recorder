@@ -3,6 +3,7 @@
 if [[ "$1" == "-a" ]]; then
   for host in "lwacalim01" "lwacalim02" "lwacalim03" "lwacalim04" "lwacalim05" "lwacalim06" "lwacalim07" "lwacalim08"; do
     cmd=`realpath $0`
+    echo "Working on ${host}..."
     ssh ${host} $cmd
   done
 else
