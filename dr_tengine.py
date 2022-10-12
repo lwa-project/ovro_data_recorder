@@ -1089,7 +1089,7 @@ def main(argv):
     ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
     
     # Setup the threads
-    threads = [threading.Thread(target=op.main) for op in ops]
+    threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
     
     """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')

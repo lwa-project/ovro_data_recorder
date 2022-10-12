@@ -582,7 +582,7 @@ def main(argv):
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     # Setup the threads
-    threads = [threading.Thread(target=op.main) for op in ops]
+    threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
     
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)

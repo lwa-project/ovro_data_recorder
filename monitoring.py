@@ -411,8 +411,9 @@ class StatusLogger(object):
             if self.nthread is not None:
                 if nactive != self.nthread:
                     ## Thread check
+                    thread_names = ','.join([t.getName() for t in threading.enumerate()])
                     new_summary = 'error'
-                    new_info = "Only %i of %i threads active" % (nactive, self.nthread)
+                    new_info = "Only %i of %i threads active - %s" % (nactive, self.nthread, thread_names)
                     summary, info = self._combine_status(summary, info,
                                                          new_summary, new_info)
             if dused > 0.99:
