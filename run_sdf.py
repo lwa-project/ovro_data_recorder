@@ -403,14 +403,18 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        dr_mod = ''
         if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
-            dr_mod = 't'
-        status = dr.send_command(f"dr{dr_mod}{obs[0]['beam']}", 'record',
-                                 start_mjd=obs[0]['mjd'],
-                                 start_mpm=obs[0]['mpm'],
-                                 duration_ms=int(rec_dur*1000),
-                                 time_avg=obs[0]['time_avg'])
+            status = dr.send_command(f"drt{obs[0]['beam']}", 'record',
+                                     beam=obs[0]['beam'],
+                                     start_mjd=obs[0]['mjd'],
+                                     start_mpm=obs[0]['mpm'],
+                                     duration_ms=int(rec_dur*1000))
+        else:
+            status = dr.send_command(f"dr{obs[0]['beam']}", 'record',
+                                     start_mjd=obs[0]['mjd'],
+                                     start_mpm=obs[0]['mpm'],
+                                     duration_ms=int(rec_dur*1000),
+                                     time_avg=obs[0]['time_avg'])
         if status[0]:
             logger.info("Record command succeeded: %s" % str(status[1:]))
         else:
