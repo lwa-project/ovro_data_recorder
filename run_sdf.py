@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import numpy
+import shutil
 import argparse
 import subprocess
 
@@ -448,6 +449,12 @@ def main(args):
                                      stokes_mode=obs[0]['stokes_mode'])
         if status[0]:
             logger.info("Record command succeeded: %s" % str(status[1:]))
+            try:
+                os.unlink("%s_%04i_metadata.txt" % (obs_pid, obs_sid))
+            except OSError:
+                pass
+            with open("%s_%04i_metadata.txt" % (obs_pid, obs_sid), 'w') as fh:
+                fh.write("  1 [%s] ['']  0 [UNK]\n" % status[1]['response']['filename'])
         else:
             logger.error("Record command failed: %s", str(status[1]))
             
@@ -505,7 +512,13 @@ def main(args):
     # Write a metadata tarball that contains the history and the SDF
     if not args.dry_run:
         ## History and SDF
-        to_include = [args.filename, '%s_%04i.history' % (obs_pid, obs_sid)]
+        sdf_name = os.path.splitext(os.path.basename(args.filename))[0]+'.txt'
+        if os.path.basename(args.filename) != sdf_name:
+            shutil.copy(args.filename, sdf_name)
+        to_include = [sdf_name, '%s_%04i.history' % (obs_pid, obs_sid)]
+        ## Data file metdata
+        if os.path.exists("%s_%04i_metadata.txt" % (obs_pid, obs_sid)):
+            to_include.append("%s_%04i_metadata.txt" % (obs_pid, obs_sid))
         ## Try to also save the system configuration information
         try:
             os.unlink('system.config')
@@ -514,7 +527,7 @@ def main(args):
         if dr is not None:
             try:
                 config, _ = dr.client.get('/cfg/system')
-                with open('system.config', 'w') as fh:
+                with open('system.config', 'wb') as fh:
                     fh.write(config)
                 to_include.append('system.config')
             except Exception as e:
