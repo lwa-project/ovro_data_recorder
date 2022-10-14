@@ -454,7 +454,8 @@ def main(args):
             except OSError:
                 pass
             with open("%s_%04i_metadata.txt" % (obs_pid, obs_sid), 'w') as fh:
-                fh.write("  1 [%s] ['']  0 [UNK]\n" % status[1]['response']['filename'])
+                fh.write("  1 [%s] ['%s']  0 [UNK]\n" % (os.path.basename(status[1]['response']['filename']),
+                                                         os.path.dirname(status[1]['response']['filename'])))
         else:
             logger.error("Record command failed: %s", str(status[1]))
             
@@ -513,8 +514,10 @@ def main(args):
     if not args.dry_run:
         ## History and SDF
         sdf_name = "%s_%04i.txt" % (obs_pid, obs_sid)
+        sdf_copied = False
         if os.path.basename(args.filename) != sdf_name:
             shutil.copy(args.filename, sdf_name)
+            sdf_copied = True
         to_include = [sdf_name, '%s_%04i.history' % (obs_pid, obs_sid)]
         ## Data file metdata
         if os.path.exists("%s_%04i_metadata.txt" % (obs_pid, obs_sid)):
@@ -538,6 +541,18 @@ def main(args):
         cmd.extend(to_include)
         subprocess.check_call(cmd)
         
+        ## Cleanup
+        if sdf_copied:
+            try:
+                os.unlink(sdf_name)
+            except OSError:
+                pass
+        for name in cmd[4:]:
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
+                
     logger.info("Done")
 
 
