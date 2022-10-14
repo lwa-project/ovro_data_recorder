@@ -981,6 +981,7 @@ class WriterOp(object):
         desc0 = HeaderInfo()
         desc1 = HeaderInfo()
         
+        was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
             ihdr = json.loads(iseq.header.tostring())
             
@@ -1024,7 +1025,6 @@ class WriterOp(object):
             desc_src = ((1&0x7)<<3)
             
             first_gulp = False
-            was_active = False
             for ispan in iseq.read(igulp_size, begin=boffset):
                 if ispan.size < igulp_size:
                     continue # Ignore final gulp
