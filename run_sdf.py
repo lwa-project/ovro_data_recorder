@@ -512,7 +512,7 @@ def main(args):
     # Write a metadata tarball that contains the history and the SDF
     if not args.dry_run:
         ## History and SDF
-        sdf_name = os.path.splitext(os.path.basename(args.filename))[0]+'.txt'
+        sdf_name = "%s_%04i.txt" % (obs_pid, obs_sid)
         if os.path.basename(args.filename) != sdf_name:
             shutil.copy(args.filename, sdf_name)
         to_include = [sdf_name, '%s_%04i.history' % (obs_pid, obs_sid)]
