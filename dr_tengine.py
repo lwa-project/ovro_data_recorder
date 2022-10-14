@@ -783,6 +783,7 @@ class StatisticsOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
             ishape = (self.ntime_gulp,nbeam,ntune*npol)
+            self.iring.resize(igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
             
@@ -878,7 +879,6 @@ class WriterOp(object):
         ntime_gulp    = self.npkt_gulp * ntime_pkt
         ninput_max    = self.nbeam_max * self.ntune_max * 2
         igulp_size_max = ntime_gulp * ninput_max * 2
-        self.iring.resize(igulp_size_max)
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
