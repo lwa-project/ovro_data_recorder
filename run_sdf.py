@@ -5,6 +5,7 @@ import sys
 import time
 import numpy
 import argparse
+import subprocess
 
 import logging
 logging.basicConfig(level=logging.INFO,
@@ -128,6 +129,26 @@ def _get_tracking_updates(obs):
         
     # Done
     return steps
+
+
+def _get_sdf_id(filename):
+    pid, sid = None, None
+    with open(filename, 'r') as fh:
+        for line in fh:
+            line = line.strip().rstrip()
+            if len(line) < 3:
+                continue
+            if line[0] == '#':
+                continue
+                
+            fields = line.split(None, 1)
+            if fields[0] == 'PROJECT_ID':
+                pid = fields[1].split('#')[0].strip().rstrip()
+            elif fields[0] == 'SESSION_ID':
+                sid = fields[1].split('#')[0].strip().rstrip()
+                sid = int(sid, 10)
+                
+    return pid, sid
 
 
 def parse_sdf(filename):
@@ -344,10 +365,12 @@ def parse_sdf(filename):
 
 
 def main(args):
+    # Back to DEBUG now that we've imported everything
     logger.setLevel(logging.DEBUG)
+    
     # Setup another log handler that writes to a file as a crude form of metadata
-    metadata_name = os.path.basename(args.filename)
-    metadata_name = os.path.splitext(metadata_name)[0]+'.history'
+    obs_pid, obs_sid = _get_sdf_id(args.filename)
+    metadata_name = "%s_%04i.history" % (obs_pid, obs_sid)
     metadata_handler = logging.FileHandler(metadata_name, mode='w')
     metadata_handler.setLevel(logging.DEBUG)
     metadata_formatter = logging.Formatter('%(asctime)s [%(levelname)-7s] %(message)s',
@@ -478,6 +501,30 @@ def main(args):
     logger.info("Finished with the observations, waiting for the recording to finish...")
     while LWATime.now() < rec_stop:
         time.sleep(0.01)
+        
+    # Write a metadata tarball that contains the history and the SDF
+    if not args.dry_run:
+        ## History and SDF
+        to_include = [args.filename, '%s_%04i.history' % (obs_pid, obs_sid)]
+        ## Try to also save the system configuration information
+        try:
+            os.unlink('system.config')
+        except OSError:
+            pass
+        if dr is not None:
+            try:
+                config, _ = dr.client.get('/cfg/system')
+                with open('system.config', 'w') as fh:
+                    fh.write(config)
+                to_include.append('system.config')
+            except Exception as e:
+                logger.warning("Could not save system configuration: %s", str(e))
+                
+        ## Save
+        cmd = ['tar', 'czf', '%s_%04i.tgz' % (obs_pid, obs_sid)]
+        cmd.extend(to_include)
+        subprocess.check_call(cmd)
+        
     logger.info("Done")
 
 
