@@ -783,6 +783,7 @@ class StatisticsOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
             ishape = (self.ntime_gulp,nbeam,ntune*npol)
+            self.iring.resize(igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
             
@@ -878,13 +879,13 @@ class WriterOp(object):
         ntime_gulp    = self.npkt_gulp * ntime_pkt
         ninput_max    = self.nbeam_max * self.ntune_max * 2
         igulp_size_max = ntime_gulp * ninput_max * 2
-        self.iring.resize(igulp_size_max)
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
         desc0 = HeaderInfo()
         desc1 = HeaderInfo()
         
+        was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
             ihdr = json.loads(iseq.header.tostring())
             
@@ -908,7 +909,7 @@ class WriterOp(object):
             igulp_size = ntime_gulp*nbeam*ntune*npol
             
             # Figure out where we need to be in the buffer to be at a frame boundary
-            NPACKET_SET = 4
+            NPACKET_SET = 8
             ticksPerSample = int(FS) // int(bw)
             toffset = int(time_tag0) // ticksPerSample
             soffset = toffset % (NPACKET_SET*int(ntime_pkt))
@@ -928,7 +929,6 @@ class WriterOp(object):
             desc_src = ((1&0x7)<<3)
             
             first_gulp = True 
-            was_active = False
             for ispan in iseq.read(igulp_size, begin=boffset):
                 if ispan.size < igulp_size:
                     continue # Ignore final gulp

@@ -4,7 +4,9 @@ import os
 import sys
 import time
 import numpy
+import shutil
 import argparse
+import subprocess
 
 import logging
 logging.basicConfig(level=logging.INFO,
@@ -130,6 +132,26 @@ def _get_tracking_updates(obs):
     return steps
 
 
+def _get_sdf_id(filename):
+    pid, sid = None, None
+    with open(filename, 'r') as fh:
+        for line in fh:
+            line = line.strip().rstrip()
+            if len(line) < 3:
+                continue
+            if line[0] == '#':
+                continue
+                
+            fields = line.split(None, 1)
+            if fields[0] == 'PROJECT_ID':
+                pid = fields[1].split('#')[0].strip().rstrip()
+            elif fields[0] == 'SESSION_ID':
+                sid = fields[1].split('#')[0].strip().rstrip()
+                sid = int(sid, 10)
+                
+    return pid, sid
+
+
 def parse_sdf(filename):
     """
     Given an SDF beamformer filename, parse the file and return a list of
@@ -149,6 +171,7 @@ def parse_sdf(filename):
     obs = []
     beam = 1
     time_avg = 0
+    stokes_mode = None
     tint_native = 2*NCHAN_NATIVE / CLOCK_NATIVE * 24
     with open(filename, 'r') as fh:
         for line in fh:
@@ -270,6 +293,12 @@ def parse_sdf(filename):
                 beam = int(line.rsplit(None, 1)[1], 10)
             elif line.startswith('SESSION_SPC'):
                 _, nchan, nwin = line.rsplit(None, 2)
+                try:
+                    nwin, stokes_mode = nwin.split('{')
+                    stokes_mode = stokes_mode.split('=', 1)[1]
+                    stokes_mode = stokes_mode.replace('}', '')
+                except ValueError:
+                    pass
                 nchan = int(nchan, 10)
                 nwin = int(nwin, 10)
                 tint = (nchan*nwin / 19.6e6)
@@ -330,16 +359,19 @@ def parse_sdf(filename):
     else:
         logger.info("Running as a voltage beam observation")
     expanded_obs[0]['time_avg'] = time_avg
+    expanded_obs[0]['stokes_mode'] = stokes_mode
     expanded_obs[0]['beam'] = beam
     
     return expanded_obs
 
 
 def main(args):
+    # Back to DEBUG now that we've imported everything
     logger.setLevel(logging.DEBUG)
+    
     # Setup another log handler that writes to a file as a crude form of metadata
-    metadata_name = os.path.basename(args.filename)
-    metadata_name = os.path.splitext(metadata_name)[0]+'.history'
+    obs_pid, obs_sid = _get_sdf_id(args.filename)
+    metadata_name = "%s_%04i.history" % (obs_pid, obs_sid)
     metadata_handler = logging.FileHandler(metadata_name, mode='w')
     metadata_handler.setLevel(logging.DEBUG)
     metadata_formatter = logging.Formatter('%(asctime)s [%(levelname)-7s] %(message)s',
@@ -402,16 +434,28 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        dr_mod = ''
         if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
-            dr_mod = 't'
-        status = dr.send_command(f"dr{dr_mod}{obs[0]['beam']}", 'record',
-                                 start_mjd=obs[0]['mjd'],
-                                 start_mpm=obs[0]['mpm'],
-                                 duration_ms=int(rec_dur*1000),
-                                 time_avg=obs[0]['time_avg'])
+            status = dr.send_command(f"drt{obs[0]['beam']}", 'record',
+                                     beam=obs[0]['beam'],
+                                     start_mjd=obs[0]['mjd'],
+                                     start_mpm=obs[0]['mpm'],
+                                     duration_ms=int(rec_dur*1000))
+        else:
+            status = dr.send_command(f"dr{obs[0]['beam']}", 'record',
+                                     start_mjd=obs[0]['mjd'],
+                                     start_mpm=obs[0]['mpm'],
+                                     duration_ms=int(rec_dur*1000),
+                                     time_avg=obs[0]['time_avg'],
+                                     stokes_mode=obs[0]['stokes_mode'])
         if status[0]:
             logger.info("Record command succeeded: %s" % str(status[1:]))
+            try:
+                os.unlink("%s_%04i_metadata.txt" % (obs_pid, obs_sid))
+            except OSError:
+                pass
+            with open("%s_%04i_metadata.txt" % (obs_pid, obs_sid), 'w') as fh:
+                fh.write("  1 [%s] ['%s']  0 [UNK]\n" % (os.path.basename(status[1]['response']['filename']),
+                                                         os.path.dirname(status[1]['response']['filename'])))
         else:
             logger.error("Record command failed: %s", str(status[1]))
             
@@ -465,6 +509,50 @@ def main(args):
     logger.info("Finished with the observations, waiting for the recording to finish...")
     while LWATime.now() < rec_stop:
         time.sleep(0.01)
+        
+    # Write a metadata tarball that contains the history and the SDF
+    if not args.dry_run:
+        ## History and SDF
+        sdf_name = "%s_%04i.txt" % (obs_pid, obs_sid)
+        sdf_copied = False
+        if os.path.basename(args.filename) != sdf_name:
+            shutil.copy(args.filename, sdf_name)
+            sdf_copied = True
+        to_include = [sdf_name, '%s_%04i.history' % (obs_pid, obs_sid)]
+        ## Data file metdata
+        if os.path.exists("%s_%04i_metadata.txt" % (obs_pid, obs_sid)):
+            to_include.append("%s_%04i_metadata.txt" % (obs_pid, obs_sid))
+        ## Try to also save the system configuration information
+        try:
+            os.unlink('system.config')
+        except OSError:
+            pass
+        if dr is not None:
+            try:
+                config, _ = dr.client.get('/cfg/system')
+                with open('system.config', 'wb') as fh:
+                    fh.write(config)
+                to_include.append('system.config')
+            except Exception as e:
+                logger.warning("Could not save system configuration: %s", str(e))
+                
+        ## Save
+        cmd = ['tar', 'czf', '%s_%04i.tgz' % (obs_pid, obs_sid)]
+        cmd.extend(to_include)
+        subprocess.check_call(cmd)
+        
+        ## Cleanup
+        if sdf_copied:
+            try:
+                os.unlink(sdf_name)
+            except OSError:
+                pass
+        for name in cmd[4:]:
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
+                
     logger.info("Done")
 
 
