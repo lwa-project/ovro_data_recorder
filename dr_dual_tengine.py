@@ -565,6 +565,8 @@ class TEngineOp(object):
             phaseState = self.phaseState.copy(space='system')
             phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
             try:
+                if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
+                    raise AttributeError()
                 phaseRot = self.phaseRot.copy(space='system')
             except AttributeError:
                 phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
@@ -594,6 +596,8 @@ class TEngineOp(object):
                 phaseState = self.phaseState.copy(space='system')
                 phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
                 try:
+                    if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
+                        raise AttributeError()
                     phaseRot = self.phaseRot.copy(space='system')
                 except AttributeError:
                     phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
@@ -778,8 +782,8 @@ class TEngineOp(object):
                                 copy_array(self.sampleCount, sample_count)
                                 
                                 ### New output size/shape
-                                ngulp_size = ntune*self.ntime_gulp*self.nchan_out*nbeam*npol*1               # 4+4 complex
-                                nshape = (ntune,self.ntime_gulp*self.nchan_out,nbeam,npol)
+                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1               # 4+4 complex
+                                nshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 if ngulp_size != ogulp_size:
                                     ogulp_size = ngulp_size
                                     oshape = nshape
@@ -1005,7 +1009,7 @@ class WriterOp(object):
             igulp_size = ntime_gulp*nbeam*ntune*npol
             
             # Figure out where we need to be in the buffer to be at a frame boundary
-            NPACKET_SET = 8
+            NPACKET_SET = 16
             ticksPerSample = int(FS) // int(bw)
             toffset = int(time_tag0) // ticksPerSample
             soffset = toffset % (NPACKET_SET*int(ntime_pkt))
