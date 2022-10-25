@@ -457,13 +457,14 @@ class WriterOp(object):
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
                 ## Determine what to do
-                if QUEUE.active is not None:
+                active_op = QUEUE.active
+                if active_op is not None:
                     ### Recording active - write
-                    if not QUEUE.active.is_started:
-                        self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
+                    if not active_op.is_started:
+                        self.log.info("Started operation - %s", active_op)
+                        active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    QUEUE.active.write(time_tag, idata)
+                    active_op.write(time_tag, idata)
                 elif was_active:
                     ### Recording just finished - clean
                     #### Clean

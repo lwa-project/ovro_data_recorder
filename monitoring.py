@@ -114,11 +114,11 @@ class PerformanceLogger(object):
                                             reserve, timestamp=ts, unit='s')
             
             # Estimate the data rate and current missing data fracation
+            ts = time.time()
             rx_valid, rx_rate, missing_fraction = False, 0.0, 0.0
             good0, late0, missing0 = 0, 0, 0
             good1, late1, missing1 = 0, 0, 0
             try:
-                ts = time.time()
                 for block,contents in self._state[0][1].items():
                     if block[-8:] == '_capture':
                         rx_valid = True
@@ -134,14 +134,14 @@ class PerformanceLogger(object):
                 rx_rate = (good1 - good0) / (self._state[1][0] - self._state[0][0])
                 missing_fraction = (missing1 - missing0) / (good1 - good0 + missing1 - missing0)
                 
-                self.client.write_monitor_point('bifrost/rx_rate',
-                                                rx_rate, timestamp=ts, unit='B/s')
-                self.client.write_monitor_point('bifrost/rx_missing',
-                                                missing_fraction, timestamp=ts)
-                
             except (KeyError, IndexError, ZeroDivisionError):
-                rx_valid = False
+                pass
                 
+            self.client.write_monitor_point('bifrost/rx_rate',
+                                            rx_rate, timestamp=ts, unit='B/s')
+            self.client.write_monitor_point('bifrost/rx_missing',
+                                            missing_fraction, timestamp=ts)
+            
             # Load average
             ts = time.time()
             try:

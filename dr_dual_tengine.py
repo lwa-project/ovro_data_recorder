@@ -1047,11 +1047,12 @@ class WriterOp(object):
                 data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                 data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                 
-                if FILE_QUEUE.active is not None:
+                active_op = FILE_QUEUE.active
+                if active_op is not None:
                     # Write the data
-                    if not FILE_QUEUE.active.is_started:
-                        self.log.info("Started operation - %s", FILE_QUEUE.active)
-                        fh = FILE_QUEUE.active.start()
+                    if not active_op.is_started:
+                        self.log.info("Started operation - %s", active_op)
+                        fh = active_op.start()
                         udt = DiskWriter("drx", fh, core=self.core)
                         was_active = True
                         
