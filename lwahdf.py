@@ -136,7 +136,7 @@ def set_polarization_products(f, pols, count):
         
         chunk_size = HDF5_CHUNK_SIZE_MB * 1024**2 // 4 // nchan
         chunk_size = max([1, chunk_size])
-        chunk_size = min([chunks, chunk_size])
+        chunk_size = min([count, chunk_size])
         
         d = tun.create_dataset(p, (count, nchan), '<f4', chunks=(chunk_size, nchan))
         d.attrs['axis0'] = 'time'
