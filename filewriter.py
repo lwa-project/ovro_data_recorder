@@ -216,7 +216,7 @@ class HDF5Writer(FileWriterBase):
         self._interface = create_hdf5(self.filename, beam)
         set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
-        self._time_step = navg * (int(FS) / int(CHAN_BW))
+        self._time_step = navg * int(round(FS/CHAN_BW))
         self._start_time_tag = LWATime(self.start_time, format='datetime', scale='utc').tuple
         self._stop_time_tag = LWATime(self.stop_time, format='datetime', scale='utc').tuple
         self._pols = set_polarization_products(self._interface, pols, chunks)
