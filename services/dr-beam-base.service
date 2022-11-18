@@ -4,9 +4,6 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-# Run as the specified user
-User=pipeline
-
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
 
@@ -37,4 +34,4 @@ python3 {{ path }}/dr_beam.py \
          --logfile                /data{{ calim_host }}/log/dr-beam-{{ beam }}.%H.log'
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
