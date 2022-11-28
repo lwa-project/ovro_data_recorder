@@ -412,6 +412,7 @@ class WriterOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
+        was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
             ihdr = json.loads(iseq.header.tostring())
             
@@ -436,7 +437,6 @@ class WriterOp(object):
             self.iring.resize(igulp_size, 10*igulp_size)
             
             first_gulp = True 
-            was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             for ispan in iseq_spans:
