@@ -17,6 +17,8 @@ import signal
 import logging
 import argparse
 import threading
+import traceback
+from io import StringIO
 from functools import reduce
 from datetime import datetime, timedelta
 
@@ -692,7 +694,20 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, idata)
+                        
+                    try:
+                        active_op.write(time_tag, idata)
+                    except Exception as writer_error:
+                        exc_type, exc_value, exc_traceback = sys.exc_info()
+                        fileObject = StringIO()
+                        traceback.print_tb(exc_traceback, file=fileObject)
+                        tbString = fileObject.getvalue()
+                        fileObject.close()
+                        
+                        self.log.warning("Write failed with %s at line %i", str(writer_error), exc_traceback.tb_lineno)
+                        for line in tbString.split('\n'):
+                            self.log.warning("Traceback: %s", line)
+                            
                 elif was_active:
                     ### Recording just finished
                     #### Clean
