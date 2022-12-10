@@ -209,7 +209,7 @@ class StorageLogger(object):
             self._file_sizes = [getsize(filename) for filename in self._files]
         except Exception as e:
             self._files = []
-            self.log.warning("Quota manager could not refresh the file list: %s", str(e)
+            self.log.warning("Quota manager could not refresh the file list: %s", str(e))
             
     def _halt(self):
         pass
