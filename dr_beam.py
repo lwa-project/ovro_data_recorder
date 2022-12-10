@@ -283,7 +283,7 @@ class SpectraOp(object):
                     
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -374,7 +374,7 @@ class StatisticsOp(object):
                         
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -475,7 +475,7 @@ class WriterOp(object):
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
