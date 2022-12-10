@@ -203,10 +203,14 @@ class StorageLogger(object):
         pass
         
     def _update(self):
-        self._files = glob.glob(os.path.join(self.directory, '*'))
-        self._files.sort(key=lambda x: os.path.getmtime(x))
-        self._file_sizes = [getsize(filename) for filename in self._files]
-        
+        try:
+            self._files = glob.glob(os.path.join(self.directory, '*'))
+            self._files.sort(key=lambda x: os.path.getmtime(x))
+            self._file_sizes = [getsize(filename) for filename in self._files]
+        except Exception as e:
+            self._files = []
+            self.log.warning("Quota manager could not refresh the file list: %s", str(e)
+            
     def _halt(self):
         pass
         
