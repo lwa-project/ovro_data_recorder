@@ -303,7 +303,7 @@ class MeasurementSetWriter(FileWriterBase):
         self._nant = len(self._station.antennas)
         self._freq = freq
         self._nchan = nchan
-        self._rawpols = pols
+        self._raw_pols = pols
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
         self._nint = self.nint_per_file
@@ -320,7 +320,7 @@ class MeasurementSetWriter(FileWriterBase):
         if self._counter == 0:
             self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
             self.tagname = os.path.join(self.filename, self.tagname)
-            create_ms(self.tagname, self._station, self._tint, self._freq, self._rawpols, nint=self._nint)
+            create_ms(self.tagname, self._station, self._tint, self._freq, self._raw_pols, nint=self._nint)
             
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
