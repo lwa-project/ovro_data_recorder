@@ -44,15 +44,13 @@ class FastVisibilityControl(object):
         data.  Defaults to what is currently used by the "dr-vfast-N" services on Cal/Im.
         """
         
-        # Create the list of IP address/port pairs to send data to
-        addrs = []
-        ports = []
+        # Set the address/port pairs for each pipeline
         for i,p in enumerate(self.pipelines):
-            addr.append(ipaddress.IPv4Address(addr_base) + i // 2)
-            port.append(port_base + i % 2)
+            ## Two pipelines per output subband
+            j = i // 2
             
-        # Set the address/port pairs
-        for p,addr,port in zip(self.pipelines, addrs, ports):
+            addr = ipaddress.IPv4Address(addr_base) + j // 2
+            port = port_base + j % 2
             with AllowedPipelineFailure(p):
                 p.corr_output_part_control.set_destination(addr, port)
                 
