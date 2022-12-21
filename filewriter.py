@@ -298,6 +298,12 @@ class MeasurementSetWriter(FileWriterBase):
         if not isinstance(pols, (tuple, list)):
             pols = [p.strip().rstrip() for p in pols.split(',')]
             
+        # Refresh the station - needed for fast visibilities
+        try:
+            station.refresh()
+        except AttributeError:
+            pass
+            
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
         create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
