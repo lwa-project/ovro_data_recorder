@@ -191,10 +191,14 @@ class StorageLogger(object):
         st = os.statvfs(self.directory)
         total_size = (st.f_blocks - st.f_bavail) * st.f_frsize
         
-        files = os.listdir(self.directory)
-        files = [os.path.join(self.directory, f) for f in files]
-        files.sort(key=os.path.getmtime)
-        
+        try:
+            files = os.listdir(self.directory)
+            files = [os.path.join(self.directory, f) for f in files]
+            files.sort(key=os.path.getmtime)
+        except Exception as e:
+            files = []
+            self.log.warning("Quota manager could not refresh the file list: %s", str(e))
+            
         removed = []
         i = 0
         while total_size > self.quota and len(files) > 1:
