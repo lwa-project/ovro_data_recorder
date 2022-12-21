@@ -1,3 +1,4 @@
+import copy
 import ipaddress
 
 from lwa352_pipeline_control import Lwa352PipelineControl
@@ -104,3 +105,54 @@ class FastVisibilityControl(object):
             antennas = [self.station.antennas[ant] for ant in antennas]
             
         return antennas
+
+
+class FastStation(object):
+    """
+    Class that wraps FastVisibilityControl to provide a lwa_antpos.station.Station-
+    like object for getting the antennas in use.
+    """
+    
+    def __init__(self, station=ovro):
+        self._station = station
+        self._control = FastVisibilityControl(station=station)
+        
+        self._refresh()
+        
+    def _refresh(self):
+        antennas = self._control.get_fast_antennas()
+        self._substation = self._station.select_subset(range(1, len(antennas)+1))
+        for i,ant in enumerate(antennas):
+            self._substation.antennas[i] = copy.deepcopy(ant)
+            
+    @property
+    def ecef(self):
+        """
+        Return the Earth centered, Earth fixed location of the array in meters.
+        """
+        
+        return self._substation.ecef
+        
+    @property
+    def topo_rot_matrix(self):
+        """
+        Return the rotation matrix that takes a difference in an Earth centered,
+        Earth fixed location relative to the Station and rotates it into a
+        topocentric frame that is south-east-zenith.
+        """
+        
+        return self._substation.topo_rot_matrix
+        
+    @property
+    def casa_position(self):
+        """
+        Return a four-element tuple of (CASA position reference, CASA position 1,
+        CASA position 2, CASA position 3, CASA position 4) that is suitable for
+        use with casacore.measures.measures.position.
+        """
+        
+        return self._substation.casa_position
+        
+    @property
+    def antennas(self):
+        return self._substation.antennas
