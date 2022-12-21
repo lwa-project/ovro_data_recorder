@@ -181,6 +181,9 @@ class StorageLogger(object):
     def _reset(self):
         pass
         
+    def _update(self):
+        pass
+        
     def _halt(self):
         pass
         
