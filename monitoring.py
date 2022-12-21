@@ -14,24 +14,6 @@ from mnc.mcs import MonitorPoint, Client
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
 
-def getsize(filename):
-    """
-    Version of os.path.getsize that walks directories to get their total sizes.
-    """
-    
-    if os.path.isdir(filename):
-        filesize = 0
-        with os.scandir(filename) as items:
-            for name in items:
-                if name.is_file():
-                    filesize += name.stat().st_size
-                elif name.is_dir():
-                    filesize += getsize(name.path)
-    else:
-        filesize = os.path.getsize(filename)
-    return filesize
-
-
 class PerformanceLogger(object):
     """
     Monitoring class for logging how a Bifrost pipeline is performing.  This
