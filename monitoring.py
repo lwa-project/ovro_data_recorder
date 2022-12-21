@@ -196,31 +196,24 @@ class StorageLogger(object):
         
         self.client = Client(id)
         
-        self._files = []
-        self._file_sizes = []
-        
     def _reset(self):
         pass
         
-    def _update(self):
-        try:
-            self._files = glob.glob(os.path.join(self.directory, '*'))
-            self._files.sort(key=lambda x: os.path.getmtime(x))
-            self._file_sizes = [getsize(filename) for filename in self._files]
-        except Exception as e:
-            self._files = []
-            self.log.warning("Quota manager could not refresh the file list: %s", str(e))
-            
     def _halt(self):
         pass
         
     def _manage_quota(self):
-        total_size = sum(self._file_sizes)
+        st = os.statvfs(self.directory)
+        total_size = (st.f_blocks - st.f_bavail) * st.f_frsize
+        
+        files = os.listdir(self.directory)
+        files = [os.path.join(self.directory, f) for f in files]
+        files.sort(key=os.path.getmtime)
         
         removed = []
         i = 0
-        while total_size > self.quota and len(self._files) > 1:
-            to_remove = self._files[i]
+        while total_size > self.quota and len(files) > 1:
+            to_remove = files[i]
             
             try:
                 if os.path.isdir(to_remove):
@@ -229,14 +222,14 @@ class StorageLogger(object):
                     os.unlink(to_remove)
                     
                 removed.append(to_remove)
-                del self._files[i]
-                del self._file_sizes[i]
+                del files[i]
                 i = 0
             except Exception as e:
                 self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
                 i += 1
                 
-            total_size = sum(self._file_sizes)
+            st = os.statvfs(self.directory)
+            total_size = (st.f_blocks - st.f_bavail) * st.f_frsize
             
         if removed:
             self.log.debug("=== Quota Report ===")
@@ -250,9 +243,6 @@ class StorageLogger(object):
         """
         
         while not self.shutdown_event.is_set():
-            # Update the state
-            self._update()
-            
             # Quota management, if needed
             if self.quota is not None:
                 self._manage_quota()
