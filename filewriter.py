@@ -19,10 +19,6 @@ from lwams import *
 __all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
-# Temporary file directory
-_TEMP_BASEDIR = "/tmp/"
-
-
 class FileWriterBase(object):
     """
     Class to represent a file to write data to for the specified time period.
