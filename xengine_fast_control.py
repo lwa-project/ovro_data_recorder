@@ -120,12 +120,13 @@ class FastStation(object):
         self._station = station
         self._control = FastVisibilityControl(station=station)
         
+        # Initial dummy subselected station
+        self._substation = self._station.select_subset(list(range(1, NSTAND_FAST+1)))
+        
     def refresh(self):
         """
         Refresh the antennas associated with the fast visibility data.
         """
-        
-        self._substation = self._station.select_subset(list(range(1, NSTAND_FAST+1)))
         
         antennas = self._control.get_fast_antennas()
         for i,ant in enumerate(antennas):
