@@ -14,6 +14,24 @@ from mnc.mcs import MonitorPoint, Client
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
 
+def getsize(filename):
+    """
+    Version of os.path.getsize that walks directories to get their total sizes.
+    """
+
+    if os.path.isdir(filename):
+        filesize = 0
+        with os.scandir(filename) as items:
+            for name in items:
+                if name.is_file():
+                    filesize += name.stat().st_size
+                elif name.is_dir():
+                    filesize += getsize(name.path)
+    else:
+        filesize = os.path.getsize(filename)
+    return filesize
+
+
 class PerformanceLogger(object):
     """
     Monitoring class for logging how a Bifrost pipeline is performing.  This
@@ -178,47 +196,55 @@ class StorageLogger(object):
         
         self.client = Client(id)
         
+        self._files = []
+        self._file_sizes = []
+        self._reset()
+        self._update()
+        
     def _reset(self):
-        pass
+        self._files = []
+        self._file_sizes = []
         
     def _update(self):
-        pass
-        
+        try:
+            cur_files = glob.glob(os.path.join(self.directory, '*'))
+            cur_files.sort(key=os.path.getmtime)
+            for filename in cur_files:
+                if filename not in self._files:
+                    self._files.append(filename)
+                    self._file_sizes.append(getsize(filename))
+        except Exception as e:
+            self.log.warning("Quota manager could not refresh the file list: %s", str(e))
+            
     def _halt(self):
         pass
         
     def _manage_quota(self):
-        st = os.statvfs(self.directory)
-        total_size = (st.f_blocks - st.f_bavail) * st.f_frsize
+        total_size = sum(self._file_sizes)
         
-        try:
-            files = os.listdir(self.directory)
-            files = [os.path.join(self.directory, f) for f in files]
-            files.sort(key=os.path.getmtime)
-        except Exception as e:
-            files = []
-            self.log.warning("Quota manager could not refresh the file list: %s", str(e))
-            
         removed = []
         i = 0
         while total_size > self.quota and len(files) > 1:
-            to_remove = files[i]
+            to_remove = self._files[i]
+            removed_size = 0
             
             try:
-                if os.path.isdir(to_remove):
-                    shutil.rmtree(to_remove)
-                else:
-                    os.unlink(to_remove)
-                    
+                if os.path.exists(to_remove):
+                    if os.path.isdir(to_remove):
+                        shutil.rmtree(to_remove)
+                    else:
+                        os.unlink(to_remove)
+                        
                 removed.append(to_remove)
-                del files[i]
+                removed_size = self._file_sizes[i]
+                del self._files[i]
+                del self._file_sizes[i]
                 i = 0
             except Exception as e:
                 self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
                 i += 1
                 
-            st = os.statvfs(self.directory)
-            total_size = (st.f_blocks - st.f_bavail) * st.f_frsize
+            total_size -= removed_size
             
         if removed:
             self.log.debug("=== Quota Report ===")
@@ -232,6 +258,9 @@ class StorageLogger(object):
         """
         
         while not self.shutdown_event.is_set():
+            # Update the state
+            self._update()
+            
             # Quota management, if needed
             if self.quota is not None:
                 self._manage_quota()
@@ -249,8 +278,8 @@ class StorageLogger(object):
             
             # Find the total size of all files
             ts = time.time()
-            total_size = disk_total - disk_free
-            file_count = len(os.listdir(self.directory))
+            total_size = sum(self._file_sizes)
+            file_count = len(self._files)
             self.client.write_monitor_point('storage/active_directory',
                                             self.directory, timestamp=ts)
             self.client.write_monitor_point('storage/active_directory_size',
