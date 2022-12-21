@@ -52,7 +52,7 @@ class FastVisibilityControl(object):
             with AllowedPipelineFailure(p):
                 p.corr_output_part_control.set_destination(addr, port)
                 
-    def set_antennas(self, antennas):
+    def set_fast_antennas(self, antennas):
         """
         Given a list of lwa_antpos.station.Antenna instances or digital input
         numbers, set the fast visibility baseline selection to output all four
@@ -78,7 +78,7 @@ class FastVisibilityControl(object):
             with AllowedPipelineFailure(p):
                 p.corr_subsel_control.set_baseline_select(baselines)
                 
-    def get_antennas(self, as_index=False):
+    def get_fast_antennas(self, as_index=False):
         """
         Return a list of lwa_antpos.station.Antenna instances for the current
         set of fast visibility baselines.  If `as_index` is True return the list
