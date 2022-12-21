@@ -10,6 +10,9 @@ from mnc.xengine_beamformer_control import NSERVER, NSTAND
 from lwa_antpos.station import ovro, Antenna
 
 
+NSTAND_FAST = 48
+
+
 class FastVisibilityControl(object):
     def __init__(self, servers=None, nserver=8, npipeline_per_server=4, station=ovro, etcdhost=ETCD_HOST):
         # Validate
@@ -61,7 +64,7 @@ class FastVisibilityControl(object):
         """
         
         # Validate
-        assert(len(antennas) == 48)
+        assert(len(antennas) == NSTAND_FAST)
         
         # Antenna to index
         if isinstance(antennas[0], Antenna):
@@ -117,15 +120,14 @@ class FastStation(object):
         self._station = station
         self._control = FastVisibilityControl(station=station)
         
-        self.refresh()
-        
     def refresh(self):
         """
         Refresh the antennas associated with the fast visibility data.
         """
         
+        self._substation = self._station.select_subset(list(range(1, NSTAND_FAST+1)))
+        
         antennas = self._control.get_fast_antennas()
-        self._substation = self._station.select_subset(range(1, len(antennas)+1))
         for i,ant in enumerate(antennas):
             self._substation.antennas[i] = copy.deepcopy(ant)
             
