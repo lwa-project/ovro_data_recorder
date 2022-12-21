@@ -242,20 +242,21 @@ class StorageLogger(object):
             
             # Find the total size of all files
             ts = time.time()
-            total_size = sum(self._file_sizes)
+            total_size = disk_total - disk_free
+            file_count = len(os.listdir(self.directory))
             self.client.write_monitor_point('storage/active_directory',
                                             self.directory, timestamp=ts)
             self.client.write_monitor_point('storage/active_directory_size',
                                             total_size, timestamp=ts, unit='B')
             self.client.write_monitor_point('storage/active_directory_count',
-                                            len(self._files), timestamp=ts)
+                                            file_count, timestamp=ts)
             
             # Report
             self.log.debug("=== Storage Report ===")
             self.log.debug(" directory: %s", self.directory)
             self.log.debug(" disk size: %i B", disk_total)
             self.log.debug(" disk free: %i B", disk_free)
-            self.log.debug(" file count: %i", len(self._files))
+            self.log.debug(" file count: %i", file_count)
             self.log.debug(" total size: %i B", total_size)
             self.log.debug("===   ===")
             
