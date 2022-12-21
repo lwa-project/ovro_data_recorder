@@ -72,7 +72,7 @@ class FastVisibilityControl(object):
             
         baselines = []
         for i,ant1 in enumerate(antennas):
-            for ant2 in enumerate(antennas[i:]
+            for ant2 in enumerate(antennas[i:]):
                 baselines.append([[ant1,0],[ant2,0]])
                 baselines.append([[ant1,0],[ant2,1]])
                 baselines.append([[ant1,1],[ant2,0]])
