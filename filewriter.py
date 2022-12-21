@@ -253,14 +253,18 @@ class HDF5Writer(FileWriterBase):
             size = min([self._counter_max - self._counter, len(time_tags)])
             range_start = 0
             
-        # Write
-        ## Timestamps
-        self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
-        ## Data
-        for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
-        # Update the counter
-        self._counter += size
+        try:
+            # Write
+            ## Timestamps
+            self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
+            ## Data
+            for i in range(data.shape[-1]):
+                self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
+            # Update the counter
+            self._counter += size
+        except ValueError:
+            # If we are here that probably means the file has been closed
+            pass
 
 
 class MeasurementSetWriter(FileWriterBase):
