@@ -226,7 +226,6 @@ class StorageLogger(object):
         i = 0
         while total_size > self.quota and len(self._files) > 1:
             to_remove = self._files[i]
-            removed_size = 0
             
             try:
                 if os.path.exists(to_remove):
@@ -236,7 +235,7 @@ class StorageLogger(object):
                         os.unlink(to_remove)
                         
                 removed.append(to_remove)
-                removed_size = self._file_sizes[i]
+                total_size -= self._file_sizes[i]
                 del self._files[i]
                 del self._file_sizes[i]
                 i = 0
@@ -244,8 +243,6 @@ class StorageLogger(object):
                 self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
                 i += 1
                 
-            total_size -= removed_size
-            
         if removed:
             self.log.debug("=== Quota Report ===")
             self.log.debug("Removed %i files", len(removed))
