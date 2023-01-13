@@ -224,7 +224,7 @@ class StorageLogger(object):
         
         removed = []
         i = 0
-        while total_size > self.quota and len(files) > 1:
+        while total_size > self.quota and len(self._files) > 1:
             to_remove = self._files[i]
             removed_size = 0
             
