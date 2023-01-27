@@ -283,7 +283,7 @@ class SpectraOp(object):
                     
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -374,7 +374,7 @@ class StatisticsOp(object):
                         
                     last_save = time.time()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -412,6 +412,7 @@ class WriterOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
+        was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
             ihdr = json.loads(iseq.header.tostring())
             
@@ -436,7 +437,6 @@ class WriterOp(object):
             self.iring.resize(igulp_size, 10*igulp_size)
             
             first_gulp = True 
-            was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             for ispan in iseq_spans:
@@ -457,13 +457,14 @@ class WriterOp(object):
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
                 
                 ## Determine what to do
-                if QUEUE.active is not None:
+                active_op = QUEUE.active
+                if active_op is not None:
                     ### Recording active - write
-                    if not QUEUE.active.is_started:
-                        self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
+                    if not active_op.is_started:
+                        self.log.info("Started operation - %s", active_op)
+                        active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    QUEUE.active.write(time_tag, idata)
+                    active_op.write(time_tag, idata)
                 elif was_active:
                     ### Recording just finished - clean
                     #### Clean
@@ -474,7 +475,7 @@ class WriterOp(object):
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
                     
-                time_tag += navg * self.ntime_gulp * (int(FS) // int(CHAN_BW))
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time

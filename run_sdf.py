@@ -4,7 +4,9 @@ import os
 import sys
 import time
 import numpy
+import shutil
 import argparse
+import subprocess
 
 import logging
 logging.basicConfig(level=logging.INFO,
@@ -130,6 +132,26 @@ def _get_tracking_updates(obs):
     return steps
 
 
+def _get_sdf_id(filename):
+    pid, sid = None, None
+    with open(filename, 'r') as fh:
+        for line in fh:
+            line = line.strip().rstrip()
+            if len(line) < 3:
+                continue
+            if line[0] == '#':
+                continue
+                
+            fields = line.split(None, 1)
+            if fields[0] == 'PROJECT_ID':
+                pid = fields[1].split('#')[0].strip().rstrip()
+            elif fields[0] == 'SESSION_ID':
+                sid = fields[1].split('#')[0].strip().rstrip()
+                sid = int(sid, 10)
+                
+    return pid, sid
+
+
 def parse_sdf(filename):
     """
     Given an SDF beamformer filename, parse the file and return a list of
@@ -149,6 +171,7 @@ def parse_sdf(filename):
     obs = []
     beam = 1
     time_avg = 0
+    stokes_mode = None
     tint_native = 2*NCHAN_NATIVE / CLOCK_NATIVE * 24
     with open(filename, 'r') as fh:
         for line in fh:
@@ -242,6 +265,7 @@ def parse_sdf(filename):
                     freq1 = float(freq1) / 2**32 * 196e6
                     for i in range(step, len(temp['steps'])):
                         temp['steps'][i]['freq1'] = freq1
+                        temp['steps'][i]['filter'] = active_bw_code
             elif line.startswith('OBS_STP_FREQ2'):
                 if line.find('+') == -1:
                     tag, freq2 = line.rsplit(None, 1)
@@ -249,9 +273,11 @@ def parse_sdf(filename):
                     freq2 = float(freq2) / 2**32 * 196e6
                     for i in range(step, len(temp['steps'])):
                         temp['steps'][i]['freq2'] = freq2
+                        temp['steps'][i]['filter'] = active_bw_code
             elif line.startswith('OBS_BW'):
                 if line.find('+') == -1:
                     temp['filter'] = int(line.rsplit(None, 1)[1], 10)
+                    active_bw_code = temp['filter']
                     
                     try:
                         for i in range(len(temp['steps'])):
@@ -270,6 +296,12 @@ def parse_sdf(filename):
                 beam = int(line.rsplit(None, 1)[1], 10)
             elif line.startswith('SESSION_SPC'):
                 _, nchan, nwin = line.rsplit(None, 2)
+                try:
+                    nwin, stokes_mode = nwin.split('{')
+                    stokes_mode = stokes_mode.split('=', 1)[1]
+                    stokes_mode = stokes_mode.replace('}', '')
+                except ValueError:
+                    pass
                 nchan = int(nchan, 10)
                 nwin = int(nwin, 10)
                 tint = (nchan*nwin / 19.6e6)
@@ -295,8 +327,9 @@ def parse_sdf(filename):
                                  'gain1': o['gain1'],
                                  'gain2': o['gain2']})
             try:
-                expanded_obs[-1]['freq1'] = o['steps'][0]['freq1']
-                expanded_obs[-1]['freq2'] = o['steps'][0]['freq2']
+                expanded_obs[-1]['freq1']  = o['steps'][0]['freq1']
+                expanded_obs[-1]['freq2']  = o['steps'][0]['freq2']
+                expanded_obs[-1]['filter'] = o['steps'][0]['filter']
             except KeyError:
                 pass
             ## Steps 2 through N so that the start time builds off the previous
@@ -311,8 +344,9 @@ def parse_sdf(filename):
                                      'gain1': expanded_obs[-1]['gain1'],
                                      'gain2': expanded_obs[-1]['gain2']})
                 try:
-                    expanded_obs[-1]['freq1'] = s['freq1']
-                    expanded_obs[-1]['freq2'] = s['freq2']
+                    expanded_obs[-1]['freq1']  = s['freq1']
+                    expanded_obs[-1]['freq2']  = s['freq2']
+                    expanded_obs[-1]['filter'] = s['filter']
                 except KeyError:
                     pass
                     
@@ -330,16 +364,19 @@ def parse_sdf(filename):
     else:
         logger.info("Running as a voltage beam observation")
     expanded_obs[0]['time_avg'] = time_avg
+    expanded_obs[0]['stokes_mode'] = stokes_mode
     expanded_obs[0]['beam'] = beam
     
     return expanded_obs
 
 
 def main(args):
+    # Back to DEBUG now that we've imported everything
     logger.setLevel(logging.DEBUG)
+    
     # Setup another log handler that writes to a file as a crude form of metadata
-    metadata_name = os.path.basename(args.filename)
-    metadata_name = os.path.splitext(metadata_name)[0]+'.history'
+    obs_pid, obs_sid = _get_sdf_id(args.filename)
+    metadata_name = "%s_%04i.history" % (obs_pid, obs_sid)
     metadata_handler = logging.FileHandler(metadata_name, mode='w')
     metadata_handler.setLevel(logging.DEBUG)
     metadata_formatter = logging.Formatter('%(asctime)s [%(levelname)-7s] %(message)s',
@@ -402,16 +439,29 @@ def main(args):
     ## Schedule it
     logger.info("Sending recorder command")
     if dr is not None and not args.dry_run:
-        dr_mod = ''
         if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
-            dr_mod = 't'
-        status = dr.send_command(f"dr{dr_mod}{obs[0]['beam']}", 'record',
-                                 start_mjd=obs[0]['mjd'],
-                                 start_mpm=obs[0]['mpm'],
-                                 duration_ms=int(rec_dur*1000),
-                                 time_avg=obs[0]['time_avg'])
+            status = dr.send_command(f"drt{obs[0]['beam']}", 'record',
+                                     beam=obs[0]['beam'],
+                                     start_mjd=obs[0]['mjd'],
+                                     start_mpm=obs[0]['mpm'],
+                                     duration_ms=int(rec_dur*1000))
+        else:
+            status = dr.send_command(f"dr{obs[0]['beam']}", 'record',
+                                     start_mjd=obs[0]['mjd'],
+                                     start_mpm=obs[0]['mpm'],
+                                     duration_ms=int(rec_dur*1000),
+                                     time_avg=obs[0]['time_avg'],
+                                     stokes_mode=obs[0]['stokes_mode'])
         if status[0]:
             logger.info("Record command succeeded: %s" % str(status[1:]))
+            try:
+                os.unlink("%s_%04i_metadata.txt" % (obs_pid, obs_sid))
+            except OSError:
+                pass
+            with open("%s_%04i_metadata.txt" % (obs_pid, obs_sid), 'w') as fh:
+                if status[1]['status'] == 'success':
+                    fh.write("  1 [%s] ['%s']  0 [UNK]\n" % (os.path.basename(status[1]['response']['filename']),
+                                                             os.path.dirname(status[1]['response']['filename'])))
         else:
             logger.error("Record command failed: %s", str(status[1]))
             
@@ -423,13 +473,17 @@ def main(args):
         
     ## Iterate through the observations
     last_freq1 = 0
+    last_filter1 = -1
     last_gain1 = -1
     last_freq2 = 0
+    last_filter2 = -1
     last_gain2 = -1
     for i,o in enumerate(obs):
         if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
-            if o['freq1'] != last_freq1 or o['gain1'] != last_gain1:
-                logger.info(f"Moving tuning 1 to {(o['freq1']/1e6):.3f} MHz at gain {o['gain1']}")
+            if o['freq1'] != last_freq1 \
+               or o['filter'] != last_filter1 \
+               or o['gain1'] != last_gain1:
+                logger.info(f"Moving tuning 1 to {(o['freq1']/1e6):.3f} MHz, filter {o['filter']} at gain {o['gain1']}")
                 if dr is not None and not args.dry_run:
                     dr.send_command(f"drt{obs[0]['beam']}", 'drx',
                                     beam=obs[0]['beam'],
@@ -438,9 +492,12 @@ def main(args):
                                     filter=o['filter'],
                                     gain=o['gain1'])
                 last_freq1 = o['freq1']
+                last_filter1 = o['filter']
                 last_gain1 = o['gain1']
-            if o['freq2'] != last_freq2 or o['gain2'] != last_gain2:
-                logger.info(f"Moving tuning 2 to {(o['freq2']/1e6):.3f} MHz at gain {o['gain2']}")
+            if o['freq2'] != last_freq2 \
+               or o['filter'] != last_filter2 \
+               or o['gain2'] != last_gain2:
+                logger.info(f"Moving tuning 2 to {(o['freq2']/1e6):.3f} MHz, filter {o['filter']} at gain {o['gain2']}")
                 if dr is not None and not args.dry_run:
                     dr.send_command(f"drt{obs[0]['beam']}", 'drx',
                                     beam=obs[0]['beam'],
@@ -449,11 +506,15 @@ def main(args):
                                     filter=o['filter'],
                                     gain=o['gain2'])
                 last_freq2 = o['freq2']
+                last_filter2 = o['filter']
                 last_gain2 = o['gain2']
                 
         name = o['ra']
         if o['dec'] is not None:
-            name = f"{o['ra']} hr, {o['dec']} deg"
+            if not o['azalt']:
+                name = f"{o['ra']} hr, {o['dec']} deg"
+            else:
+                name = f"{o['ra']} deg az, {o['dec']} deg el"
         logger.info(f"Tracking pointing #{i+1} ('{name}') for {o['dur']/1000.0:.3f} s")
         for step in o['sdf_steps']:
             while time.time() + 1 < step[0]:
@@ -465,6 +526,50 @@ def main(args):
     logger.info("Finished with the observations, waiting for the recording to finish...")
     while LWATime.now() < rec_stop:
         time.sleep(0.01)
+        
+    # Write a metadata tarball that contains the history and the SDF
+    if not args.dry_run:
+        ## History and SDF
+        sdf_name = "%s_%04i.txt" % (obs_pid, obs_sid)
+        sdf_copied = False
+        if os.path.basename(args.filename) != sdf_name:
+            shutil.copy(args.filename, sdf_name)
+            sdf_copied = True
+        to_include = [sdf_name, '%s_%04i.history' % (obs_pid, obs_sid)]
+        ## Data file metdata
+        if os.path.exists("%s_%04i_metadata.txt" % (obs_pid, obs_sid)):
+            to_include.append("%s_%04i_metadata.txt" % (obs_pid, obs_sid))
+        ## Try to also save the system configuration information
+        try:
+            os.unlink('system.config')
+        except OSError:
+            pass
+        if dr is not None:
+            try:
+                config, _ = dr.client.get('/cfg/system')
+                with open('system.config', 'wb') as fh:
+                    fh.write(config)
+                to_include.append('system.config')
+            except Exception as e:
+                logger.warning("Could not save system configuration: %s", str(e))
+                
+        ## Save
+        cmd = ['tar', 'czf', '%s_%04i.tgz' % (obs_pid, obs_sid)]
+        cmd.extend(to_include)
+        subprocess.check_call(cmd)
+        
+        ## Cleanup
+        if sdf_copied:
+            try:
+                os.unlink(sdf_name)
+            except OSError:
+                pass
+        for name in cmd[4:]:
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
+                
     logger.info("Done")
 
 

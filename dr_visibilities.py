@@ -17,6 +17,8 @@ import signal
 import logging
 import argparse
 import threading
+import traceback
+from io import StringIO
 from functools import reduce
 from datetime import datetime, timedelta
 
@@ -635,6 +637,7 @@ class WriterOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
+        was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
             ihdr = json.loads(iseq.header.tostring())
             
@@ -659,7 +662,6 @@ class WriterOp(object):
             norm_factor = navg // (2*NCHAN)
             
             first_gulp = True
-            was_active = False
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             for ispan in iseq_spans:
@@ -685,13 +687,27 @@ class WriterOp(object):
                 idata = idata.astype(numpy.complex64)
                 
                 ## Determine what to do
-                if QUEUE.active is not None:
+                active_op = QUEUE.active
+                if active_op is not None:
                     ### Recording active - write
-                    if not QUEUE.active.is_started:
-                        self.log.info("Started operation - %s", QUEUE.active)
-                        QUEUE.active.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
+                    if not active_op.is_started:
+                        self.log.info("Started operation - %s", active_op)
+                        active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    QUEUE.active.write(time_tag, idata)
+                        
+                    try:
+                        active_op.write(time_tag, idata)
+                    except Exception as writer_error:
+                        exc_type, exc_value, exc_traceback = sys.exc_info()
+                        fileObject = StringIO()
+                        traceback.print_tb(exc_traceback, file=fileObject)
+                        tbString = fileObject.getvalue()
+                        fileObject.close()
+                        
+                        self.log.warning("Write failed with %s at line %i", str(writer_error), exc_traceback.tb_lineno)
+                        for line in tbString.split('\n'):
+                            self.log.warning("Traceback: %s", line)
+                            
                 elif was_active:
                     ### Recording just finished
                     #### Clean

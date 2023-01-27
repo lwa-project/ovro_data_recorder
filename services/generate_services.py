@@ -223,8 +223,8 @@ def main(args):
                     
     if not args.clean:
         print("To enable/update these services:")
-        print(" * copy the relevant .service files to /etc/systemd/system")
-        print(" * reload systemd with 'systemctl daemon-reload'")
+        print(" * copy the relevant .service files to /home/pipeline/.config/systemd/user/")
+        print(" * reload systemd with 'systemctl --user daemon-reload'")
 
 
 if __name__ == '__main__':

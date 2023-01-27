@@ -216,11 +216,12 @@ class HDF5Writer(FileWriterBase):
         self._interface = create_hdf5(self.filename, beam)
         set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
-        self._time_step = navg * (int(FS) / int(CHAN_BW))
+        self._time_step = navg * int(round(FS/CHAN_BW))
         self._start_time_tag = LWATime(self.start_time, format='datetime', scale='utc').tuple
         self._stop_time_tag = LWATime(self.stop_time, format='datetime', scale='utc').tuple
         self._pols = set_polarization_products(self._interface, pols, chunks)
         self._counter = 0
+        self._counter_max = chunks
         self._started = True
         
     def write(self, time_tag, data):
@@ -244,29 +245,30 @@ class HDF5Writer(FileWriterBase):
         if time_tags[0] < self._start_time_tag:
             ## Lead in
             offset = bisect_left(time_tags, self._start_time_tag)
-            size = len(time_tags) - offset
+            size = min([self._counter_max - self._counter, len(time_tags) - offset])
             range_start = offset
-            range_stop = len(time_tags)
         elif time_tags[-1] > self._stop_time_tag:
             ## Flush out
             offset = bisect_right(time_tags, self._stop_time_tag)
-            size = offset
+            size = min([self._counter_max - self._counter, offset])
             range_start = 0
-            range_stop = offset
         else:
             ## Fully contained
-            size = len(time_tags)
+            size = min([self._counter_max - self._counter, len(time_tags)])
             range_start = 0
-            range_stop = len(time_tags)
             
-        # Write
-        ## Timestamps
-        self._time[self._counter:self._counter+size] = time_tags[range_start:range_stop]
-        ## Data
-        for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_stop,0,:,i]
-        # Update the counter
-        self._counter += size
+        try:
+            # Write
+            ## Timestamps
+            self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
+            ## Data
+            for i in range(data.shape[-1]):
+                self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
+            # Update the counter
+            self._counter += size
+        except ValueError:
+            # If we are here that probably means the file has been closed
+            pass
 
 
 class MeasurementSetWriter(FileWriterBase):

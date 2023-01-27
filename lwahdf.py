@@ -10,6 +10,9 @@ __all__ = ['create_hdf5', 'set_frequencies', 'set_time',
            'set_polarization_products']
 
 
+HDF5_CHUNK_SIZE_MB = 32
+
+
 def create_hdf5(filename, beam, overwrite=False):
     """
     Create an empty HDF5 file with the right structure and groups.  Returns a
@@ -90,7 +93,7 @@ def set_frequencies(f, frequency):
     obs.attrs['RBW_Units'] = 'Hz'
     
     tun = obs.get('Tuning1', None)
-    tun['freq'] = frequency.astype(numpy.float64)
+    tun['freq'] = frequency.astype('<f8')
     tun['freq'].attrs['Units'] = 'Hz'
 
 
@@ -105,7 +108,7 @@ def set_time(f, tint, count, format='unix', scale='utc'):
     obs.attrs['tInt_Units'] = 's'
     
     tim = obs.create_dataset('time', (count,), dtype=numpy.dtype({"names": ["int", "frac"],
-                                                                  "formats": ["i8", "f8"]}))
+                                                                  "formats": ["<i8", "<f8"]}))
     tim.attrs['format'] = 'unix'
     tim.attrs['scale'] = 'utc'
     return tim
@@ -131,7 +134,11 @@ def set_polarization_products(f, pols, count):
         p = p.replace('CR', 'XY_real')
         p = p.replace('CI', 'XY_imag')
         
-        d = tun.create_dataset(p, (count, nchan), 'f4')
+        chunk_size = HDF5_CHUNK_SIZE_MB * 1024**2 // 4 // nchan
+        chunk_size = max([1, chunk_size])
+        chunk_size = min([count, chunk_size])
+        
+        d = tun.create_dataset(p, (count, nchan), '<f4', chunks=(chunk_size, nchan))
         d.attrs['axis0'] = 'time'
         d.attrs['axis1'] = 'frequency'
         data_products[i] = d
