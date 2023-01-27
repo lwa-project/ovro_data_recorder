@@ -528,7 +528,7 @@ class GlobalLogger(object):
         self._shutdown_event = shutdown_event
         
         if quota is None or quota == 0:
-            update_interval_storage = 1e9
+            update_interval_storage = 1e10
             self.log.info('No quota management requested, disabling StorageLogger')
             
         self.update_interval_perf = update_interval_perf
