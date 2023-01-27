@@ -423,7 +423,10 @@ class StatusLogger(object):
                 processing = MonitorPoint(0.0)
             total = self.client.read_monitor_point('storage/active_disk_size')
             free = self.client.read_monitor_point('storage/active_disk_free')
-            dfree = 1.0*free.value / total.value
+            if total != 0:
+                dfree = 1.0*free.value / total.value
+            else:
+                dfree = 1.0
             dused = 1.0 - dfree
             
             ts = min([v.timestamp for v in (missing, processing, total, free)])
