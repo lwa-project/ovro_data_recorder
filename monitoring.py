@@ -204,6 +204,18 @@ class StorageLogger(object):
         self._files = []
         self._file_sizes = []
         
+        ts = time.time()
+        self.client.write_monitor_point('storage/active_disk_size',
+                                        0, timestamp=ts, unit='B')
+        self.client.write_monitor_point('storage/active_disk_free',
+                                        0, timestamp=ts, unit='B')
+        self.client.write_monitor_point('storage/active_directory',
+                                        self.directory, timestamp=ts)
+        self.client.write_monitor_point('storage/active_directory_size',
+                                        0, timestamp=ts, unit='B')
+        self.client.write_monitor_point('storage/active_directory_count',
+                                        0, timestamp=ts)
+        
     def _update(self):
         try:
             cur_files = glob.glob(os.path.join(self.directory, '*'))
