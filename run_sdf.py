@@ -265,6 +265,7 @@ def parse_sdf(filename):
                     freq1 = float(freq1) / 2**32 * 196e6
                     for i in range(step, len(temp['steps'])):
                         temp['steps'][i]['freq1'] = freq1
+                        temp['steps'][i]['filter'] = active_bw_code
             elif line.startswith('OBS_STP_FREQ2'):
                 if line.find('+') == -1:
                     tag, freq2 = line.rsplit(None, 1)
@@ -272,9 +273,11 @@ def parse_sdf(filename):
                     freq2 = float(freq2) / 2**32 * 196e6
                     for i in range(step, len(temp['steps'])):
                         temp['steps'][i]['freq2'] = freq2
+                        temp['steps'][i]['filter'] = active_bw_code
             elif line.startswith('OBS_BW'):
                 if line.find('+') == -1:
                     temp['filter'] = int(line.rsplit(None, 1)[1], 10)
+                    active_bw_code = temp['filter']
                     
                     try:
                         for i in range(len(temp['steps'])):
@@ -324,8 +327,9 @@ def parse_sdf(filename):
                                  'gain1': o['gain1'],
                                  'gain2': o['gain2']})
             try:
-                expanded_obs[-1]['freq1'] = o['steps'][0]['freq1']
-                expanded_obs[-1]['freq2'] = o['steps'][0]['freq2']
+                expanded_obs[-1]['freq1']  = o['steps'][0]['freq1']
+                expanded_obs[-1]['freq2']  = o['steps'][0]['freq2']
+                expanded_obs[-1]['filter'] = o['steps'][0]['filter']
             except KeyError:
                 pass
             ## Steps 2 through N so that the start time builds off the previous
@@ -340,8 +344,9 @@ def parse_sdf(filename):
                                      'gain1': expanded_obs[-1]['gain1'],
                                      'gain2': expanded_obs[-1]['gain2']})
                 try:
-                    expanded_obs[-1]['freq1'] = s['freq1']
-                    expanded_obs[-1]['freq2'] = s['freq2']
+                    expanded_obs[-1]['freq1']  = s['freq1']
+                    expanded_obs[-1]['freq2']  = s['freq2']
+                    expanded_obs[-1]['filter'] = s['filter']
                 except KeyError:
                     pass
                     
@@ -454,8 +459,9 @@ def main(args):
             except OSError:
                 pass
             with open("%s_%04i_metadata.txt" % (obs_pid, obs_sid), 'w') as fh:
-                fh.write("  1 [%s] ['%s']  0 [UNK]\n" % (os.path.basename(status[1]['response']['filename']),
-                                                         os.path.dirname(status[1]['response']['filename'])))
+                if status[1]['status'] == 'success':
+                    fh.write("  1 [%s] ['%s']  0 [UNK]\n" % (os.path.basename(status[1]['response']['filename']),
+                                                             os.path.dirname(status[1]['response']['filename'])))
         else:
             logger.error("Record command failed: %s", str(status[1]))
             
@@ -467,13 +473,17 @@ def main(args):
         
     ## Iterate through the observations
     last_freq1 = 0
+    last_filter1 = -1
     last_gain1 = -1
     last_freq2 = 0
+    last_filter2 = -1
     last_gain2 = -1
     for i,o in enumerate(obs):
         if obs[0]['beam'] == 1 and obs[0]['time_avg'] == 0:
-            if o['freq1'] != last_freq1 or o['gain1'] != last_gain1:
-                logger.info(f"Moving tuning 1 to {(o['freq1']/1e6):.3f} MHz at gain {o['gain1']}")
+            if o['freq1'] != last_freq1 \
+               or o['filter'] != last_filter1 \
+               or o['gain1'] != last_gain1:
+                logger.info(f"Moving tuning 1 to {(o['freq1']/1e6):.3f} MHz, filter {o['filter']} at gain {o['gain1']}")
                 if dr is not None and not args.dry_run:
                     dr.send_command(f"drt{obs[0]['beam']}", 'drx',
                                     beam=obs[0]['beam'],
@@ -482,9 +492,12 @@ def main(args):
                                     filter=o['filter'],
                                     gain=o['gain1'])
                 last_freq1 = o['freq1']
+                last_filter1 = o['filter']
                 last_gain1 = o['gain1']
-            if o['freq2'] != last_freq2 or o['gain2'] != last_gain2:
-                logger.info(f"Moving tuning 2 to {(o['freq2']/1e6):.3f} MHz at gain {o['gain2']}")
+            if o['freq2'] != last_freq2 \
+               or o['filter'] != last_filter2 \
+               or o['gain2'] != last_gain2:
+                logger.info(f"Moving tuning 2 to {(o['freq2']/1e6):.3f} MHz, filter {o['filter']} at gain {o['gain2']}")
                 if dr is not None and not args.dry_run:
                     dr.send_command(f"drt{obs[0]['beam']}", 'drx',
                                     beam=obs[0]['beam'],
@@ -493,11 +506,15 @@ def main(args):
                                     filter=o['filter'],
                                     gain=o['gain2'])
                 last_freq2 = o['freq2']
+                last_filter2 = o['filter']
                 last_gain2 = o['gain2']
                 
         name = o['ra']
         if o['dec'] is not None:
-            name = f"{o['ra']} hr, {o['dec']} deg"
+            if not o['azalt']:
+                name = f"{o['ra']} hr, {o['dec']} deg"
+            else:
+                name = f"{o['ra']} deg az, {o['dec']} deg el"
         logger.info(f"Tracking pointing #{i+1} ('{name}') for {o['dur']/1000.0:.3f} s")
         for step in o['sdf_steps']:
             while time.time() + 1 < step[0]:
