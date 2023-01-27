@@ -228,7 +228,7 @@ class StorageLogger(object):
             self.log.warning("Quota manager could not refresh the file list: %s", str(e))
             
     def _halt(self):
-        pass
+        self._reset()
         
     def _manage_quota(self):
         total_size = sum(self._file_sizes)
