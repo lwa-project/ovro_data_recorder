@@ -199,7 +199,6 @@ class StorageLogger(object):
         self._files = []
         self._file_sizes = []
         self._reset()
-        self._update()
         
     def _reset(self):
         self._files = []
