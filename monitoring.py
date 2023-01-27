@@ -423,13 +423,15 @@ class StatusLogger(object):
                 processing = MonitorPoint(0.0)
             total = self.client.read_monitor_point('storage/active_disk_size')
             free = self.client.read_monitor_point('storage/active_disk_free')
-            if total != 0:
+            if total.value != 0:
                 dfree = 1.0*free.value / total.value
             else:
                 dfree = 1.0
             dused = 1.0 - dfree
             
-            ts = min([v.timestamp for v in (missing, processing, total, free)])
+            ts = min([v.timestamp for v in (missing, processing)])
+            if total.value != 0:
+                ts = min([ts, total.timestamp, free.timestamp])
             summary = 'normal'
             info = 'System operating normally'
             if self.nthread is not None:
