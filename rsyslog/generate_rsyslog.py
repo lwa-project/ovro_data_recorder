@@ -24,11 +24,9 @@ def main(args):
                 for i in vis_idx:
                     fh.write(f"""
 :programname, isequal, "dr-vslow-{i}" /data{node:02d}/log/dr-vslow-{i}.syslog
-& $FileOwner pipeline
 & stop
 
 :programname, isequal, "dr-vfast-{i}" /data{node:02d}/log/dr-vfast-{i}.syslog
-& $FileOwner pipeline
 & stop
 
 """)
@@ -36,18 +34,15 @@ def main(args):
                 for i in beam_idx:
                     fh.write(f"""
 :programname, isequal, "dr-beam-{i}" /data{node:02d}/log/dr-beam-{i}.syslog
-& $FileOwner pipeline
 & stop
 """)
                     
                 if node == 1:
                     fh.write(f"""
 :programname, isequal, "dr-manager-vslow" /data{node:02d}/log/dr-manager-vslow.syslog
-& $FileOwner pipeline
 & stop
 
 :programname, isequal, "dr-manager-vfast" /data{node:02d}/log/dr-manager-vfast.syslog
-& $FileOwner pipeline
 & stop
 """)
 
