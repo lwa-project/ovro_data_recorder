@@ -23,26 +23,26 @@ def main(args):
             with open(f"{args.priority}-drservices-{hostname}.conf", 'w') as fh:
                 for i in vis_idx:
                     fh.write(f"""
-:programname, isequal, "dr-vslow-{i}" /data{node:02d}/log/dr-vslow-{i}.syslog
+:programname, isequal, "dr-vslow-{i}" /data{node:02d}/log/dr-vslow-{i}.{hostname}.syslog
 & stop
 
-:programname, isequal, "dr-vfast-{i}" /data{node:02d}/log/dr-vfast-{i}.syslog
+:programname, isequal, "dr-vfast-{i}" /data{node:02d}/log/dr-vfast-{i}.{hostname}.syslog
 & stop
 
 """)
                     
                 for i in beam_idx:
                     fh.write(f"""
-:programname, isequal, "dr-beam-{i}" /data{node:02d}/log/dr-beam-{i}.syslog
+:programname, isequal, "dr-beam-{i}" /data{node:02d}/log/dr-beam-{i}.{hostname}.syslog
 & stop
 """)
                     
                 if node == 1:
                     fh.write(f"""
-:programname, isequal, "dr-manager-vslow" /data{node:02d}/log/dr-manager-vslow.syslog
+:programname, isequal, "dr-manager-vslow" /data{node:02d}/log/dr-manager-vslow.{hostname}.syslog
 & stop
 
-:programname, isequal, "dr-manager-vfast" /data{node:02d}/log/dr-manager-vfast.syslog
+:programname, isequal, "dr-manager-vfast" /data{node:02d}/log/dr-manager-vfast.{hostname}.syslog
 & stop
 """)
 
