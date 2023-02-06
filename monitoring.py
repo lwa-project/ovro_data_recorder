@@ -415,14 +415,27 @@ class StatusLogger(object):
             nactive = 0
             if self.nthread is not None:
                 nactive = threading.active_count()
+            nfound = 0
             missing = self.client.read_monitor_point('bifrost/rx_missing')
+            nfound += 1
             if missing is None:
                 missing = MonitorPoint(0.0)
+                nfound -= 1
             processing = self.client.read_monitor_point('bifrost/max_process')
+            nfound += 1
             if processing is None:
                 processing = MonitorPoint(0.0)
+                nfound -= 1
             total = self.client.read_monitor_point('storage/active_disk_size')
+            nfound += 1
+            if total is None:
+                total = MonitorPoint(0)
+                nfound -= 1
             free = self.client.read_monitor_point('storage/active_disk_free')
+            nfound += 1
+            if free is None:
+                free = MonitorPoint(0)
+                nfound -= 1
             if total.value != 0:
                 dfree = 1.0*free.value / total.value
             else:
@@ -481,6 +494,13 @@ class StatusLogger(object):
                     summary, info = self._combine_status(summary, info,
                                                          new_summary, new_info)
                     
+            if nfound == 0:
+                ## No self monitoring information available
+                new_summary = 'error'
+                new_info = "Failed to query monitoring points to determine status"
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+                
             if summary == 'normal':
                 ## De-escelation message
                 if self.last_summary == 'warning':
