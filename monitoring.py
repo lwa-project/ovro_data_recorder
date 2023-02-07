@@ -21,7 +21,8 @@ def interruptable_sleep(seconds, sub_interval=0.1):
     """
     
     t0 = time.time()
-    while time.time() < t0 + seconds:
+    t1 = t0 + seconds
+    while time.time() < t1:
         time.sleep(sub_interval)
 
 
