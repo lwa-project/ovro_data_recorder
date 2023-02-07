@@ -204,11 +204,16 @@ class StorageLogger(object):
         
     def _update(self):
         try:
-            self._files = glob.glob(os.path.join(self.directory, '*'))
-            self._files.sort(key=lambda x: os.path.getmtime(x))
-            self._file_sizes = [getsize(filename) for filename in self._files]
+            current_files = glob.glob(os.path.join(self.directory, '*'))
+            current_files.sort()    # The files should have sensible names that
+                                    # reflect their creation times
+            
+            for filename in current_files:
+                if filename not in self._files:
+                    filesize = getsize(filename)
+                    self._files.append(filename)
+                    self._file_sizes.append(filesize)
         except Exception as e:
-            self._files = []
             self.log.warning("Quota manager could not refresh the file list: %s", str(e))
             
     def _halt(self):
@@ -221,6 +226,7 @@ class StorageLogger(object):
         i = 0
         while total_size > self.quota and len(self._files) > 1:
             to_remove = self._files[i]
+            to_remove_size = self._file_sizes[i]
             
             try:
                 if os.path.isdir(to_remove):
@@ -234,9 +240,10 @@ class StorageLogger(object):
                 i = 0
             except Exception as e:
                 self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
+                to_remove_size = 0
                 i += 1
                 
-            total_size = sum(self._file_sizes)
+            total_size -= to_remove_size
             
         if removed:
             self.log.debug("=== Quota Report ===")
