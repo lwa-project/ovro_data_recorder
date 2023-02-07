@@ -14,6 +14,17 @@ from mnc.mcs import MonitorPoint, Client
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
 
+def interruptable_sleep(seconds, sub_interval=0.1):
+    """
+    Version of sleep that breaks the `seconds` sleep period into sub-intervals
+    of length `sub_interval`.
+    """
+    
+    t0 = time.time()
+    while time.time() < t0 + seconds:
+        time.sleep(sub_interval)
+
+
 def getsize(filename):
     """
     Version of os.path.getsize that walks directories to get their total sizes.
@@ -85,6 +96,7 @@ class PerformanceLogger(object):
         
         while not self.shutdown_event.is_set():
             # Update the state
+            t0 = time.time()
             self._update()
             
             # Get the pipeline lag, is possible
@@ -170,7 +182,10 @@ class PerformanceLogger(object):
             # Sleep
             if once:
                 break
-            time.sleep(self.update_interval)
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         if not once:
             self.log.info("PerformanceLogger - Done")
@@ -257,6 +272,7 @@ class StorageLogger(object):
         
         while not self.shutdown_event.is_set():
             # Update the state
+            t0 = time.time()
             self._update()
             
             # Quota management, if needed
@@ -296,7 +312,10 @@ class StorageLogger(object):
             # Sleep
             if once:
                 break
-            time.sleep(self.update_interval)
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         if not once:
             self.log.info("StorageLogger - Done")
@@ -390,7 +409,7 @@ class StatusLogger(object):
         
         while not self.shutdown_event.is_set():
             # Active operation
-            ts = time.time()
+            ts = t0 = time.time()
             is_active = False if self.queue.active is None else True
             active_filename = None
             time_left = None
@@ -512,7 +531,10 @@ class StatusLogger(object):
             # Sleep
             if once:
                 break
-            time.sleep(self.update_interval)
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         if not once:
             # If this seems like it is its own thread, call _halt
@@ -538,7 +560,7 @@ class GlobalLogger(object):
         self.update_interval_perf = update_interval_perf
         self.update_interval_storage = update_interval_storage
         self.update_interval_status = update_interval_status
-        self.update_internal = min([self.update_interval_perf,
+        self.update_interval = min([self.update_interval_perf,
                                     self.update_interval_storage,
                                     self.update_interval_status])
         
@@ -577,7 +599,7 @@ class GlobalLogger(object):
         t_stats = 0.0
         while not self.shutdown_event.is_set():
             # Poll
-            t_now = time.time()
+            t_now = t0 = time.time()
             if t_now - t_perf > self.update_interval_perf:
                 self.perf.main(once=True)
                 t_perf = t_now
@@ -589,7 +611,9 @@ class GlobalLogger(object):
                 t_status = t_now
                 
             # Sleep
-            time.sleep(self.update_internal)
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         # Change the summary to 'shutdown' when we leave the main loop.
         self.status._halt()
