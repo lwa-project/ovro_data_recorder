@@ -219,11 +219,6 @@ class StorageLogger(object):
     def _reset(self):
         self._files = []
         self._file_sizes = []
-        self._reset()
-        
-    def _reset(self):
-        self._files = []
-        self._file_sizes = []
         
         ts = time.time()
         self.client.write_monitor_point('storage/active_disk_size',
@@ -472,9 +467,7 @@ class StatusLogger(object):
                 dfree = 1.0
             dused = 1.0 - dfree
             
-            ts = min([v.timestamp for v in (missing, processing)])
-            if total.value != 0:
-                ts = min([ts, total.timestamp, free.timestamp])
+            ts = min([v.timestamp for v in (missing, processing, total, free)])
             summary = 'normal'
             info = 'System operating normally'
             if self.nthread is not None:
