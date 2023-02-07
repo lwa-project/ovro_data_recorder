@@ -595,6 +595,7 @@ class GlobalLogger(object):
         # Start the threads
         for thread in threads:
             self.log.info(f"GlobalLogger - Starting '{thread.name}'")
+            #thread.daemon = True
             thread.start()
             
         # Wait for us to finish up
