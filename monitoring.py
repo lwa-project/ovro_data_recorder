@@ -178,6 +178,7 @@ class PerformanceLogger(object):
                 self.log.debug(" pipeline lag: %s", lag)
             if one is not None:
                 self.log.debug(" load average: %.2f, %.2f, %.2f", one, five, fifteen)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
             # Sleep
@@ -237,6 +238,7 @@ class StorageLogger(object):
         self._reset()
         
     def _manage_quota(self):
+        t0 = time.time()
         total_size = sum(self._file_sizes)
         
         removed = []
@@ -263,7 +265,9 @@ class StorageLogger(object):
                 
         if removed:
             self.log.debug("=== Quota Report ===")
-            self.log.debug("Removed %i file(s) of size %i B", len(removed), removed_size)
+            self.log.debug(" items removed: %i", len(removed))
+            self.log.debug(" space freed: %i B", removed_size)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
     def main(self, once=False):
@@ -309,6 +313,7 @@ class StorageLogger(object):
             self.log.debug(" disk free: %i B", disk_free)
             self.log.debug(" file count: %i", len(self._files))
             self.log.debug(" total size: %i B", total_size)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
             # Sleep
@@ -529,6 +534,7 @@ class StatusLogger(object):
             if is_active:
                 self.log.debug(" active filename: %s", os.path.basename(active_filename))
                 self.log.debug(" active time remaining: %s", time_left)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
             # Sleep
