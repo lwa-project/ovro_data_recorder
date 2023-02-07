@@ -3,8 +3,8 @@ import sys
 import glob
 import time
 import numpy
-import shutil
 import threading
+import subprocess
 from collections import deque
 
 from bifrost.proclog import load_by_pid
@@ -230,11 +230,9 @@ class StorageLogger(object):
             to_remove_size = self._file_sizes[i]
             
             try:
-                if os.path.isdir(to_remove):
-                    shutil.rmtree(to_remove)
-                else:
-                    os.unlink(to_remove)
-                    
+                subprocess.check_call(['rm', '-rf', to_remove],
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
                 removed.append(to_remove)
                 removed_size += to_remove_size
                 total_size -= to_remove_size
@@ -248,7 +246,7 @@ class StorageLogger(object):
                 
         if removed:
             self.log.debug("=== Quota Report ===")
-            self.log.debug("Removed %i files of size %i B", len(removed), removed_size)
+            self.log.debug("Removed %i file(s) of size %i B", len(removed), removed_size)
             self.log.debug("===   ===")
             
     def main(self, once=False):
