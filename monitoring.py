@@ -241,29 +241,25 @@ class StorageLogger(object):
         t0 = time.time()
         total_size = sum(self._file_sizes)
         
-        removed = []
-        removed_size = 0
         i = 0
+        removed = 0
+        removed_size = 0
         while total_size > self.quota and len(self._files) > 1:
-            to_remove = self._files[i]
-            to_remove_size = self._file_sizes[i]
-            
             try:
-                subprocess.check_call(['rm', '-rf', to_remove],
+                subprocess.check_call(['rm', '-rf', self._files[i]],
                                        stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL)
-                removed.append(to_remove)
-                removed_size += to_remove_size
-                total_size -= to_remove_size
+                removed += 1
+                removed_size += self._file_sizes[i]
+                total_size -= self._file_sizes[i]
                 
                 del self._files[i]
                 del self._file_sizes[i]
-                i = 0
             except Exception as e:
                 self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
                 i += 1
                 
-        if removed:
+        if removed > 0:
             self.log.debug("=== Quota Report ===")
             self.log.debug(" items removed: %i", len(removed))
             self.log.debug(" space freed: %i B", removed_size)
