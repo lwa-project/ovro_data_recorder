@@ -17,8 +17,6 @@ import signal
 import logging
 import argparse
 import threading
-import traceback
-from io import StringIO
 from functools import reduce
 from datetime import datetime, timedelta
 
@@ -694,20 +692,8 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                        
-                    try:
-                        active_op.write(time_tag, idata)
-                    except Exception as writer_error:
-                        exc_type, exc_value, exc_traceback = sys.exc_info()
-                        fileObject = StringIO()
-                        traceback.print_tb(exc_traceback, file=fileObject)
-                        tbString = fileObject.getvalue()
-                        fileObject.close()
-                        
-                        self.log.warning("Write failed with %s at line %i", str(writer_error), exc_traceback.tb_lineno)
-                        for line in tbString.split('\n'):
-                            self.log.warning("Traceback: %s", line)
-                            
+                    active_op.write(time_tag, idata)
+                    
                 elif was_active:
                     ### Recording just finished
                     #### Clean
@@ -849,7 +835,7 @@ def main(argv):
     ops.append(WriterOp(log, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            nthread=len(ops)+5, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+8, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*8192/196e6))  # Ugh, hard coded
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
