@@ -3,8 +3,8 @@ import sys
 import glob
 import time
 import numpy
-import shutil
 import threading
+import subprocess
 from collections import deque
 
 from bifrost.proclog import load_by_pid
@@ -12,6 +12,18 @@ from bifrost.proclog import load_by_pid
 from mnc.mcs import MonitorPoint, Client
 
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
+
+
+def interruptable_sleep(seconds, sub_interval=0.1):
+    """
+    Version of sleep that breaks the `seconds` sleep period into sub-intervals
+    of length `sub_interval`.
+    """
+    
+    t0 = time.time()
+    t1 = t0 + seconds
+    while time.time() < t1:
+        time.sleep(sub_interval)
 
 
 def getsize(filename):
@@ -85,6 +97,7 @@ class PerformanceLogger(object):
         
         while not self.shutdown_event.is_set():
             # Update the state
+            t0 = time.time()
             self._update()
             
             # Get the pipeline lag, is possible
@@ -165,14 +178,19 @@ class PerformanceLogger(object):
                 self.log.debug(" pipeline lag: %s", lag)
             if one is not None:
                 self.log.debug(" load average: %.2f, %.2f, %.2f", one, five, fifteen)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
             # Sleep
             if once:
                 break
-            time.sleep(self.update_interval)
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         if not once:
+            self._halt()
             self.log.info("PerformanceLogger - Done")
 
 
@@ -196,6 +214,9 @@ class StorageLogger(object):
         
         self.client = Client(id)
         
+        self._reset()
+        
+    def _reset(self):
         self._files = []
         self._file_sizes = []
         self._reset()
@@ -218,12 +239,15 @@ class StorageLogger(object):
         
     def _update(self):
         try:
-            cur_files = glob.glob(os.path.join(self.directory, '*'))
-            cur_files.sort(key=os.path.getmtime)
-            for filename in cur_files:
+            current_files = glob.glob(os.path.join(self.directory, '*'))
+            current_files.sort()    # The files should have sensible names that
+                                    # reflect their creation times
+            
+            for filename in current_files:
                 if filename not in self._files:
+                    filesize = getsize(filename)
                     self._files.append(filename)
-                    self._file_sizes.append(getsize(filename))
+                    self._file_sizes.append(filesize)
         except Exception as e:
             self.log.warning("Quota manager could not refresh the file list: %s", str(e))
             
@@ -231,32 +255,32 @@ class StorageLogger(object):
         self._reset()
         
     def _manage_quota(self):
+        t0 = time.time()
         total_size = sum(self._file_sizes)
         
-        removed = []
         i = 0
+        removed = 0
+        removed_size = 0
         while total_size > self.quota and len(self._files) > 1:
-            to_remove = self._files[i]
-            
             try:
-                if os.path.exists(to_remove):
-                    if os.path.isdir(to_remove):
-                        shutil.rmtree(to_remove)
-                    else:
-                        os.unlink(to_remove)
-                        
-                removed.append(to_remove)
+                subprocess.check_call(['rm', '-rf', self._files[i]],
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+                removed += 1
+                removed_size += self._file_sizes[i]
                 total_size -= self._file_sizes[i]
+                
                 del self._files[i]
                 del self._file_sizes[i]
-                i = 0
             except Exception as e:
                 self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
                 i += 1
                 
-        if removed:
+        if removed > 0:
             self.log.debug("=== Quota Report ===")
-            self.log.debug("Removed %i files", len(removed))
+            self.log.debug(" items removed: %i", len(removed))
+            self.log.debug(" space freed: %i B", removed_size)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
     def main(self, once=False):
@@ -267,6 +291,7 @@ class StorageLogger(object):
         
         while not self.shutdown_event.is_set():
             # Update the state
+            t0 = time.time()
             self._update()
             
             # Quota management, if needed
@@ -302,14 +327,19 @@ class StorageLogger(object):
             self.log.debug(" disk free: %i B", disk_free)
             self.log.debug(" file count: %i", file_count)
             self.log.debug(" total size: %i B", total_size)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
             # Sleep
             if once:
                 break
-            time.sleep(self.update_interval)
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         if not once:
+            self._halt()
             self.log.info("StorageLogger - Done")
 
 
@@ -401,7 +431,7 @@ class StatusLogger(object):
         
         while not self.shutdown_event.is_set():
             # Active operation
-            ts = time.time()
+            ts = t0 = time.time()
             is_active = False if self.queue.active is None else True
             active_filename = None
             time_left = None
@@ -417,25 +447,25 @@ class StatusLogger(object):
                 nactive = threading.active_count()
             nfound = 0
             missing = self.client.read_monitor_point('bifrost/rx_missing')
-            nfound += 1
-            if missing is None:
+            if missing is not None:
+                nfound += 1
+            else:
                 missing = MonitorPoint(0.0)
-                nfound -= 1
             processing = self.client.read_monitor_point('bifrost/max_process')
-            nfound += 1
-            if processing is None:
+            if processing is not None:
+                nfound += 1
+            else:
                 processing = MonitorPoint(0.0)
-                nfound -= 1
             total = self.client.read_monitor_point('storage/active_disk_size')
-            nfound += 1
-            if total is None:
+            if total is not None:
+                nfound += 1
+            else:
                 total = MonitorPoint(0)
-                nfound -= 1
             free = self.client.read_monitor_point('storage/active_disk_free')
-            nfound += 1
-            if free is None:
+            if free is not None:
+                nfound += 1
+            else:
                 free = MonitorPoint(0)
-                nfound -= 1
             if total.value != 0:
                 dfree = 1.0*free.value / total.value
             else:
@@ -520,12 +550,16 @@ class StatusLogger(object):
             if is_active:
                 self.log.debug(" active filename: %s", os.path.basename(active_filename))
                 self.log.debug(" active time remaining: %s", time_left)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
             # Sleep
             if once:
                 break
-            time.sleep(self.update_interval)
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep)
             
         if not once:
             # If this seems like it is its own thread, call _halt
@@ -543,33 +577,19 @@ class GlobalLogger(object):
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
                  update_interval_storage=60, update_interval_status=20):
         self.log = log
-        self.args = args
-        self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
         
-        if quota is None or quota == 0:
-            update_interval_storage = 1e10
-            self.log.info('No quota management requested, disabling StorageLogger')
-            
-        self.update_interval_perf = update_interval_perf
-        self.update_interval_storage = update_interval_storage
-        self.update_interval_status = update_interval_status
-        self.update_internal = min([self.update_interval_perf,
-                                    self.update_interval_storage,
-                                    self.update_interval_status])
-        
-        self.id = id
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
-                                      update_interval=self.update_interval_perf)
+                                      update_interval=update_interval_perf)
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
                                      shutdown_event=shutdown_event,
-                                     update_interval=self.update_interval_storage)
+                                     update_interval=update_interval_storage)
         self.status = StatusLogger(log, id, queue, nthread=nthread,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
-                                   update_interval=self.update_interval_status)
+                                   update_interval=update_interval_status)
         
     @property
     def shutdown_event(self):
@@ -589,25 +609,24 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
-        t_status = 0.0
-        t_perf = 0.0
-        t_storage = 0.0
-        while not self.shutdown_event.is_set():
-            # Poll
-            t_now = time.time()
-            if t_now - t_perf > self.update_interval_perf:
-                self.perf.main(once=True)
-                t_perf = t_now
-            if t_now - t_storage > self.update_interval_storage:
-                self.storage.main(once=True)
-                t_storage = t_now
-            if t_now - t_status > self.update_interval_status:
-                self.status.main(once=True)
-                t_status = t_now
-                
-            # Sleep
-            time.sleep(self.update_internal)
+        # Create the per-logger threads
+        threads = []
+        threads.append(threading.Thread(target=self.perf.main, name='PerformanceLogger'))
+        threads.append(threading.Thread(target=self.storage.main, name='StorageLogger'))
+        threads.append(threading.Thread(target=self.status.main, name='StatusLogger'))
+        
+        # Start the threads
+        for thread in threads:
+            self.log.info(f"GlobalLogger - Starting '{thread.name}'")
+            #thread.daemon = True
+            thread.start()
             
-        # Change the summary to 'shutdown' when we leave the main loop.
-        self.status._halt()
+        # Wait for us to finish up
+        while not self._shutdown_event.is_set():
+            time.sleep(1)
+            
+        # Done
+        for thread in threads:
+            self.log.info(f"GlobalLogger - Waiting on '{thread.name}' to exit")
+            thread.join()
         self.log.info("GlobalLogger - Done")
