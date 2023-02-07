@@ -554,22 +554,19 @@ class GlobalLogger(object):
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
                  update_interval_storage=60, update_interval_status=20):
         self.log = log
-        self.args = args
-        self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
         
-        self.id = id
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
-                                      update_interval=self.update_interval_perf)
+                                      update_interval=update_interval_perf)
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
                                      shutdown_event=shutdown_event,
-                                     update_interval=self.update_interval_storage)
+                                     update_interval=update_interval_storage)
         self.status = StatusLogger(log, id, queue, nthread=nthread,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
-                                   update_interval=self.update_interval_status)
+                                   update_interval=update_interval_status)
         
     @property
     def shutdown_event(self):
@@ -597,6 +594,7 @@ class GlobalLogger(object):
         
         # Start the threads
         for thread in threads:
+            self.log.info(f"GlobalLogger - Starting '{thread.name}'")
             thread.start()
             
         # Wait for us to finish up
@@ -605,5 +603,6 @@ class GlobalLogger(object):
             
         # Done
         for thread in threads:
+            self.log.info(f"GlobalLogger - Waiting on '{thread.name}' to exit")
             thread.join()
         self.log.info("GlobalLogger - Done")
