@@ -52,9 +52,9 @@ and ``stop``.
  * ``start`` - This schedules when to start a recording.  The required arguments to
    this command are:
    
-    * ``start_mjd`` - an integer MJD value for when the recording will start or
+    * ``mjd`` - an integer MJD value for when the recording will start or
       "now" to start the recording 15 s after the command is received and
-    * ``start_mpm`` - an integer number of milliseconds past midnight value on the
+    * ``mpm`` - an integer number of milliseconds past midnight value on the
       MJD specified in ``start_mjd`` for when the recording will start.
     
   There are no optional arguments.  The command returns the base name for the files
@@ -63,9 +63,9 @@ and ``stop``.
  * ``stop`` - This schedules when to stop a recording.  The required arguments to
    this command are:
     
-     * `stop_mjd` - an integer MJD value for when the recording will stop or
+     * `mjd` - an integer MJD value for when the recording will stop or
        "now" to stop the recording 15 s after the command is received and
-     * ``stop_mpm`` - an integer number of milliseconds past midnight value on the
+     * ``mpm`` - an integer number of milliseconds past midnight value on the
        MJD specified in ``stop_mjd`` for when the recording will stop.
      
    There are no optional arguments.  The command returns the base name for the files
