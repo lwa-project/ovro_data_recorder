@@ -428,25 +428,25 @@ class StatusLogger(object):
                 nactive = threading.active_count()
             nfound = 0
             missing = self.client.read_monitor_point('bifrost/rx_missing')
-            nfound += 1
-            if missing is None:
+            if missing is not None:
+                nfound += 1
+            else:
                 missing = MonitorPoint(0.0)
-                nfound -= 1
             processing = self.client.read_monitor_point('bifrost/max_process')
-            nfound += 1
-            if processing is None:
+            if processing is not None:
+                nfound += 1
+            else:
                 processing = MonitorPoint(0.0)
-                nfound -= 1
             total = self.client.read_monitor_point('storage/active_disk_size')
-            nfound += 1
-            if total is None:
+            if total is not None:
+                nfound += 1
+            else:
                 total = MonitorPoint(0)
-                nfound -= 1
             free = self.client.read_monitor_point('storage/active_disk_free')
-            nfound += 1
-            if free is None:
+            if free is not None:
+                nfound += 1
+            else:
                 free = MonitorPoint(0)
-                nfound -= 1
             if total.value != 0:
                 dfree = 1.0*free.value / total.value
             else:
