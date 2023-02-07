@@ -30,7 +30,7 @@ def getsize(filename):
     """
     Version of os.path.getsize that walks directories to get their total sizes.
     """
-
+    
     if os.path.isdir(filename):
         filesize = 0
         with os.scandir(filename) as items:
