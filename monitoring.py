@@ -188,6 +188,7 @@ class PerformanceLogger(object):
             interruptable_sleep(t_sleep)
             
         if not once:
+            self._halt()
             self.log.info("PerformanceLogger - Done")
 
 
@@ -318,6 +319,7 @@ class StorageLogger(object):
             interruptable_sleep(t_sleep)
             
         if not once:
+            self._halt()
             self.log.info("StorageLogger - Done")
 
 
@@ -557,12 +559,6 @@ class GlobalLogger(object):
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
-        self.update_interval_perf = update_interval_perf
-        self.update_interval_storage = update_interval_storage
-        self.update_interval_status = update_interval_status
-        self.update_interval = min([self.update_interval_perf,
-                                    self.update_interval_storage,
-                                    self.update_interval_status])
         
         self.id = id
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
@@ -593,28 +589,21 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
-        t_status = 0.0
-        t_perf = 0.0
-        t_storage = 0.0
-        t_stats = 0.0
-        while not self.shutdown_event.is_set():
-            # Poll
-            t_now = t0 = time.time()
-            if t_now - t_perf > self.update_interval_perf:
-                self.perf.main(once=True)
-                t_perf = t_now
-            if t_now - t_storage > self.update_interval_storage:
-                self.storage.main(once=True)
-                t_storage = t_now
-            if t_now - t_status > self.update_interval_status:
-                self.status.main(once=True)
-                t_status = t_now
-                
-            # Sleep
-            t1 = time.time()
-            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+        # Create the per-logger threads
+        threads = []
+        threads.append(threading.Thread(target=self.perf.main, name='PerformanceLogger'))
+        threads.append(threading.Thread(target=self.storage.main, name='StorageLogger'))
+        threads.append(threading.Thread(target=self.status.main, name='StatusLogger'))
+        
+        # Start the threads
+        for thread in threads:
+            thread.start()
             
-        # Change the summary to 'shutdown' when we leave the main loop.
-        self.status._halt()
+        # Wait for us to finish up
+        while not self._shutdown_event.is_set():
+            time.sleep(1)
+            
+        # Done
+        for thread in threads:
+            thread.join()
         self.log.info("GlobalLogger - Done")
