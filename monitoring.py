@@ -590,7 +590,7 @@ class GlobalLogger(object):
     @shutdown_event.setter
     def shutdown_event(self, event):
         self._shutdown_event = event
-        for attr in ('perf', 'storage', 'status', 'stats'):
+        for attr in ('perf', 'storage', 'status'):
             logger = getattr(self, attr, None)
             if logger is None:
                 continue
