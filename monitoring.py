@@ -502,6 +502,12 @@ class StatusLogger(object):
                 new_info = "Packet loss during receive >1%% (%.1f%% missing)" % (missing.value*100.0,)
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
+            elif missing.value < 0.0:
+                ## Nonsensical packet loss check
+                new_summary = 'error'
+                new_info = "Packet loss during receive is invalid (%.1f%% missing)" % (missing.value*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
                 
             if self.gulp_time is not None:
                 if processing.value > self.gulp_time*1.25:
