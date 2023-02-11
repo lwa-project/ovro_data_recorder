@@ -189,6 +189,8 @@ class HDF5Record(CommandBase):
                                                                       sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
+            assert(time_avg >= 1)
+            assert(chan_avg >= 1)
         except (TypeError, ValueError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
