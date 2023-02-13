@@ -59,7 +59,7 @@ module::
   (False, '5d42c5acc3b011eb9eb410bf48e38102')
   >>>
   >>> # Send a command "record" command to the first power beam
-  >>> from common import LWATime
+  >>> from mcs.common import LWATime
   >>> t_now = LWATime.now()
   >>> mjd_now = int(t_now.mjd)
   >>> mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)

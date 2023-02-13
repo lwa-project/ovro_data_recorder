@@ -1,12 +1,6 @@
 Individual Modules
 ==================
 
-Common Functions and Values
----------------------------
-
-.. automodule:: common
-   :members:
-
 Operations Queue
 ----------------
 
