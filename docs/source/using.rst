@@ -27,10 +27,10 @@ dr_tengine.py
 Interacting with the Pipelines
 ------------------------------
 
-You can read monitoring points or send a command to a pipeline with the mcs.py
+You can read monitoring points or send a command to a pipeline with the mnc.mcs
 module::
   
-  >>> from mcs import Client
+  >>> from mnc.mcs import Client
   >>> 
   >>> # Create an anonymous client to talk to various subsystems
   >>> c = Client()
@@ -59,7 +59,7 @@ module::
   (False, '5d42c5acc3b011eb9eb410bf48e38102')
   >>>
   >>> # Send a command "record" command to the first power beam
-  >>> from mcs.common import LWATime
+  >>> from mnc.common import LWATime
   >>> t_now = LWATime.now()
   >>> mjd_now = int(t_now.mjd)
   >>> mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
