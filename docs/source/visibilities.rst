@@ -81,28 +81,28 @@ and # is the GPU pipeline that is being recorded.
   
   * /mon/drv[sf]#/bifrost
   
-   * pipeline_lag - The lag between the system time and the
-     timestamps for data in the pipeline.
-   * max_acquire - The maximum span/gulp acquire time across
-     all blocks in the pipeline.
-   * max_process - The maximum span/gulp processing time
-     across all blocks in the pipeline.
-   * max_reserve - The maximum span/gulp reserve time across
-     all blocks in the pipeline.
-   * rx_rate - Packet capture rate for the pipeline.
-   * rx_missing - Fraction of missing packets for the pipeline.
+    * pipeline_lag - The lag between the system time and the
+      timestamps for data in the pipeline.
+    * max_acquire - The maximum span/gulp acquire time across
+      all blocks in the pipeline.
+    * max_process - The maximum span/gulp processing time
+      across all blocks in the pipeline.
+    * max_reserve - The maximum span/gulp reserve time across
+      all blocks in the pipeline.
+    * rx_rate - Packet capture rate for the pipeline.
+    * rx_missing - Fraction of missing packets for the pipeline.
    
   * /mon/drv[sf]#/storage
  
-   * active_disk_size - The size of the disk where the
-     recording directory resides.
-   * active_disk_free - The amount of free space on the disk
-     where the recording directory resides.
-   * active_directory - The current recording directory.
-   * active_directory_size - The size of all files in the
-     recording directory.
-   * active_directory_count - The number of files in the
-     recording directory.
+    * active_disk_size - The size of the disk where the
+      recording directory resides.
+    * active_disk_free - The amount of free space on the disk
+      where the recording directory resides.
+    * active_directory - The current recording directory.
+    * active_directory_size - The size of all files in the
+      recording directory.
+    * active_directory_count - The number of files in the
+      recording directory.
    
   * /mon/drv[sf]#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".
