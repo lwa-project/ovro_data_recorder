@@ -1,10 +1,8 @@
 import os
-import sys
 import glob
 import time
-import numpy
 import threading
-import subprocess
+from subprocess import Popen, DEVNULL
 from collections import deque
 
 from bifrost.proclog import load_by_pid
@@ -13,6 +11,7 @@ from mnc.mcs import MonitorPoint, Client
 
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
+MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
 def interruptable_sleep(seconds, sub_interval=0.1):
     """
@@ -217,8 +216,8 @@ class StorageLogger(object):
         self._reset()
         
     def _reset(self):
-        self._files = []
-        self._file_sizes = []
+        self._files = deque()
+        self._file_sizes = deque()
         
         ts = time.time()
         self.client.write_monitor_point('storage/active_disk_size',
@@ -233,19 +232,27 @@ class StorageLogger(object):
                                         0, timestamp=ts)
         
     def _update(self):
+        self.log.debug(f"StorageLogger: Updating storage usage in {self.directory}.")
         try:
             current_files = glob.glob(os.path.join(self.directory, '*'))
             current_files.sort()    # The files should have sensible names that
                                     # reflect their creation times
             
+            new_files, new_file_sizes = deque(), deque()
             for filename in current_files:
-                if filename not in self._files:
-                    filesize = getsize(filename)
-                    self._files.append(filename)
-                    self._file_sizes.append(filesize)
+                try:
+                    i = self._files.index(filename)
+                    new_files.append(filename)
+                    new_file_sizes.append(self._file_sizes[i])
+                except ValueError:
+                    size = getsize(filename)
+                    new_files.append(filename)
+                    new_file_sizes.append(size)
         except Exception as e:
             self.log.warning("Quota manager could not refresh the file list: %s", str(e))
-            
+        self._files = new_files
+        self._file_sizes = new_file_sizes
+ 
     def _halt(self):
         self._reset()
         
@@ -253,28 +260,32 @@ class StorageLogger(object):
         t0 = time.time()
         total_size = sum(self._file_sizes)
         
-        i = 0
-        removed = 0
-        removed_size = 0
+        to_remove = []
+        to_remove_size = 0
         while total_size > self.quota and len(self._files) > 1:
-            try:
-                subprocess.check_call(['rm', '-rf', self._files[i]],
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
-                removed += 1
-                removed_size += self._file_sizes[i]
-                total_size -= self._file_sizes[i]
-                
-                del self._files[i]
-                del self._file_sizes[i]
-            except Exception as e:
-                self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
-                i += 1
-                
-        if removed > 0:
+            fn = self._files.pop()
+            if (len(fn) <= len(self.directory)) or \
+                (not fn.startswith(self.directory)) or \
+                    (len(fn) <= MINIMUM_TO_DELETE_PATH_LENGTH):
+                msg = "StorageLogger: Quota management has unexpected path to remove: %s" % fn
+                self.log.error(msg)
+                raise ValueError(msg)
+            else:
+                to_remove.append(fn)
+                to_remove_size += self._file_sizes.pop()
+        self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
+        if to_remove:
+            for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
+                remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
+                while remove_process.poll() is None:
+                    self.shutdown_event.wait(0.1*self.update_interval)
+                    if self.shutdown_event.is_set():
+                        remove_process.terminate()
+                        return
+                self.log.debug('Quota: Removed %i items.', len(chunk))
             self.log.debug("=== Quota Report ===")
-            self.log.debug(" items removed: %i", len(removed))
-            self.log.debug(" space freed: %i B", removed_size)
+            self.log.debug(" items removed: %i", len(to_remove))
+            self.log.debug(" space freed: %i B", to_remove_size)
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
@@ -289,10 +300,6 @@ class StorageLogger(object):
             t0 = time.time()
             self._update()
             
-            # Quota management, if needed
-            if self.quota is not None:
-                self._manage_quota()
-                
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
@@ -325,6 +332,10 @@ class StorageLogger(object):
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
+            # Quota management, if needed
+            if self.quota is not None:
+                self._manage_quota()
+                
             # Sleep
             if once:
                 break
