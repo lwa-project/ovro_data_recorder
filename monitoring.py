@@ -278,7 +278,7 @@ class StorageLogger(object):
             for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
                 remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
                 while remove_process.poll() is None:
-                    self.shutdown_event.wait(0.1*self.update_interval)
+                    self.shutdown_event.wait(5)
                     if self.shutdown_event.is_set():
                         remove_process.terminate()
                         return
