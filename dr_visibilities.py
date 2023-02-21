@@ -609,7 +609,7 @@ class StatisticsOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, station, iring, ntime_gulp=1, fast=False, guarantee=True, core=None):
+    def __init__(self, log, mcs_id, station, iring, ntime_gulp=1, fast=False, guarantee=True, core=None):
         self.log        = log
         self.station    = station
         self.iring      = iring
@@ -617,6 +617,7 @@ class WriterOp(object):
         self.fast       = fast
         self.guarantee  = guarantee
         self.core       = core
+        self.client     = Client(mcs_id)
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -693,7 +694,7 @@ class WriterOp(object):
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     active_op.write(time_tag, idata)
-                    
+                    self.client.write_monitor_point('latest_time_tag', time_tag)    
                 elif was_active:
                     ### Recording just finished
                     #### Clean
@@ -703,7 +704,6 @@ class WriterOp(object):
                     #### Close
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
-                    
                 time_tag += navg
                 
                 curr_time = time.time()
@@ -832,7 +832,7 @@ def main(argv):
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(WriterOp(log, station, capture_ring,
+    ops.append(WriterOp(log, mcs_id, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             nthread=len(ops)+8, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*8192/196e6))  # Ugh, hard coded

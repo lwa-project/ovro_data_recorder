@@ -318,7 +318,7 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Build a template for the file
         if self._counter == 0:
-            self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
+            self.tagname = "%s_%.2fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
             self.tagname = os.path.join(self.filename, self.tagname)
             create_ms(self.tagname, self._station, self._tint, self._freq, self._raw_pols, nint=self._nint)
             
