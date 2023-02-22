@@ -694,7 +694,8 @@ class WriterOp(object):
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     active_op.write(time_tag, idata)
-                    self.client.write_monitor_point('latest_time_tag', time_tag)    
+                    if not self.fast:
+                        self.client.write_monitor_point('latest_time_tag', time_tag)    
                 elif was_active:
                     ### Recording just finished
                     #### Clean
