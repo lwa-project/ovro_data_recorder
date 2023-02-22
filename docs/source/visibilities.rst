@@ -104,6 +104,7 @@ and # is the GPU pipeline that is being recorded.
     * active_directory_count - The number of files in the
       recording directory.
    
+  * /mon/drv[s]#/latest_time_tag - Latest timetag for the written slow visibility file.
   * /mon/drv[sf]#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".
   * /mon/drv[sf]#/info - A more detailed explanation of the summary condition.
