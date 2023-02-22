@@ -478,7 +478,7 @@ class StatusLogger(object):
                 dfree = 1.0
             dused = 1.0 - dfree
             
-            ts = min([v.timestamp for v in (missing, processing, total, free)])
+            ts = min([v.timestamp for v in (missing, processing)])
             summary = 'normal'
             info = 'System operating normally'
             if self.nthread is not None:
