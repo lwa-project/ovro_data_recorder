@@ -18,7 +18,7 @@ MAPPING = ['drvs7601', 'drvs7602',
 
 def main(args):
     c = Client()
-    s = c.read_monitor_point('diagnostics/spectra', MAPPING[args.pipeline-1])
+    s = c.read_monitor_point('diagnostics/image', MAPPING[args.pipeline-1])
     t = datetime.utcfromtimestamp(s.timestamp)
     s = ImageMonitorPoint(s)
     s.to_file(args.output)
