@@ -619,7 +619,7 @@ class ImageOp(object):
         return cal
         
     @staticmethod
-    def _colormap_and_convert(array, limits=[5, 99.75]):
+    def _colormap_and_convert(array, limits=[5, 99.95]):
         output = numpy.zeros(array.shape+(3,), dtype=numpy.uint8)
         
         vmin, vmax = percentile(array.ravel(), limits)
@@ -712,7 +712,7 @@ class ImageOp(object):
             uscl.shape = (1,1)+uscl.shape
             uvw.shape += (1,)
             uvw = uvw*uscl
-            valid = numpy.where((dist > 0.1) & (dist < 250))[0]
+            valid = numpy.where((dist > 0.1) & (dist < 200))[0]
             order = numpy.argsort(uvw[valid,2,0])
             last_save = 0.0
             
