@@ -46,6 +46,8 @@ from bifrost.proclog import ProcLog
 from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
 
+from casacore.tables import table as casa_table
+
 
 import PIL.Image, PIL.ImageDraw, PIL.ImageFont
 
@@ -514,15 +516,18 @@ class BaselineOp(object):
 
 
 class ImageOp(object):
-    def __init__(self, log, id, station, iring, ntime_gulp=1, guarantee=True, core=-1):
+    def __init__(self, log, id, station, iring, cal_dir=None, ntime_gulp=1, guarantee=True, core=-1):
         self.log        = log
         self.station    = station
         self.iring      = iring
+        self.cal_dir    = None
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
         
         self.client = Client(id)
+        self._caltag = -1
+        self._last_cal_update = 0.0
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -531,6 +536,89 @@ class ImageOp(object):
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
         
         self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
+        
+    def _load_calibration(self, nstand, nbl, freq):
+        cal = None
+        
+        if self.cal_dir is not None:
+            # Get the modification time of the calibration directory
+            last_update = os.path.mtime(self.cal_dir)
+            if last_update > self._last_cal_update:
+                ## Looks like the directory has been updated, reload
+                self.log.info("Image: Reloading calibration tables")
+                calfiles = glob.glob(os.path.join(self.cal_dir, '*.bcal'))
+                
+                ## Load all calibration tables and save them be the first frequency
+                ## in each rouned to the nearest MHz
+                self._all_cals = {}
+                for calfile in calfiles:
+                    ### Calibration and flagging data
+                    caltab = casa_table(calfile, ack=False)
+                    calant = caltab.getcol('ANTENNA1')[...]
+                    caldata = caltab.getcol('CPARAM')[:,:4,:]
+                    calflag = caltab.getcol('FLAG')[:,4,:]
+                    caltab.close()
+                    
+                    ### Calibration frequency range
+                    caltab = casa_table(os.path.join(calfile, 'SPECTRAL_WINDOW'), ack=False)
+                    calfreq = caltab.getcol('CHAN_FREQ')[...]
+                    calfreq = calfreq.ravel()
+                    caltab.close()
+                    
+                    ### Cache
+                    caltag = int(round(calfreq[0]/1e6))
+                    self._all_cals[caltag] = {'freq': calfreq,
+                                              'ant': calant,
+                                              'data': caldata,
+                                              'flag': calflag}
+                ## Remove the old cached information and update the update time
+                try:
+                    del self._cal
+                    del self._caltag
+                except AttributeError:
+                    pass
+                self._last_cal_update = last_update
+                
+            # Get the "calibration tag" for the current data set
+            caltag = int(round(freq[0]/1e6))
+            
+            if caltag in self._caltag:
+                # Great, we already have it
+                cal = self._cal
+            else:
+                # We need to make a new one for each baseline/channel/polarization
+                # NOTE: Lots of assumptions here about antenna order and exact
+                #       frequency setup
+                self._cal = numpy.zeros((nbl,freq.size,4), dtype=numpy.complex64)
+                base_cal = self._all_cals[caltag]
+                k = 0
+                for i in range(nstand):
+                    gix = (1 - base_cal['flag'][i,0]) / base_cal['data'][i,:,0]
+                    giy = (1 - base_cal['flag'][i,1]) / base_cal['data'][i,:,1]
+                    if not numpy.isfinite(gix):
+                        gix = 0.0
+                    if not numpy.isfinite(giy):
+                        giy = 0.0
+                        
+                    for j in range(i,nstand):
+                        gjx = (1 - base_cal['flag'][j,0]) / base_cal['data'][j,:,0]
+                        gjy = (1 - base_cal['flag'][j,1]) / base_cal['data'][j,:,1]
+                        if not numpy.isfinite(gix):
+                            gjx = 0.0
+                        if not numpy.isfinite(giy):
+                            gjy = 0.0
+                            
+                        self.cal[k,:,0] = gix*gjx.conj()
+                        self.cal[k,:,1] = gix*gjy.conj()
+                        self.cal[k,:,2] = giy*gjx.conj()
+                        self.cal[k,:,3] = giy*gjy.conj()
+                        k += 1
+                        
+                # Update the "calibration tag"
+                self._caltag = caltag
+                
+        # Done - this can be None
+        return cal
         
     @staticmethod
     def _colormap_and_convert(array, limits=[5, 99.95]):
@@ -647,12 +735,17 @@ class ImageOp(object):
                     tt = LWATime(time_tag, format='timetag')
                     ts = tt.unix
                     
+                    ## Load the calibration
+                    cal = self._load_calibration(nstand, nbl, freq)
+                    
                     ## Plot
                     bdata = idata[0,...]
                     bdata = bdata.view(numpy.int32)
                     bdata = bdata.reshape(ishape+(2,))
                     bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
                     bdata = bdata.astype(numpy.complex64)
+                    if cal is not None:
+                        bdata *= cal
                     im = self._plot_images(time_tag, freq, uvw, bdata, valid, order)
                     
                     ## Save
@@ -914,6 +1007,8 @@ def main(argv):
                         help='fork and run in the background')
     parser.add_argument('--image', action='store_true',
                         help='generate images for the inner core and a subset of the bandwidth')
+    parser.add_argument('--cal-dir', type=str,
+                        help='directory to look for beamformer calibration data in (only for --image)')
     args = parser.parse_args()
     
     # Process the -q/--quick option
@@ -1000,7 +1095,8 @@ def main(argv):
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
         if args.image:
             ops.append(ImageOp(log, mcs_id, station, capture_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
+                               cal_dir=args.cal_dir, ntime_gulp=args.gulp_size,
+                               core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, mcs_id, station, capture_ring,
