@@ -30,7 +30,7 @@ if __name__ == '__main__':
                 description='Simple utility to poll the "diagnostics/image" monitoring point for a slow visibility pipeline and save it to disk',
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
-    parser.add_argument('-p', '--pipineline', type=int, default=1,
+    parser.add_argument('-p', '--pipeline', type=int, default=1,
                         help='one-based pipeline to query')
     parser.add_argument('-o', '--output', type=str, default='image.png',
                         help='filename to save the image to')
