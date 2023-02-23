@@ -7,18 +7,8 @@
 #include "numpy/arrayobject.h"
 #include "numpy/npy_math.h"
 
-#define PyCapsule_Type PyCObject_Type
-#define PyString_FromString PyUnicode_FromString
-#define MOD_ERROR_VAL NULL
-#define MOD_SUCCESS_VAL(val) val
-#define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
-#define MOD_DEF(ob, name, methods, doc) \
-   static struct PyModuleDef moduledef = { \
-      PyModuleDef_HEAD_INIT, name, doc, -1, methods, }; \
-   ob = PyModule_Create(&moduledef);
-
 /*
-  Sinc function for use by the polyphase filter bank
+  Sinc function for use when creating the gridding kernel
 */
 
 inline double sinc(double x) {
@@ -570,21 +560,23 @@ See the inidividual functions for more details.");
   Module Setup - Initialization
 */
 
-MOD_INIT(gridder) {
+PyMODINIT_FUNC PyInit_gridder(void) {
     char filename[256];
     PyObject *m, *pModule, *pDataPath=NULL;
     
     Py_Initialize();
     
     // Module definitions and functions
-    MOD_DEF(m, "_gridder", GridderMethods, gridder_doc);
+    static struct PyModuleDef moduledef = {
+      PyModuleDef_HEAD_INIT, "gridder", gridder_doc, -1, GridderMethods, };
+    m = PyModule_Create(&moduledef);
     if( m == NULL ) {
-        return MOD_ERROR_VAL;
+        return NULL;
     }
     import_array();
     
     // Version information
-    PyModule_AddObject(m, "__version__", PyString_FromString("0.3"));
+    PyModule_AddObject(m, "__version__", PyUnicode_FromString("0.3"));
     
-    return MOD_SUCCESS_VAL(m);
+    return m;
 }
