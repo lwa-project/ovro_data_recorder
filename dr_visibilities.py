@@ -20,6 +20,9 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
+from _gridder import WProjection
+from scipy.stats import scoreatpercentile as percentile
+
 from lwa_antpos.station import ovro
 
 from mnc.common import *
@@ -510,6 +513,170 @@ class BaselineOp(object):
         self.log.info("BaselineOp - Done")
 
 
+class ImageOp(object):
+    def __init__(self, log, id, station, iring, ntime_gulp=1, guarantee=True, core=-1):
+        self.log        = log
+        self.station    = station
+        self.iring      = iring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
+        
+    def _plot_images(self, time_tag, freq, uvw, baselines, valid, order):
+        # Plotting setup
+        nchan = freq.size
+        nbl = baselines.shape[0]
+        freq = freq[:4]
+        uvw = uvw[valid,:,:4]
+        baselines = baselines[valid,:4,:]
+
+        # Image XX and YY
+        imageXX, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselines[order,:,0].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+                                       200, 0.5, 0.1)
+        imageYY, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselines[order,:,3].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+                                       200, 0.5, 0.1)
+        imageXX = numpy.fft.fftshift(numpy.fft.ifft2(imageXX).real / corr)
+        imageYY = numpy.fft.fftshift(numpy.fft.ifft2(imageYY).real / corr)
+        
+        # Map the color scale
+        vmin = 0#percentile(imageXX.ravel(), 5)
+        vmax = percentile(imageXX.ravel(), 99.75)
+        imageXX = imageXX[::-1,:]
+        imageXX -= vmin
+        imageXX /= (vmax-vmin)
+        imageXX *= 255
+        imageXX = numpy.clip(imageXX, 0, 255)
+
+        vmax = percentile(imageYY.ravel(), 99.75)
+        imageYY = imageYY[::-1,:]
+        imageYY -= vmin
+        imageYY /= (vmax-vmin)
+        imageYY *= 255
+        imageYY = numpy.clip(imageYY, 0, 255)
+        
+        # Image setup
+        imXX = PIL.Image.fromarray(numpy.uint8(imageXX)).convert('RGB')
+        imYY = PIL.Image.fromarray(numpy.uint8(imageYY)).convert('RGB')
+        im = PIL.Image.new('RGB', (800, 400))
+        draw = PIL.ImageDraw.Draw(im)
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        
+        ## XX
+        im.paste(imXX, (0,0))
+
+        ## YY
+        im.paste(imYY, (400,0))
+
+        ## Horizon circles
+        draw.ellipse((0,0,399,399), fill=None, outline='#FFFFFF')
+        draw.ellipse((400,0,799,399), fill=None, outline='#FFFFFF')
+        
+        # Details and labels
+        ySummary = 360
+        timeStr = datetime.utcfromtimestamp(time_tag / FS)
+        timeStr = timeStr.strftime("%Y/%m/%d\n%H:%M:%S UTC")
+        draw.text((10, ySummary), timeStr, font = font, fill = '#FFFFFF')
+        draw.text((400, ySummary), "%.3f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
+        draw.text(( 10, 10), 'XX', font = font, fill = '#FFFFFF')
+        draw.text((410, 10), 'YY', font = font, fill = '#FFFFFF')
+        
+        return im
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Image: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbl      = ihdr['nbl']
+            nstand   = ihdr['nstand']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
+            self.iring.resize(igulp_size)
+            
+            # Setup the arrays for the frequencies and baseline lenghts
+            freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
+            uvw = get_zenith_uvw(self.station, LWATime(time_tag, format='timetag'))
+            dist = numpy.sqrt((uvw[:,:2]**2).sum(axis=1))
+            uscl = freq / 299792458.0
+            uscl.shape = (1,1)+uscl.shape
+            uvw.shape += (1,)
+            uvw = uvw*uscl
+            valid = numpy.where((dist > 0.1) & (dist < 250))[0]
+            order = numpy.argsort(uvw[valid,2,0])
+            last_save = 0.0
+            
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view('ci32').reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    t0 = time.time()
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Plot
+                    bdata = idata[0,...]
+                    bdata = bdata.view(numpy.int32)
+                    bdata = bdata.reshape(ishape+(2,))
+                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
+                    bdata = bdata.astype(numpy.complex64)
+                    im = self._plot_images(time_tag, freq, uvw, bdata, valid, order)
+                    
+                    ## Save
+                    mp = ImageMonitorPoint.from_image(im)
+                    self.client.write_monitor_point('diagnostics/image',
+                                                    mp, timestamp=ts)
+                    
+                    last_save = time.time()
+                    print('III', last_save-t0)
+                    
+                time_tag += navg * self.ntime_gulp
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': 0.0, 
+                                          'process_time': process_time,})
+                
+        self.log.info("ImageOp - Done")
+
+
 class StatisticsOp(object):
     def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=None):
         self.log        = log
@@ -747,6 +914,8 @@ def main(argv):
                         help='do not store the measurement sets inside a tar file')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
+    parser.add_argument('--image', action='store_true',
+                        help='generate images for the inner core and a subset of the bandwidth')
     args = parser.parse_args()
     
     # Process the -q/--quick option
@@ -831,6 +1000,9 @@ def main(argv):
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
         ops.append(BaselineOp(log, mcs_id, station, capture_ring,
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
+        if args.image:
+            ops.append(ImageOp(log, mcs_id, station, capture_ring,
+                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, mcs_id, station, capture_ring,
