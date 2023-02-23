@@ -8,6 +8,7 @@ except NameError:
     
 import os
 import sys
+import glob
 import h5py
 import json
 import time
@@ -542,7 +543,7 @@ class ImageOp(object):
         
         if self.cal_dir is not None:
             # Get the modification time of the calibration directory
-            last_update = os.path.mtime(self.cal_dir)
+            last_update = os.path.getmtime(self.cal_dir)
             if last_update > self._last_cal_update:
                 ## Looks like the directory has been updated, reload
                 self.log.info("Image: Reloading calibration tables")
@@ -574,15 +575,15 @@ class ImageOp(object):
                 ## Remove the old cached information and update the update time
                 try:
                     del self._cal
-                    del self._caltag
                 except AttributeError:
                     pass
+                self._caltag = -1
                 self._last_cal_update = last_update
                 
             # Get the "calibration tag" for the current data set
             caltag = int(round(freq[0]/1e6))
             
-            if caltag in self._caltag:
+            if caltag == self._caltag:
                 # Great, we already have it
                 cal = self._cal
             else:
@@ -595,19 +596,15 @@ class ImageOp(object):
                 for i in range(nstand):
                     gix = (1 - base_cal['flag'][i,0]) / base_cal['data'][i,:,0]
                     giy = (1 - base_cal['flag'][i,1]) / base_cal['data'][i,:,1]
-                    if not numpy.isfinite(gix):
-                        gix = 0.0
-                    if not numpy.isfinite(giy):
-                        giy = 0.0
-                        
+                    gix[numpy.where(~numpy.isfinite(gix))] = 0.0
+                    giy[numpy.where(~numpy.isfinite(giy))] = 0.0
+                    
                     for j in range(i,nstand):
                         gjx = (1 - base_cal['flag'][j,0]) / base_cal['data'][j,:,0]
                         gjy = (1 - base_cal['flag'][j,1]) / base_cal['data'][j,:,1]
-                        if not numpy.isfinite(gix):
-                            gjx = 0.0
-                        if not numpy.isfinite(giy):
-                            gjy = 0.0
-                            
+                        gjx[numpy.where(~numpy.isfinite(gjx))] = 0.0
+                        gjy[numpy.where(~numpy.isfinite(gjy))] = 0.0
+                        
                         self.cal[k,:,0] = gix*gjx.conj()
                         self.cal[k,:,1] = gix*gjy.conj()
                         self.cal[k,:,2] = giy*gjx.conj()
