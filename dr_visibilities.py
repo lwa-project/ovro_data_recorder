@@ -556,8 +556,8 @@ class ImageOp(object):
                     ### Calibration and flagging data
                     caltab = casa_table(calfile, ack=False)
                     calant = caltab.getcol('ANTENNA1')[...]
-                    caldata = caltab.getcol('CPARAM')[:,:4,:]
-                    calflag = caltab.getcol('FLAG')[:,4,:]
+                    caldata = caltab.getcol('CPARAM')[:,:,:]
+                    calflag = caltab.getcol('FLAG')[:,:,:]
                     caltab.close()
                     
                     ### Calibration frequency range
@@ -569,7 +569,7 @@ class ImageOp(object):
                     ### Cache
                     caltag = int(round(calfreq[0]/1e6))
                     self._all_cals[caltag] = {'freq': calfreq,
-                                              'ant': calant,
+                                              'ant':  calant,
                                               'data': caldata,
                                               'flag': calflag}
                 ## Remove the old cached information and update the update time
@@ -594,14 +594,14 @@ class ImageOp(object):
                 base_cal = self._all_cals[caltag]
                 k = 0
                 for i in range(nstand):
-                    gix = (1 - base_cal['flag'][i,0]) / base_cal['data'][i,:,0]
-                    giy = (1 - base_cal['flag'][i,1]) / base_cal['data'][i,:,1]
+                    gix = (1 - base_cal['flag'][i,:,0]) / base_cal['data'][i,:,0]
+                    giy = (1 - base_cal['flag'][i,:,1]) / base_cal['data'][i,:,1]
                     gix[numpy.where(~numpy.isfinite(gix))] = 0.0
                     giy[numpy.where(~numpy.isfinite(giy))] = 0.0
                     
                     for j in range(i,nstand):
-                        gjx = (1 - base_cal['flag'][j,0]) / base_cal['data'][j,:,0]
-                        gjy = (1 - base_cal['flag'][j,1]) / base_cal['data'][j,:,1]
+                        gjx = (1 - base_cal['flag'][j,:,0]) / base_cal['data'][j,:,0]
+                        gjy = (1 - base_cal['flag'][j,:,1]) / base_cal['data'][j,:,1]
                         gjx[numpy.where(~numpy.isfinite(gjx))] = 0.0
                         gjy[numpy.where(~numpy.isfinite(gjy))] = 0.0
                         
@@ -611,7 +611,7 @@ class ImageOp(object):
                         self._cal[k,:,3] = giy*gjy.conj()
                         k += 1
                         
-                # Update the "calibration tag"
+                # Update cal and the "calibration tag"
                 cal = self._cal
                 self._caltag = caltag
                 
