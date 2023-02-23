@@ -570,7 +570,7 @@ See the inidividual functions for more details.");
   Module Setup - Initialization
 */
 
-MOD_INIT(_gridder) {
+MOD_INIT(gridder) {
     char filename[256];
     PyObject *m, *pModule, *pDataPath=NULL;
     

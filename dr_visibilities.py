@@ -20,7 +20,7 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
-from _gridder import WProjection
+from gridder import WProjection
 from scipy.stats import scoreatpercentile as percentile
 
 from lwa_antpos.station import ovro
