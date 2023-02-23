@@ -32,7 +32,7 @@ if __name__ == '__main__':
             )
     parser.add_argument('-p', '--pipineline', type=int, default=1,
                         help='one-based pipeline to query')
-    parser.add_argument('-o', '--output', type=str, default='spectra.png',
+    parser.add_argument('-o', '--output', type=str, default='image.png',
                         help='filename to save the image to')
     args = parser.parse_args()
     main(args)
