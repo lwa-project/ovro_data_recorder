@@ -520,7 +520,7 @@ class ImageOp(object):
         self.log        = log
         self.station    = station
         self.iring      = iring
-        self.cal_dir    = None
+        self.cal_dir    = cal_dir
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
