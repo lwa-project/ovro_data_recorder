@@ -619,7 +619,7 @@ class ImageOp(object):
         return cal
         
     @staticmethod
-    def _colormap_and_convert(array, limits=[5, 99.95]):
+    def _colormap_and_convert(array, limits=[5, 99.75]):
         output = numpy.zeros(array.shape+(3,), dtype=numpy.uint8)
         
         vmin, vmax = percentile(array.ravel(), limits)
