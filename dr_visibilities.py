@@ -532,6 +532,18 @@ class ImageOp(object):
         
         self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
         
+    @staticmethod
+    def _colormap_and_convert(array, limits=[5, 99.95]):
+        output = numpy.zeros(array.shape+(3,), dtype=numpy.uint8)
+        
+        vmin, vmax = percentile(array.ravel(), limits)
+        array -= vmin
+        array /= (vmax-vmin)
+        output[...,0] = numpy.clip((-7.55*array**2 + 11.06*array - 2.96)*255, 0, 255)
+        output[...,1] = numpy.clip((-7.33*array**2 +  7.57*array - 0.83)*255, 0, 255)
+        output[...,2] = numpy.clip((-7.55*array**2 +  4.04*array + 0.55)*255, 0, 255)
+        return PIL.Image.fromarray(output).convert('RGB')
+    
     def _plot_images(self, time_tag, freq, uvw, baselines, valid, order):
         # Plotting setup
         nchan = freq.size
@@ -551,24 +563,10 @@ class ImageOp(object):
         imageYY = numpy.fft.fftshift(numpy.fft.ifft2(imageYY).real / corr)
         
         # Map the color scale
-        vmin = 0#percentile(imageXX.ravel(), 5)
-        vmax = percentile(imageXX.ravel(), 99.75)
-        imageXX = imageXX[::-1,:]
-        imageXX -= vmin
-        imageXX /= (vmax-vmin)
-        imageXX *= 255
-        imageXX = numpy.clip(imageXX, 0, 255)
-
-        vmax = percentile(imageYY.ravel(), 99.75)
-        imageYY = imageYY[::-1,:]
-        imageYY -= vmin
-        imageYY /= (vmax-vmin)
-        imageYY *= 255
-        imageYY = numpy.clip(imageYY, 0, 255)
+        imXX = self._colormap_and_convert(imageXX[::-1,:])
+        imYY = self._colormap_and_convert(imageYY[::-1,:])
         
         # Image setup
-        imXX = PIL.Image.fromarray(numpy.uint8(imageXX)).convert('RGB')
-        imYY = PIL.Image.fromarray(numpy.uint8(imageYY)).convert('RGB')
         im = PIL.Image.new('RGB', (800, 400))
         draw = PIL.ImageDraw.Draw(im)
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
