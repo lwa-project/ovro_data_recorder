@@ -605,13 +605,14 @@ class ImageOp(object):
                         gjx[numpy.where(~numpy.isfinite(gjx))] = 0.0
                         gjy[numpy.where(~numpy.isfinite(gjy))] = 0.0
                         
-                        self.cal[k,:,0] = gix*gjx.conj()
-                        self.cal[k,:,1] = gix*gjy.conj()
-                        self.cal[k,:,2] = giy*gjx.conj()
-                        self.cal[k,:,3] = giy*gjy.conj()
+                        self._cal[k,:,0] = gix*gjx.conj()
+                        self._cal[k,:,1] = gix*gjy.conj()
+                        self._cal[k,:,2] = giy*gjx.conj()
+                        self._cal[k,:,3] = giy*gjy.conj()
                         k += 1
                         
                 # Update the "calibration tag"
+                cal = self._cal
                 self._caltag = caltag
                 
         # Done - this can be None
