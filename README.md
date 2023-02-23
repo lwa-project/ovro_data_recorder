@@ -18,6 +18,7 @@ REQUIREMENTS
  * pillow
  * dsa110-pyutils from https://github.com/dsa110/dsa110-pyutils "development" branch
  * lwa_antpos from https://github.com/ovro-lwa/lwa-antpos
+ * FFTW3 - single precision version
  * tar
 
 INSTALLING
