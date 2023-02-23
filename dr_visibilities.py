@@ -712,7 +712,7 @@ class ImageOp(object):
             uscl.shape = (1,1)+uscl.shape
             uvw.shape += (1,)
             uvw = uvw*uscl
-            valid = numpy.where((dist > 0.1) & (dist < 200))[0]
+            valid = numpy.where((dist > 0.1) & (dist < 150))[0]
             order = numpy.argsort(uvw[valid,2,0])
             last_save = 0.0
             
