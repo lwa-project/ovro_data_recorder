@@ -546,7 +546,7 @@ class ImageOp(object):
             last_update = os.path.getmtime(self.cal_dir)
             if last_update > self._last_cal_update:
                 ## Looks like the directory has been updated, reload
-                self.log.info("Image: Reloading calibration tables")
+                self.log.info("Image: Reloading calibration tables from '%s'", self.cal_dir)
                 calfiles = glob.glob(os.path.join(self.cal_dir, '*.bcal'))
                 
                 ## Load all calibration tables and save them be the first frequency
@@ -630,7 +630,7 @@ class ImageOp(object):
         output[...,2] = numpy.clip((-7.55*array**2 +  4.04*array + 0.55)*255, 0, 255)
         return PIL.Image.fromarray(output).convert('RGB')
     
-    def _plot_images(self, time_tag, freq, uvw, baselines, valid, order):
+    def _plot_images(self, time_tag, freq, uvw, baselines, valid, order, has_cal=False):
         # Plotting setup
         nchan = freq.size
         nbl = baselines.shape[0]
@@ -671,8 +671,12 @@ class ImageOp(object):
         ySummary = 360
         timeStr = datetime.utcfromtimestamp(time_tag / FS)
         timeStr = timeStr.strftime("%Y/%m/%d\n%H:%M:%S UTC")
+        calStr = 'Uncal'
+        if has_cal:
+            calStr = 'Cal'
         draw.text((10, ySummary), timeStr, font = font, fill = '#FFFFFF')
         draw.text((400, ySummary), "%.3f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
+        draw.text((750, ySummary), calStr, font = font, fill = '#FFFFFF')
         draw.text(( 10, 10), 'XX', font = font, fill = '#FFFFFF')
         draw.text((410, 10), 'YY', font = font, fill = '#FFFFFF')
         
@@ -734,8 +738,12 @@ class ImageOp(object):
                     ts = tt.unix
                     
                     ## Load the calibration
-                    cal = self._load_calibration(nstand, nbl, freq)
-                    
+                    try:
+                        cal = self._load_calibration(nstand, nbl, freq)
+                    except Exception as e:
+                        self.log.warn("Image: Failed to load calibration solutions: %s", str(e))
+                        cal = None
+                        
                     ## Plot
                     bdata = idata[0,...]
                     bdata = bdata.view(numpy.int32)
@@ -744,7 +752,7 @@ class ImageOp(object):
                     bdata = bdata.astype(numpy.complex64)
                     if cal is not None:
                         bdata *= cal
-                    im = self._plot_images(time_tag, freq, uvw, bdata, valid, order)
+                    im = self._plot_images(time_tag, freq, uvw, bdata, valid, order, has_cal=(cal is not None))
                     
                     ## Save
                     mp = ImageMonitorPoint.from_image(im)
