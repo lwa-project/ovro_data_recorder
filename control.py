@@ -189,9 +189,9 @@ class HDF5Record(CommandBase):
                                                                       sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
-            assert(time_avg >= 1)
-            assert(chan_avg >= 1)
-        except (TypeError, ValueError) as e:
+            assert(time_avg in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024))
+            assert(chan_avg in (1, 2, 4, 8, 16, 32, 64))
+        except (TypeError, ValueError, AssertionError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
@@ -442,7 +442,7 @@ class DRX(CommandBase):
             assert(central_freq > self._bandwidths[filter]/2)
             assert(gain >= 0 and gain <= 15)
             assert(subslot >=0 and subslot <= 99)
-        except AssertionError as e:
+        except (TypeError, AssertionError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
