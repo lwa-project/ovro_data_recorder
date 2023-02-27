@@ -114,6 +114,9 @@ and # is the GPU pipeline that is being recorded.
       the auto-correlation spectra.
     * baselines - A URL-safe Base64 encoded PNG image
       of the visibility amplitude as a function of `(u,v)` radial distance.
+    * image - A URL-safe Base64 encoded PNG all-sky image generated from the
+      lowest 100 kHz of the band.  Images made using the beamformer calibration
+      tables are labeled as "Cal".
       
   * /mon/drv[sf]#/statistics
     
