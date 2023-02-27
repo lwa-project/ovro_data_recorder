@@ -3,7 +3,7 @@
 import os
 import sys
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from mnc.mcs import ImageMonitorPoint, Client
 
@@ -20,6 +20,10 @@ def main(args):
     c = Client()
     s = c.read_monitor_point('diagnostics/image', MAPPING[args.pipeline-1])
     t = datetime.utcfromtimestamp(s.timestamp)
+    age = datetime.utcnow() - t
+    if args.lwatv and age > timedelta(minutes=5):
+        printf(f"Image is {age.total_seconds()/60:.1f} minutes old, skipping")
+        exit(1)
     s = ImageMonitorPoint(s)
     s.to_file(args.output)
     print(f"Saved all-sky image from {MAPPING[args.pipeline-1]} at {t} to {args.output}")
@@ -34,5 +38,7 @@ if __name__ == '__main__':
                         help='one-based pipeline to query')
     parser.add_argument('-o', '--output', type=str, default='image.png',
                         help='filename to save the image to')
+    parser.add_argument('--lwatv', action='store_true',
+                        help='run in "LWATV" mode where the output image is only saved if it is recent (< 5 min)')
     args = parser.parse_args()
     main(args)
