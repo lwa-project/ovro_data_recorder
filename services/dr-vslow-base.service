@@ -31,6 +31,8 @@ python3 {{ path }}/dr_visibilities.py \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --no-tar \
+         --image \
+         --cal-dir                /home/pipeline/caltables/latest/ \
          --logfile                /data{{ calim_host }}/log/dr-vslow-{{ band }}.%H.log'
 
 [Install]
