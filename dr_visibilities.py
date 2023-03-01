@@ -663,9 +663,15 @@ class ImageOp(object):
         ## YY
         im.paste(imYY, (400,0))
 
-        ## Horizon circles
-        draw.ellipse((0,0,399,399), fill=None, outline='#FFFFFF')
-        draw.ellipse((400,0,799,399), fill=None, outline='#FFFFFF')
+        ## Horizon circles + outside horizon blanking
+        draw.ellipse((0,  0,399,399), fill=None, outline='#000000')
+        draw.ellipse((400,0,799,399), fill=None, outline='#000000')
+        PIL.ImageDraw.floodfill(im, (0  ,  0), value=(0,0,0), border=(0,0,0))
+        PIL.ImageDraw.floodfill(im, (0  ,399), value=(0,0,0), border=(0,0,0))
+        PIL.ImageDraw.floodfill(im, (799,  0), value=(0,0,0), border=(0,0,0))
+        PIL.ImageDraw.floodfill(im, (799,399), value=(0,0,0), border=(0,0,0))
+        PIL.ImageDraw.floodfill(im, (400,  0), value=(0,0,0), border=(0,0,0))
+        PIL.ImageDraw.floodfill(im, (400,399), value=(0,0,0), border=(0,0,0))
         
         # Details and labels
         ySummary = 360
@@ -678,7 +684,7 @@ class ImageOp(object):
         draw.text((400, ySummary), "%.3f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
         draw.text((750, ySummary), calStr, font = font, fill = '#FFFFFF')
         draw.text(( 10, 10), 'XX', font = font, fill = '#FFFFFF')
-        draw.text((410, 10), 'YY', font = font, fill = '#FFFFFF')
+        draw.text((769, 10), 'YY', font = font, fill = '#FFFFFF')
         
         return im
         
