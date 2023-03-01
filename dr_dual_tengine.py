@@ -1206,9 +1206,9 @@ def main(argv):
     ops.append(WriterOp(log, write1_ring, beam0=args.beam+1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id_0, args, FILE_QUEUE_0, quota=args.record_directory_quota,
-                            nthread=len(ops)+10, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+10, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(GlobalLogger(log, mcs_id_1, args, FILE_QUEUE_1, quota=args.record_directory_quota,
-                            nthread=len(ops)+9, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            nthread=len(ops)+9, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_0, args.record_directory, FILE_QUEUE_0, DRX_QUEUE_0))
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_1, args.record_directory, FILE_QUEUE_1, DRX_QUEUE_1))
     
