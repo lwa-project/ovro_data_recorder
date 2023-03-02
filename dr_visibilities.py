@@ -684,6 +684,11 @@ class ImageOp(object):
         draw.text((  5, 30), 'XX', font = font, fill = '#FFFFFF')
         draw.text((835, 30), 'YY', font = font, fill = '#FFFFFF')
         
+        ## Logo-ize
+        logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
+        logo = logo.getchannel('A')
+        im.paste(logo, (20, 405))
+        
         return im
         
     def main(self):
