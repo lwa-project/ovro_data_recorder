@@ -653,38 +653,36 @@ class ImageOp(object):
         imYY = self._colormap_and_convert(imageYY[::-1,:])
         
         # Image setup
-        im = PIL.Image.new('RGB', (800, 400))
+        im = PIL.Image.new('RGB', (860, 420))
         draw = PIL.ImageDraw.Draw(im)
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
         
         ## XX
-        im.paste(imXX, (0,0))
+        im.paste(imXX, ( 20, 20))
 
         ## YY
-        im.paste(imYY, (400,0))
+        im.paste(imYY, (440, 20))
 
         ## Horizon circles + outside horizon blanking
-        draw.ellipse((0,  0,399,399), fill=None, outline='#000000')
-        draw.ellipse((400,0,799,399), fill=None, outline='#000000')
-        PIL.ImageDraw.floodfill(im, (0  ,  0), value=(0,0,0), border=(0,0,0))
-        PIL.ImageDraw.floodfill(im, (0  ,399), value=(0,0,0), border=(0,0,0))
-        PIL.ImageDraw.floodfill(im, (799,  0), value=(0,0,0), border=(0,0,0))
-        PIL.ImageDraw.floodfill(im, (799,399), value=(0,0,0), border=(0,0,0))
-        PIL.ImageDraw.floodfill(im, (400,  0), value=(0,0,0), border=(0,0,0))
-        PIL.ImageDraw.floodfill(im, (400,399), value=(0,0,0), border=(0,0,0))
-        
+        draw.ellipse(( 20, 20,419,419), fill=None, outline='#000000')
+        draw.ellipse((440, 20,839,419), fill=None, outline='#000000')
+        for i in range(4):
+            ip = 20 + 399*(i//2)
+            jp = 20 + 399*(i%2)
+            PIL.ImageDraw.floodfill(im, (ip,    jp), value=(0,0,0), border=(0,0,0))
+            PIL.ImageDraw.floodfill(im, (ip+420,jp), value=(0,0,0), border=(0,0,0))
+            
         # Details and labels
-        ySummary = 360
         timeStr = datetime.utcfromtimestamp(time_tag / FS)
-        timeStr = timeStr.strftime("%Y/%m/%d\n%H:%M:%S UTC")
+        timeStr = timeStr.strftime("%Y/%m/%d %H:%M:%S UTC")
         calStr = 'Uncal'
         if has_cal:
             calStr = 'Cal'
-        draw.text((10, ySummary), timeStr, font = font, fill = '#FFFFFF')
-        draw.text((400, ySummary), "%.3f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
-        draw.text((750, ySummary), calStr, font = font, fill = '#FFFFFF')
-        draw.text(( 10, 10), 'XX', font = font, fill = '#FFFFFF')
-        draw.text((769, 10), 'YY', font = font, fill = '#FFFFFF')
+        draw.text((  5, 15), timeStr, font = font, fill = '#FFFFFF')
+        draw.text((765, 15), "%.2f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
+        draw.text((805,415), calStr, font = font, fill = '#FFFFFF')
+        draw.text((  5, 30), 'XX', font = font, fill = '#FFFFFF')
+        draw.text((835, 30), 'YY', font = font, fill = '#FFFFFF')
         
         return im
         
