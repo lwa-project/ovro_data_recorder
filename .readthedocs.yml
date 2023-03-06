@@ -1,11 +1,11 @@
 version: 2
 
-conda:
-  file: .environment_doc.yml
-
 build:
   apt_packages:
     - gfortran
+
+conda:
+  environment: .environment_doc.yml
 
 python:
   setup_py_install: false
