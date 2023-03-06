@@ -4,11 +4,12 @@ build:
   apt_packages:
     - gfortran
   jobs:
-    pre-build:
+    pre_build:
       git clone https://github.com/leda-telescope/bifrost
       cd bifrost/python
       make
       pip install .
+      cd ../..
 
 conda:
   environment: .environment_doc.yml
