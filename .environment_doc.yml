@@ -1,0 +1,19 @@
+name: ovro_data_recorder_doc_env
+
+channels:
+  - conda-forge
+
+dependencies:
+  - numpy
+  - python
+  - scipy
+  - sphinx
+  - astropy
+  - python-casacore
+  - pip
+  - h5py
+  - etcd3
+  - pip:
+    - "git+https://github.com/dsa110/dsa110-pyutils"
+  - pip:
+    - "git+https://github.com/ovro-lwa/mnc_python"
