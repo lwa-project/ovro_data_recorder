@@ -12,6 +12,7 @@ dependencies:
   - python-casacore
   - pip
   - h5py
+  - matplotlib
   - pip:
     - etcd3
     - "git+https://github.com/dsa110/dsa110-pyutils"
