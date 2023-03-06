@@ -1,6 +1,8 @@
 Data Recorder Pipelines for the OVRO-LWA Station
 ================================================
 
+[![Documentation Status](https://readthedocs.org/projects/ovro-data-recorder/badge/?version=latest)](https://ovro-data-recorder.readthedocs.io/en/latest/?badge=latest)
+
 DESCRIPTION
 -----------
 Bifrost-based data recorder pipelines for the power beams (`dr_beam.py`), correlator data (`dr_visibilities.py`),
