@@ -6,6 +6,3 @@ build:
 
 conda:
   environment: .environment_doc.yml
-
-python:
-  setup_py_install: false
