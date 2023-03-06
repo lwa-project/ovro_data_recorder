@@ -3,6 +3,9 @@ version: 2
 build:
   apt_packages:
     - gfortran
+  jobs:
+    pre_build:
+      - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 conda:
   environment: .environment_doc.yml
