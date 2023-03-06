@@ -6,6 +6,7 @@ channels:
 dependencies:
   - numpy
   - python
+  - gfortran
   - scipy
   - sphinx
   - astropy
