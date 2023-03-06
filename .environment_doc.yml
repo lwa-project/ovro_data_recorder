@@ -15,6 +15,8 @@ dependencies:
   - matplotlib
   - pip:
     - etcd3
+    - ctypesgen==1.0.2
+    - pint
     - "git+https://github.com/dsa110/dsa110-pyutils"
     - "git+https://github.com/ovro-lwa/mnc_python"
     - "git+https://github.com/ovro-lwa/lwa-antpos"
