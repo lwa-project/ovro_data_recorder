@@ -16,7 +16,8 @@ REQUIREMENTS
  * astropy
  * etcd3
  * pillow
- * dsa110-pyutils from https://github.com/dsa110/dsa110-pyutils "development" branch
+ * dsa110-pyutils from https://github.com/dsa110/dsa110-pyutils
+ * mnc_python from https://github.com/ovro-lwa/mnc_python
  * lwa_antpos from https://github.com/ovro-lwa/lwa-antpos
  * tar
 
