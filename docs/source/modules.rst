@@ -40,9 +40,3 @@ Control Interface
 
 .. automodule:: control
    :members:
-
-Station Monitor and Control Interface
--------------------------------------
-
-.. automodule:: mcs
-   :members:
