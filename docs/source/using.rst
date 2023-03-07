@@ -30,7 +30,7 @@ Systemd User Services
 The various data recorder pipelines can be launched as systemd user services.  The
 included `utils/generate_services.py` helps with defining these services:
 
-.. include:: generated_services.help
+.. include:: generate_services.help
 
 These services are configured for the `lwacalim` cluster by default.
 
