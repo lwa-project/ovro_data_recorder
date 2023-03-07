@@ -71,3 +71,13 @@ for script in glob.glob('../../dr_*.py'):
             fh.write(output)
         except (OSError, subprocess.CalledProcessError):
             fh.write(b"Failed to extract help message")
+for script in glob.glob('../../services/*.py'):
+    outname = os.path.basename(script)
+    outname = os.path.splitext(outname)[0]
+    outname += '.help'
+    with open(outname, 'wb') as fh:
+        try:
+            output = subprocess.check_output([sys.executable, script, '--help'])
+            fh.write(output)
+        except (OSError, subprocess.CalledProcessError):
+            fh.write(b"Failed to extract help message")

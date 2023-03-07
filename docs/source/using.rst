@@ -24,6 +24,14 @@ dr_tengine.py
 
 .. include:: dr_tengine.help
 
+Systemd User Services
+---------------------
+
+The various data recorder pipelines can be launched as systemd user services.  The
+included `utils/generate_services.py` helps with defining these services:
+
+.. include:: generated_services.help
+
 Interacting with the Pipelines
 ------------------------------
 
