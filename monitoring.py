@@ -199,7 +199,7 @@ class StorageLogger(object):
     a directory quota, if needed.
     """
     
-    def __init__(self, log, id, directory, quota=None, shutdown_event=None, update_interval=10):
+    def __init__(self, log, id, directory, quota=None, shutdown_event=None, update_interval=3600):
         self.log = log
         self.id = id
         self.directory = directory
@@ -585,7 +585,7 @@ class GlobalLogger(object):
     
     def __init__(self, log, id, args, queue, quota=None, nthread=None,
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
-                 update_interval_storage=60, update_interval_status=20):
+                 update_interval_storage=3600, update_interval_status=20):
         self.log = log
         if shutdown_event is None:
             shutdown_event = threading.Event()
