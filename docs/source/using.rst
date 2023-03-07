@@ -32,7 +32,8 @@ included `utils/generate_services.py` helps with defining these services:
 
 .. include:: generate_services.help
 
-These services are configured for the `lwacalim` cluster by default.
+These services are configured for the `lwacalim` cluster to be run under the
+`pipeline` user by default.
 
 Interacting with the Pipelines
 ------------------------------
