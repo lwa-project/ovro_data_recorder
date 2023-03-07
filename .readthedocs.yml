@@ -2,7 +2,13 @@ version: 2
 
 build:
   apt_packages:
+    - autoconf
+    - gawk
     - gfortran
+    - grep
+    - g++
+    - libtool
+    - make
 
 conda:
   environment: .environment_doc.yml
