@@ -356,12 +356,12 @@ class StatusLogger(object):
     an overall state of the pipeline.
     """
     
-    def __init__(self, log, id, queue, nthread=None, gulp_time=None,
+    def __init__(self, log, id, queue, thread_names=None, gulp_time=None,
                  shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
-        self.nthread = nthread
+        self.thread_names = thread_names
         self.gulp_time = gulp_time
         if shutdown_event is None:
             shutdown_event = threading.Event()
@@ -448,9 +448,13 @@ class StatusLogger(object):
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
             # Get the current metrics that matter
-            nactive = 0
-            if self.nthread is not None:
-                nactive = threading.active_count()
+            missing_threads = []
+            if self.thread_names is not None:
+                found_threads = []
+                for t in threading.enumerate():
+                    if t.name in self.thread_names:
+                        found_threads.append(t.name)
+                missing_threads = [t for t in self.thread_names if t not in found_threads]
             nfound = 0
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is not None:
@@ -481,14 +485,13 @@ class StatusLogger(object):
             ts = min([v.timestamp for v in (missing, processing)])
             summary = 'normal'
             info = 'System operating normally'
-            if self.nthread is not None:
-                if nactive != self.nthread:
-                    ## Thread check
-                    thread_names = ','.join([t.getName() for t in threading.enumerate()])
-                    new_summary = 'error'
-                    new_info = "Only %i of %i threads active - %s" % (nactive, self.nthread, thread_names)
-                    summary, info = self._combine_status(summary, info,
-                                                         new_summary, new_info)
+            if len(missing_threads) > 0:
+                ## Thread check
+                ntmissing = len(self.thread_names) - nactive
+                new_summary = 'error'
+                new_info = "Found %i missing threads - %s" % (ntmissing, ','.join(missing_threads))
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
             if dused > 0.99:
                 ## Out of space check
                 new_summary = 'error'
@@ -583,7 +586,7 @@ class GlobalLogger(object):
     and :py:class:`StatusLogger` and runs their main methods as a unit.
     """
     
-    def __init__(self, log, id, args, queue, quota=None, nthread=None,
+    def __init__(self, log, id, args, queue, quota=None, threads=None,
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
                  update_interval_storage=3600, update_interval_status=20):
         self.log = log
@@ -591,12 +594,34 @@ class GlobalLogger(object):
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
         
+        thread_names = []
+        self._thread_names = []
+        if threads is not None:
+            # Explictly provided threads to monitor
+            for t in threads:
+                thread_names.append(t.name)
+                
+        # Threads associated with this logger...
+        for new_thread in (type(self).__name__, 'PerformanceLogger', 'StorageLogger', 'StatusLogger'):
+            # ... with a catch to deal with potentially other instances
+            name = new_thread
+            name_count = 0
+            while name in thread_names:
+                name_count += 1
+                name = new_thread+str(name_count)
+            thread_names.append(name)
+            self._thread_names.append(name)
+            
+        # Reset thread_names if we don't really have a list of threads to monitor
+        if threads is None:
+            thread_names = None
+            
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
                                       update_interval=update_interval_perf)
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
                                      shutdown_event=shutdown_event,
                                      update_interval=update_interval_storage)
-        self.status = StatusLogger(log, id, queue, nthread=nthread,
+        self.status = StatusLogger(log, id, queue, thread_names=thread_names,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=update_interval_status)
@@ -619,11 +644,11 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
-        # Create the per-logger threads
+        # Create the per-logger threads using the pre-determined thread names
         threads = []
-        threads.append(threading.Thread(target=self.perf.main, name='PerformanceLogger'))
-        threads.append(threading.Thread(target=self.storage.main, name='StorageLogger'))
-        threads.append(threading.Thread(target=self.status.main, name='StatusLogger'))
+        threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
+        threads.append(threading.Thread(target=self.storage.main, name=self._thread_names[2]))
+        threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
         
         # Start the threads
         for thread in threads:

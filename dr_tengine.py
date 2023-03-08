@@ -1089,9 +1089,9 @@ def main(argv):
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
     ops.append(WriterOp(log, write_ring, beam0=args.beam,
                         npkt_gulp=32, core=cores.pop(0)))
-    ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
-                            nthread=len(ops)+8, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
+    ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
+                            threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     
     # Setup the threads
     threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
