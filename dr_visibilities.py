@@ -550,7 +550,7 @@ class ImageOp(object):
                 calfiles = glob.glob(os.path.join(self.cal_dir, '*.bcal'))
                 
                 ## Load all calibration tables and save them be the first frequency
-                ## in each rouned to the nearest MHz
+                ## in each rouned to the nearest Hz
                 self._all_cals = {}
                 for calfile in calfiles:
                     ### Calibration and flagging data
@@ -567,7 +567,7 @@ class ImageOp(object):
                     caltab.close()
                     
                     ### Cache
-                    caltag = int(round(calfreq[0]/1e6))
+                    caltag = int(round(calfreq[0]))
                     self._all_cals[caltag] = {'freq': calfreq,
                                               'ant':  calant,
                                               'data': caldata,
@@ -581,15 +581,14 @@ class ImageOp(object):
                 self._last_cal_update = last_update
                 
             # Get the "calibration tag" for the current data set
-            caltag = int(round(freq[0]/1e6))
+            caltag = int(round(freq[0]))
             
             if caltag == self._caltag:
                 # Great, we already have it
                 cal = self._cal
             else:
                 # We need to make a new one for each baseline/channel/polarization
-                # NOTE: Lots of assumptions here about antenna order and exact
-                #       frequency setup
+                # NOTE: Lots of assumptions here about the antenna order
                 self._cal = numpy.zeros((nbl,freq.size,4), dtype=numpy.complex64)
                 base_cal = self._all_cals[caltag]
                 k = 0
