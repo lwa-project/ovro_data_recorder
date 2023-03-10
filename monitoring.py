@@ -262,8 +262,9 @@ class StorageLogger(object):
         
         to_remove = []
         to_remove_size = 0
-        while total_size > self.quota and len(self._files) > 1:
-            fn = self._files.pop()
+        while total_size - to_remove_size > self.quota and len(self._files) > 1:
+            fn = self._files.popleft()
+            f_size = self._file_sizes.popleft()
             if (len(fn) <= len(self.directory)) or \
                 (not fn.startswith(self.directory)) or \
                     (len(fn) <= MINIMUM_TO_DELETE_PATH_LENGTH):
@@ -272,7 +273,7 @@ class StorageLogger(object):
                 raise ValueError(msg)
             else:
                 to_remove.append(fn)
-                to_remove_size += self._file_sizes.pop()
+                to_remove_size += f_size
         self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
         if to_remove:
             for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
