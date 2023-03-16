@@ -281,7 +281,7 @@ class StorageLogger(object):
                 while remove_process.poll() is None:
                     self.shutdown_event.wait(5)
                     if self.shutdown_event.is_set():
-                        remove_process.terminate()
+                        remove_process.kill()
                         return
                 self.log.debug('Quota: Removed %i items.', len(chunk))
             self.log.debug("=== Quota Report ===")
