@@ -488,7 +488,7 @@ class StatusLogger(object):
             info = 'System operating normally'
             if len(missing_threads) > 0:
                 ## Thread check
-                ntmissing = len(self.thread_names) - nactive
+                ntmissing = len(missing_threads)
                 new_summary = 'error'
                 new_info = "Found %i missing threads - %s" % (ntmissing, ','.join(missing_threads))
                 summary, info = self._combine_status(summary, info,
