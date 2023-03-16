@@ -13,7 +13,7 @@ __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
-def interruptable_sleep(seconds, sub_interval=0.1):
+def interruptable_sleep(seconds, sub_interval=0.1, shutdown_event=None):
     """
     Version of sleep that breaks the `seconds` sleep period into sub-intervals
     of length `sub_interval`.
@@ -21,8 +21,12 @@ def interruptable_sleep(seconds, sub_interval=0.1):
     
     t0 = time.time()
     t1 = t0 + seconds
-    while time.time() < t1:
-        time.sleep(sub_interval)
+    if shutdown_event is not None:
+        while time.time() < t1 and not shutdown_event.is_set():
+            time.sleep(sub_interval)
+    else:
+        while time.time() < t1:
+            time.sleep(sub_interval)
 
 
 def getsize(filename):
@@ -343,7 +347,7 @@ class StorageLogger(object):
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
             
         if not once:
             self._halt()
