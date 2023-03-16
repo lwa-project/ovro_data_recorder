@@ -190,7 +190,7 @@ class PerformanceLogger(object):
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
             
         if not once:
             self._halt()
@@ -577,7 +577,7 @@ class StatusLogger(object):
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
             
         if not once:
             # If this seems like it is its own thread, call _halt
