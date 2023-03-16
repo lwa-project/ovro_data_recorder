@@ -600,7 +600,10 @@ class GlobalLogger(object):
         if threads is not None:
             # Explictly provided threads to monitor
             for t in threads:
-                thread_names.append(t.name)
+                try:
+                    thread_names.append(t.name)
+                except AttributeError:
+                    thread_names.append(type(t).__name__)
                 
         # Threads associated with this logger...
         for new_thread in (type(self).__name__, 'PerformanceLogger', 'StorageLogger', 'StatusLogger'):
