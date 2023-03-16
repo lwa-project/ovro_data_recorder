@@ -17,7 +17,7 @@ StandardError=syslog
 SyslogIdentifier=dr-manager-vfast
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /data01/log ] || mkdir -p /data01/log'
+ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
@@ -27,7 +27,12 @@ source {{ anaconda }}/bin/activate {{ condaenv }} && \
 python3 {{ path }}/dr_manager_visibilities.py \
          --band-id  {{ band_id }} \
          --quick \
-         --logfile  /data01/log/dr-manager-vfast.%H.log'
+         --logfile  {{ logdir }}/dr-manager-vfast.%H.log'
 
 [Install]
 WantedBy=default.target
+
+# Configuration Logging
+# Generated: {{ generated }}
+# Input File:  {{ input_file }}
+# Input File MD5: {{ input_file_md5 }}

@@ -1,81 +1,31 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import sys
 import glob
+import json
 import jinja2
 import argparse
+from hashlib import md5
+from datetime import datetime
 
 # Setup
 ## Path information
 path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-## Power beam setup
-rdir = '/data{{ calim_host }}/beam'
-quota = '500GB'
-beams = { 1: ('10.41.0.76', 20001, rdir+'01', quota),
-          2: ('10.41.0.76', 20002, rdir+'02', quota),
-          3: ('10.41.0.77', 20001, rdir+'03', quota),
-          4: ('10.41.0.77', 20002, rdir+'04', quota),
-          5: ('10.41.0.78', 20001, rdir+'05', quota),
-          6: ('10.41.0.78', 20002, rdir+'06', quota),
-          7: ('10.41.0.79', 20001, rdir+'07', quota),
-          8: ('10.41.0.79', 20002, rdir+'08', quota),
-          9: ('10.41.0.80', 20001, rdir+'09', quota),
-         10: ('10.41.0.80', 20002, rdir+'10', quota),
-         11: ('10.41.0.81', 20001, rdir+'11', quota),
-         12: ('10.41.0.81', 20001, rdir+'12', quota),
-        }
-
-## Slow visibilities setup
-rdir = '/data{{ calim_host }}/slow'
-quota = '8TB'
-vslow = { 1: ('10.41.0.76', 10001, rdir, quota),
-          2: ('10.41.0.76', 10002, rdir, 0),
-          3: ('10.41.0.77', 10001, rdir, quota),
-          4: ('10.41.0.77', 10002, rdir, 0),
-          5: ('10.41.0.78', 10001, rdir, quota),
-          6: ('10.41.0.78', 10002, rdir, 0),
-          7: ('10.41.0.79', 10001, rdir, quota),
-          8: ('10.41.0.79', 10002, rdir, 0),
-          9: ('10.41.0.80', 10001, rdir, quota),
-         10: ('10.41.0.80', 10002, rdir, 0),
-         11: ('10.41.0.81', 10001, rdir, quota),
-         12: ('10.41.0.81', 10002, rdir, 0),
-         13: ('10.41.0.82', 10001, rdir, quota),
-         14: ('10.41.0.82', 10002, rdir, 0),
-         15: ('10.41.0.83', 10001, rdir, quota),
-         16: ('10.41.0.83', 10002, rdir, 0),
-        }
-
-## Fast visibilities setup
-rdir = '/data{{ calim_host }}/fast'
-quota = '500GB'
-vfast = { 1: ('10.41.0.76', 11001, rdir, quota),
-          2: ('10.41.0.76', 11002, rdir, 0),
-          3: ('10.41.0.77', 11001, rdir, quota),
-          4: ('10.41.0.77', 11002, rdir, 0),
-          5: ('10.41.0.78', 11001, rdir, quota),
-          6: ('10.41.0.78', 11002, rdir, 0),
-          7: ('10.41.0.79', 11001, rdir, quota),
-          8: ('10.41.0.79', 11002, rdir, 0),
-          9: ('10.41.0.80', 11001, rdir, quota),
-         10: ('10.41.0.80', 11002, rdir, 0),
-         11: ('10.41.0.81', 11001, rdir, quota),
-         12: ('10.41.0.81', 11002, rdir, 0),
-         13: ('10.41.0.82', 11001, rdir, quota),
-         14: ('10.41.0.82', 11002, rdir, 0),
-         15: ('10.41.0.83', 11001, rdir, quota),
-         16: ('10.41.0.83', 11002, rdir, 0),
-        }
-
-## T-engine setup
-rdir = '/home/ubuntu/data/tengine'
-quota = 0
-tengines = {1: ('10.41.0.73', 21001, rdir, quota),
-           }
 
 def main(args):
+    # Load in the configuration
+    with open(args.config, 'r') as fh:
+        config = json.loads(fh.read())
+        
+    # Generate the configuration tracking
+    generated = datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S UTC")
+    input_file = os.path.abspath(args.config)
+    with open(args.config, 'rb') as fh:
+        md5sum = md5(fh.read())
+        input_file_md5 = md5sum.hexdigest()
+        
     # Pre-process
     anaconda = args.anaconda_path
     condaenv = args.conda_env
@@ -98,19 +48,20 @@ def main(args):
         else:
             template = env.get_template('dr-beam-base.service')
             last_address = None
-            for beam in beams:
-                address, port, directory, quota = beams[beam]
-                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
+            for beam in config['power_beams'].keys():
+                address   = config['power_beams'][beam]['ip']
+                port      = config['power_beams'][beam]['port']
+                directory = config['power_beams'][beam]['directory']
+                quota     = config['power_beams'][beam]['quota']
+                logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
                     cores = [72,73,74,75]
                     last_address = address
-                directory = env.from_string(directory)
-                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
-                                          calim_host=calim_host,
-                                          directory=directory, quota=quota,
-                                          cores=','.join([str(v) for v in cores]))
+                                          directory=directory, quota=quota, logdir=logdir,
+                                          cores=','.join([str(v) for v in cores]),
+                                          generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
                     cores[c] %= 96
@@ -128,19 +79,20 @@ def main(args):
             ### Recorders
             template = env.get_template('dr-vslow-base.service')
             last_address = None
-            for band in vslow:
-                address, port, directory, quota = vslow[band]
-                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
+            for band in config['slow_vis'].keys():
+                address   = config['slow_vis'][band]['ip']
+                port      = config['slow_vis'][band]['port']
+                directory = config['slow_vis'][band]['directory']
+                quota     = config['slow_vis'][band]['quota']
+                logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
                     cores = [50,51,52,53,54,55]
                     last_address = address
-                directory = env.from_string(directory)
-                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
-                                          calim_host=calim_host,
-                                          directory=directory, quota=quota,
-                                          cores=','.join([str(v) for v in cores]))
+                                          directory=directory, quota=quota, logdir=logdir,
+                                          cores=','.join([str(v) for v in cores]),
+                                          generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
                     cores[c] %= 96
@@ -150,14 +102,18 @@ def main(args):
             ### Manager
             template = env.get_template('dr-manager-vslow-base.service')
             band_id = []
-            for band in vslow:
-                address, port, directory, quota = vslow[band]
+            for band in config['slow_vis'].keys():
+                address   = config['slow_vis'][band]['ip']
+                port      = config['slow_vis'][band]['port']
+                directory = config['slow_vis'][band]['directory']
+                quota     = config['slow_vis'][band]['quota']
                 base_ip = int(address.split('.')[-1], 10)
                 base_port = port % 100
                 band_id.append(str(base_ip*100 + base_port))
             band_id = ','.join(band_id)
             service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
-                                      band_id=band_id)
+                                      band_id=band_id, logdir=config['manager']['fast_vis']['logdir'],
+                                      generated=generated, input_file=input_file, input_file_md5=input_file_md5)
             with open('dr-manager-vslow.service', 'w') as fh:
                 fh.write(service)
 
@@ -172,19 +128,20 @@ def main(args):
             ### Recorders
             template = env.get_template('dr-vfast-base.service')
             last_address = None
-            for band in vfast:
-                address, port, directory, quota = vfast[band]
-                calim_host = '%02d' % (int(address.split('.', 3)[-1],10)-75,)
+            for band in config['fast_vis'].keys():
+                address   = config['fast_vis'][band]['ip']
+                port      = config['fast_vis'][band]['port']
+                directory = config['fast_vis'][band]['directory']
+                quota     = config['fast_vis'][band]['quota']
+                logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
                     cores = [62,63,64,65,66,67]
                     last_address = address
-                directory = env.from_string(directory)
-                directory = directory.render(calim_host=calim_host)
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
-                                          calim_host=calim_host,
-                                          directory=directory, quota=quota,
-                                          cores=','.join([str(v) for v in cores]))
+                                          directory=directory, quota=quota, logdir=logdir,
+                                          cores=','.join([str(v) for v in cores]),
+                                          generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
                     cores[c] %= 96
@@ -194,14 +151,18 @@ def main(args):
             ### Manager
             template = env.get_template('dr-manager-vfast-base.service')
             band_id = []
-            for band in vfast:
-                address, port, directory, quota = vfast[band]
+            for band in config['fast_vis'].keys():
+                address   = config['fast_vis'][band]['ip']
+                port      = config['fast_vis'][band]['port']
+                directory = config['fast_vis'][band]['directory']
+                quota     = config['fast_vis'][band]['quota']
                 base_ip = int(address.split('.')[-1], 10)
                 base_port = port % 100
                 band_id.append(str(base_ip*100 + base_port))
             band_id = ','.join(band_id)
             service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
-                                      band_id=band_id)
+                                      band_id=band_id, logdir=config['manager']['fast_vis']['logdir'],
+                                      generated=generated, input_file=input_file, input_file_md5=input_file_md5)
             with open('dr-manager-vfast.service', 'w') as fh:
                 fh.write(service)
                 
@@ -213,11 +174,16 @@ def main(args):
                 os.unlink(filename)
         else:
             template = env.get_template('dr-tengine-base.service')
-            for beam in tengines:
-                address, port, directory, quota = tengines[beam]
+            for beam in config['voltage_beams'].keys():
+                address   = config['voltage_beams'][beam]['ip']
+                port      = config['voltage_beams'][beam]['port']
+                directory = config['voltage_beams'][beam]['directory']
+                quota     = config['voltage_beams'][beam]['quota']
+                logdir    = os.path.join(os.path.dirname(directory), 'log')
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           address=address, port=port,
-                                          directory=directory, quota=quota)
+                                          directory=directory, quota=quota, logdir=logdir,
+                                          generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 with open('dr-tengine.service', 'w') as fh:
                     fh.write(service)
                     
@@ -233,6 +199,8 @@ if __name__ == '__main__':
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--config', type=str, default='service_config.json',
+                       help='JSON file that specifies the data recorder mappings')
     group.add_argument('-p', '--anaconda-path', type=str, default='/opt/miniconda3',
                        help='root path to anaconda install to use')
     group.add_argument('-e', '--conda-env', type=str, default='datarecorder',

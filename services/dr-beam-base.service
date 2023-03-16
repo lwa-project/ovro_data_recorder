@@ -17,7 +17,7 @@ StandardError=syslog
 SyslogIdentifier=dr-beam-{{ beam }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /data{{ calim_host }}/log ] || mkdir -p /data{{ calim_host }}/log'
+ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
@@ -31,7 +31,12 @@ python3 {{ path }}/dr_beam.py \
          --cores                  {{ cores }} \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
-         --logfile                /data{{ calim_host }}/log/dr-beam-{{ beam }}.%H.log'
+         --logfile                {{ logdir }}/dr-beam-{{ beam }}.%H.log'
 
 [Install]
 WantedBy=default.target
+
+# Configuration Logging
+# Generated: {{ generated }}
+# Input File:  {{ input_file }}
+# Input File MD5: {{ input_file_md5 }}
