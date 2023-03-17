@@ -14,6 +14,7 @@ dependencies:
   - h5py
   - matplotlib
   - ctypesgen
+  - setuptools_scm
   - pip:
     - etcd3
     - "git+https://github.com/dsa110/dsa110-pyutils"
