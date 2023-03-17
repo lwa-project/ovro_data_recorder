@@ -22,7 +22,7 @@ def main(args):
     t = datetime.utcfromtimestamp(s.timestamp)
     age = datetime.utcnow() - t
     if args.lwatv and age > timedelta(minutes=5):
-        printf(f"Image is {age.total_seconds()/60:.1f} minutes old, skipping")
+        print(f"Image is {age.total_seconds()/60:.1f} minutes old, skipping")
         exit(1)
     s = ImageMonitorPoint(s)
     s.to_file(args.output)
