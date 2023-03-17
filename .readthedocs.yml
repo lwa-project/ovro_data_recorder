@@ -13,8 +13,3 @@ build:
 
 conda:
   environment: .environment_doc.yml
-
-python:
-  install:
-    - method: setuptools
-      path: .
