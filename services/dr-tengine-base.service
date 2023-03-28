@@ -4,9 +4,6 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-# Run as the specified user
-User=ubuntu
-
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
 
@@ -34,7 +31,7 @@ source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
          --gpu                    1 \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
-         --logfile                {{ logdir }}/dr-tengine.%H.log'
+         --logfile                {{ logdir }}/dr-tengine.log'
 
 [Install]
 WantedBy=multi-user.target
