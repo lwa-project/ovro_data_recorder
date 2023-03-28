@@ -1280,15 +1280,25 @@ def main(argv):
     ops.append(WriterOp(log, write1_ring, beam0=args.beam+1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id_0, args, FILE_QUEUE_0, quota=args.record_directory_quota,
-                            nthread=len(ops)+10, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(GlobalLogger(log, mcs_id_1, args, FILE_QUEUE_1, quota=args.record_directory_quota,
-                            nthread=len(ops)+9, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_0, args.record_directory, FILE_QUEUE_0, DRX_QUEUE_0))
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_1, args.record_directory, FILE_QUEUE_1, DRX_QUEUE_1))
     
     # Setup the threads
-    threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
-    
+    threads = []
+    thread_names = []
+    for op in ops:
+        base_name = type(op).__name__
+        name_count = 0
+        name = base_name
+        while name in thread_names:
+            name_count += 1
+            name = base_name+str(name_count)
+        thread_names.append(name)
+        threads.append(threading.Thread(target=op.main, name=name))
+        
     """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)

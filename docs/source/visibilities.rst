@@ -52,9 +52,9 @@ and ``stop``.
  * ``start`` - This schedules when to start a recording.  The required arguments to
    this command are:
    
-    * ``start_mjd`` - an integer MJD value for when the recording will start or
+    * ``mjd`` - an integer MJD value for when the recording will start or
       "now" to start the recording 15 s after the command is received and
-    * ``start_mpm`` - an integer number of milliseconds past midnight value on the
+    * ``mpm`` - an integer number of milliseconds past midnight value on the
       MJD specified in ``start_mjd`` for when the recording will start.
     
   There are no optional arguments.  The command returns the base name for the files
@@ -63,9 +63,9 @@ and ``stop``.
  * ``stop`` - This schedules when to stop a recording.  The required arguments to
    this command are:
     
-     * `stop_mjd` - an integer MJD value for when the recording will stop or
+     * `mjd` - an integer MJD value for when the recording will stop or
        "now" to stop the recording 15 s after the command is received and
-     * ``stop_mpm`` - an integer number of milliseconds past midnight value on the
+     * ``mpm`` - an integer number of milliseconds past midnight value on the
        MJD specified in ``stop_mjd`` for when the recording will stop.
      
    There are no optional arguments.  The command returns the base name for the files
@@ -81,29 +81,30 @@ and # is the GPU pipeline that is being recorded.
   
   * /mon/drv[sf]#/bifrost
   
-   * pipeline_lag - The lag between the system time and the
-     timestamps for data in the pipeline.
-   * max_acquire - The maximum span/gulp acquire time across
-     all blocks in the pipeline.
-   * max_process - The maximum span/gulp processing time
-     across all blocks in the pipeline.
-   * max_reserve - The maximum span/gulp reserve time across
-     all blocks in the pipeline.
-   * rx_rate - Packet capture rate for the pipeline.
-   * rx_missing - Fraction of missing packets for the pipeline.
+    * pipeline_lag - The lag between the system time and the
+      timestamps for data in the pipeline.
+    * max_acquire - The maximum span/gulp acquire time across
+      all blocks in the pipeline.
+    * max_process - The maximum span/gulp processing time
+      across all blocks in the pipeline.
+    * max_reserve - The maximum span/gulp reserve time across
+      all blocks in the pipeline.
+    * rx_rate - Packet capture rate for the pipeline.
+    * rx_missing - Fraction of missing packets for the pipeline.
    
   * /mon/drv[sf]#/storage
  
-   * active_disk_size - The size of the disk where the
-     recording directory resides.
-   * active_disk_free - The amount of free space on the disk
-     where the recording directory resides.
-   * active_directory - The current recording directory.
-   * active_directory_size - The size of all files in the
-     recording directory.
-   * active_directory_count - The number of files in the
-     recording directory.
+    * active_disk_size - The size of the disk where the
+      recording directory resides.
+    * active_disk_free - The amount of free space on the disk
+      where the recording directory resides.
+    * active_directory - The current recording directory.
+    * active_directory_size - The size of all files in the
+      recording directory.
+    * active_directory_count - The number of files in the
+      recording directory.
    
+  * /mon/drv[s]#/latest_time_tag - Latest timetag for the written slow visibility file.
   * /mon/drv[sf]#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".
   * /mon/drv[sf]#/info - A more detailed explanation of the summary condition.
@@ -113,6 +114,9 @@ and # is the GPU pipeline that is being recorded.
       the auto-correlation spectra.
     * baselines - A URL-safe Base64 encoded PNG image
       of the visibility amplitude as a function of `(u,v)` radial distance.
+    * image - A URL-safe Base64 encoded PNG all-sky image generated from the
+      lowest 100 kHz of the band.  Images made using the beamformer calibration
+      tables are labeled as "Cal".
       
   * /mon/drv[sf]#/statistics
     

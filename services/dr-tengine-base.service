@@ -20,21 +20,26 @@ StandardError=syslog
 SyslogIdentifier=dr-tengine
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /home/ubuntu/log ] || mkdir -p /home/ubuntu/log'
+ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
 source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_dual_tengine.py \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_tengine.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --cores                  11,12,13,14,15 \
          --gpu                    1 \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
-         --logfile                /home/ubuntu/log/dr-tengine.%H.log'
+         --logfile                {{ logdir }}/dr-tengine.%H.log'
 
 [Install]
 WantedBy=multi-user.target
+
+# Configuration Logging
+# Generated: {{ generated }}
+# Input File:  {{ input_file }}
+# Input File MD5: {{ input_file_md5 }}

@@ -1,0 +1,59 @@
+{
+  "slow_vis": {
+    "1":  {"ip": "10.41.0.76", "port": 10001, "directory": "/data01/slow", "quota": "8TB"},
+    "2":  {"ip": "10.41.0.76", "port": 10002, "directory": "/data01/slow", "quota": 0},
+    "3":  {"ip": "10.41.0.77", "port": 10001, "directory": "/data02/slow", "quota": "8TB"},
+    "4":  {"ip": "10.41.0.77", "port": 10002, "directory": "/data02/slow", "quota": 0},
+    "5":  {"ip": "10.41.0.78", "port": 10001, "directory": "/data03/slow", "quota": "8TB"},
+    "6":  {"ip": "10.41.0.78", "port": 10002, "directory": "/data03/slow", "quota": 0},
+    "7":  {"ip": "10.41.0.79", "port": 10001, "directory": "/data04/slow", "quota": "8TB"},
+    "8":  {"ip": "10.41.0.79", "port": 10002, "directory": "/data04/slow", "quota": 0},
+    "9":  {"ip": "10.41.0.80", "port": 10001, "directory": "/data05/slow", "quota": "8TB"},
+    "10": {"ip": "10.41.0.80", "port": 10002, "directory": "/data05/slow", "quota": 0},
+    "11": {"ip": "10.41.0.81", "port": 10001, "directory": "/data06/slow", "quota": "8TB"},
+    "12": {"ip": "10.41.0.81", "port": 10002, "directory": "/data06/slow", "quota": 0},
+    "13": {"ip": "10.41.0.82", "port": 10001, "directory": "/data07/slow", "quota": "8TB"},
+    "14": {"ip": "10.41.0.82", "port": 10002, "directory": "/data07/slow", "quota": 0},
+    "15": {"ip": "10.41.0.83", "port": 10001, "directory": "/data08/slow", "quota": "8TB"},
+    "16": {"ip": "10.41.0.83", "port": 10002, "directory": "/data08/slow", "quota": 0}
+  },
+  "fast_vis": {
+    "1":  {"ip": "10.41.0.76", "port": 11001, "directory": "/data01/fast", "quota": "500GB"},
+    "2":  {"ip": "10.41.0.76", "port": 11002, "directory": "/data01/fast", "quota": 0},
+    "3":  {"ip": "10.41.0.77", "port": 11001, "directory": "/data02/fast", "quota": "500GB"},
+    "4":  {"ip": "10.41.0.77", "port": 11002, "directory": "/data02/fast", "quota": 0},
+    "5":  {"ip": "10.41.0.78", "port": 11001, "directory": "/data03/fast", "quota": "500GB"},
+    "6":  {"ip": "10.41.0.78", "port": 11002, "directory": "/data03/fast", "quota": 0},
+    "7":  {"ip": "10.41.0.79", "port": 11001, "directory": "/data04/fast", "quota": "500GB"},
+    "8":  {"ip": "10.41.0.79", "port": 11002, "directory": "/data04/fast", "quota": 0},
+    "9":  {"ip": "10.41.0.80", "port": 11001, "directory": "/data05/fast", "quota": "500GB"},
+    "10": {"ip": "10.41.0.80", "port": 11002, "directory": "/data05/fast", "quota": 0},
+    "11": {"ip": "10.41.0.81", "port": 11001, "directory": "/data06/fast", "quota": "500GB"},
+    "12": {"ip": "10.41.0.81", "port": 11002, "directory": "/data06/fast", "quota": 0},
+    "13": {"ip": "10.41.0.82", "port": 11001, "directory": "/data07/fast", "quota": "500GB"},
+    "14": {"ip": "10.41.0.82", "port": 11002, "directory": "/data07/fast", "quota": 0},
+    "15": {"ip": "10.41.0.83", "port": 11001, "directory": "/data08/fast", "quota": "500GB"},
+    "16": {"ip": "10.41.0.83", "port": 11002, "directory": "/data08/fast", "quota": 0}
+    },
+  "power_beams": {
+    "1":  {"ip": "10.41.0.76", "port": 20001, "directory": "/data01/beam01", "quota": "500GB"},
+    "2":  {"ip": "10.41.0.76", "port": 20002, "directory": "/data01/beam02", "quota": "500GB"},
+    "3":  {"ip": "10.41.0.77", "port": 20001, "directory": "/data02/beam03", "quota": "500GB"},
+    "4":  {"ip": "10.41.0.77", "port": 20002, "directory": "/data02/beam04", "quota": "500GB"},
+    "5":  {"ip": "10.41.0.78", "port": 20001, "directory": "/data03/beam05", "quota": "500GB"},
+    "6":  {"ip": "10.41.0.78", "port": 20002, "directory": "/data03/beam06", "quota": "500GB"},
+    "7":  {"ip": "10.41.0.79", "port": 20001, "directory": "/data04/beam07", "quota": "500GB"},
+    "8":  {"ip": "10.41.0.79", "port": 20002, "directory": "/data04/beam08", "quota": "500GB"},
+    "9":  {"ip": "10.41.0.80", "port": 20001, "directory": "/data05/beam09", "quota": "500GB"},
+    "10": {"ip": "10.41.0.80", "port": 20002, "directory": "/data05/beam10", "quota": "500GB"},
+    "11": {"ip": "10.41.0.81", "port": 20001, "directory": "/data06/beam11", "quota": "500GB"},
+    "12": {"ip": "10.41.0.81", "port": 20001, "directory": "/data06/beam12", "quota": "500GB"}
+  },
+  "voltage_beams": {
+     "1": {"ip": "10.41.0.97", "port": 21001, "directory": "/data/beam01", "quota": 0}
+  },
+  "manager": {
+    "slow_vis": {"logdir": "/data01/log"},
+    "fast_vis": {"logdir": "/data01/log"}
+  }
+}

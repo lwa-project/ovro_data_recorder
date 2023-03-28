@@ -1,10 +1,8 @@
 import os
-import sys
 import glob
 import time
-import numpy
 import threading
-import subprocess
+from subprocess import Popen, DEVNULL
 from collections import deque
 
 from bifrost.proclog import load_by_pid
@@ -13,8 +11,9 @@ from mnc.mcs import MonitorPoint, Client
 
 __all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
 
+MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
-def interruptable_sleep(seconds, sub_interval=0.1):
+def interruptable_sleep(seconds, sub_interval=0.1, shutdown_event=None):
     """
     Version of sleep that breaks the `seconds` sleep period into sub-intervals
     of length `sub_interval`.
@@ -22,8 +21,12 @@ def interruptable_sleep(seconds, sub_interval=0.1):
     
     t0 = time.time()
     t1 = t0 + seconds
-    while time.time() < t1:
-        time.sleep(sub_interval)
+    if shutdown_event is not None:
+        while time.time() < t1 and not shutdown_event.is_set():
+            time.sleep(sub_interval)
+    else:
+        while time.time() < t1:
+            time.sleep(sub_interval)
 
 
 def getsize(filename):
@@ -187,7 +190,7 @@ class PerformanceLogger(object):
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
             
         if not once:
             self._halt()
@@ -200,7 +203,7 @@ class StorageLogger(object):
     a directory quota, if needed.
     """
     
-    def __init__(self, log, id, directory, quota=None, shutdown_event=None, update_interval=10):
+    def __init__(self, log, id, directory, quota=None, shutdown_event=None, update_interval=3600):
         self.log = log
         self.id = id
         self.directory = directory
@@ -217,8 +220,8 @@ class StorageLogger(object):
         self._reset()
         
     def _reset(self):
-        self._files = []
-        self._file_sizes = []
+        self._files = deque()
+        self._file_sizes = deque()
         
         ts = time.time()
         self.client.write_monitor_point('storage/active_disk_size',
@@ -233,19 +236,27 @@ class StorageLogger(object):
                                         0, timestamp=ts)
         
     def _update(self):
+        self.log.debug(f"StorageLogger: Updating storage usage in {self.directory}.")
         try:
             current_files = glob.glob(os.path.join(self.directory, '*'))
             current_files.sort()    # The files should have sensible names that
                                     # reflect their creation times
             
+            new_files, new_file_sizes = deque(), deque()
             for filename in current_files:
-                if filename not in self._files:
-                    filesize = getsize(filename)
-                    self._files.append(filename)
-                    self._file_sizes.append(filesize)
+                try:
+                    i = self._files.index(filename)
+                    new_files.append(filename)
+                    new_file_sizes.append(self._file_sizes[i])
+                except ValueError:
+                    size = getsize(filename)
+                    new_files.append(filename)
+                    new_file_sizes.append(size)
         except Exception as e:
             self.log.warning("Quota manager could not refresh the file list: %s", str(e))
-            
+        self._files = new_files
+        self._file_sizes = new_file_sizes
+ 
     def _halt(self):
         self._reset()
         
@@ -253,28 +264,33 @@ class StorageLogger(object):
         t0 = time.time()
         total_size = sum(self._file_sizes)
         
-        i = 0
-        removed = 0
-        removed_size = 0
-        while total_size > self.quota and len(self._files) > 1:
-            try:
-                subprocess.check_call(['rm', '-rf', self._files[i]],
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
-                removed += 1
-                removed_size += self._file_sizes[i]
-                total_size -= self._file_sizes[i]
-                
-                del self._files[i]
-                del self._file_sizes[i]
-            except Exception as e:
-                self.log.warning("Quota manager could not remove '%s': %s", to_remove, str(e))
-                i += 1
-                
-        if removed > 0:
+        to_remove = []
+        to_remove_size = 0
+        while total_size - to_remove_size > self.quota and len(self._files) > 1:
+            fn = self._files.popleft()
+            f_size = self._file_sizes.popleft()
+            if (len(fn) <= len(self.directory)) or \
+                (not fn.startswith(self.directory)) or \
+                    (len(fn) <= MINIMUM_TO_DELETE_PATH_LENGTH):
+                msg = "StorageLogger: Quota management has unexpected path to remove: %s" % fn
+                self.log.error(msg)
+                raise ValueError(msg)
+            else:
+                to_remove.append(fn)
+                to_remove_size += f_size
+        self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
+        if to_remove:
+            for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
+                remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
+                while remove_process.poll() is None:
+                    self.shutdown_event.wait(5)
+                    if self.shutdown_event.is_set():
+                        remove_process.kill()
+                        return
+                self.log.debug('Quota: Removed %i items.', len(chunk))
             self.log.debug("=== Quota Report ===")
-            self.log.debug(" items removed: %i", len(removed))
-            self.log.debug(" space freed: %i B", removed_size)
+            self.log.debug(" items removed: %i", len(to_remove))
+            self.log.debug(" space freed: %i B", to_remove_size)
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
@@ -289,10 +305,6 @@ class StorageLogger(object):
             t0 = time.time()
             self._update()
             
-            # Quota management, if needed
-            if self.quota is not None:
-                self._manage_quota()
-                
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
@@ -325,13 +337,17 @@ class StorageLogger(object):
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
+            # Quota management, if needed
+            if self.quota is not None:
+                self._manage_quota()
+                
             # Sleep
             if once:
                 break
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
             
         if not once:
             self._halt()
@@ -345,12 +361,12 @@ class StatusLogger(object):
     an overall state of the pipeline.
     """
     
-    def __init__(self, log, id, queue, nthread=None, gulp_time=None,
+    def __init__(self, log, id, queue, thread_names=None, gulp_time=None,
                  shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
-        self.nthread = nthread
+        self.thread_names = thread_names
         self.gulp_time = gulp_time
         if shutdown_event is None:
             shutdown_event = threading.Event()
@@ -437,9 +453,13 @@ class StatusLogger(object):
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
             # Get the current metrics that matter
-            nactive = 0
-            if self.nthread is not None:
-                nactive = threading.active_count()
+            missing_threads = []
+            if self.thread_names is not None:
+                found_threads = []
+                for t in threading.enumerate():
+                    if t.name in self.thread_names:
+                        found_threads.append(t.name)
+                missing_threads = [t for t in self.thread_names if t not in found_threads]
             nfound = 0
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is not None:
@@ -467,17 +487,16 @@ class StatusLogger(object):
                 dfree = 1.0
             dused = 1.0 - dfree
             
-            ts = min([v.timestamp for v in (missing, processing, total, free)])
+            ts = min([v.timestamp for v in (missing, processing)])
             summary = 'normal'
             info = 'System operating normally'
-            if self.nthread is not None:
-                if nactive != self.nthread:
-                    ## Thread check
-                    thread_names = ','.join([t.getName() for t in threading.enumerate()])
-                    new_summary = 'error'
-                    new_info = "Only %i of %i threads active - %s" % (nactive, self.nthread, thread_names)
-                    summary, info = self._combine_status(summary, info,
-                                                         new_summary, new_info)
+            if len(missing_threads) > 0:
+                ## Thread check
+                ntmissing = len(missing_threads)
+                new_summary = 'error'
+                new_info = "Found %i missing threads - %s" % (ntmissing, ','.join(missing_threads))
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
             if dused > 0.99:
                 ## Out of space check
                 new_summary = 'error'
@@ -500,6 +519,12 @@ class StatusLogger(object):
                 ## Light packet loss check
                 new_summary = 'warning'
                 new_info = "Packet loss during receive >1%% (%.1f%% missing)" % (missing.value*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            elif missing.value < 0.0:
+                ## Nonsensical packet loss check
+                new_summary = 'error'
+                new_info = "Packet loss during receive is invalid (%.1f%% missing)" % (missing.value*100.0,)
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
                 
@@ -552,7 +577,7 @@ class StatusLogger(object):
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
-            interruptable_sleep(t_sleep)
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
             
         if not once:
             # If this seems like it is its own thread, call _halt
@@ -566,20 +591,45 @@ class GlobalLogger(object):
     and :py:class:`StatusLogger` and runs their main methods as a unit.
     """
     
-    def __init__(self, log, id, args, queue, quota=None, nthread=None,
+    def __init__(self, log, id, args, queue, quota=None, threads=None,
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
-                 update_interval_storage=60, update_interval_status=20):
+                 update_interval_storage=3600, update_interval_status=20):
         self.log = log
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
         
+        thread_names = []
+        self._thread_names = []
+        if threads is not None:
+            # Explictly provided threads to monitor
+            for t in threads:
+                try:
+                    thread_names.append(t.name)
+                except AttributeError:
+                    thread_names.append(type(t).__name__)
+                
+        # Threads associated with this logger...
+        for new_thread in (type(self).__name__, 'PerformanceLogger', 'StorageLogger', 'StatusLogger'):
+            # ... with a catch to deal with potentially other instances
+            name = new_thread
+            name_count = 0
+            while name in thread_names:
+                name_count += 1
+                name = new_thread+str(name_count)
+            thread_names.append(name)
+            self._thread_names.append(name)
+            
+        # Reset thread_names if we don't really have a list of threads to monitor
+        if threads is None:
+            thread_names = None
+            
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
                                       update_interval=update_interval_perf)
         self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
                                      shutdown_event=shutdown_event,
                                      update_interval=update_interval_storage)
-        self.status = StatusLogger(log, id, queue, nthread=nthread,
+        self.status = StatusLogger(log, id, queue, thread_names=thread_names,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=update_interval_status)
@@ -602,11 +652,11 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
-        # Create the per-logger threads
+        # Create the per-logger threads using the pre-determined thread names
         threads = []
-        threads.append(threading.Thread(target=self.perf.main, name='PerformanceLogger'))
-        threads.append(threading.Thread(target=self.storage.main, name='StorageLogger'))
-        threads.append(threading.Thread(target=self.status.main, name='StatusLogger'))
+        threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
+        threads.append(threading.Thread(target=self.storage.main, name=self._thread_names[2]))
+        threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
         
         # Start the threads
         for thread in threads:

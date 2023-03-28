@@ -24,13 +24,24 @@ dr_tengine.py
 
 .. include:: dr_tengine.help
 
+Systemd User Services
+---------------------
+
+The various data recorder pipelines can be launched as systemd user services.  The
+included `utils/generate_services.py` helps with defining these services:
+
+.. include:: generate_services.help
+
+These services are configured for the `lwacalim` cluster to be run under the
+`pipeline` user by default.
+
 Interacting with the Pipelines
 ------------------------------
 
-You can read monitoring points or send a command to a pipeline with the mcs.py
+You can read monitoring points or send a command to a pipeline with the mnc.mcs
 module::
   
-  >>> from mcs import Client
+  >>> from mnc.mcs import Client
   >>> 
   >>> # Create an anonymous client to talk to various subsystems
   >>> c = Client()
@@ -59,7 +70,7 @@ module::
   (False, '5d42c5acc3b011eb9eb410bf48e38102')
   >>>
   >>> # Send a command "record" command to the first power beam
-  >>> from common import LWATime
+  >>> from mnc.common import LWATime
   >>> t_now = LWATime.now()
   >>> mjd_now = int(t_now.mjd)
   >>> mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
