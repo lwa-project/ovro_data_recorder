@@ -50,7 +50,7 @@
     "12": {"ip": "10.41.0.81", "port": 20001, "directory": "/data06/beam12", "quota": "500GB"}
   },
   "voltage_beams": {
-     "1": {"ip": "10.41.0.73", "port": 21001, "directory": "/home/ubuntu/data/tengine", "quota": 0}
+     "1": {"ip": "10.41.0.97", "port": 21001, "directory": "/data/beam01", "quota": 0}
   },
   "manager": {
     "slow_vis": {"logdir": "/data01/log"},

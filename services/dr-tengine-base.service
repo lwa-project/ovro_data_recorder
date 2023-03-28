@@ -27,7 +27,7 @@ Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
 source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_dual_tengine.py \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_tengine.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --cores                  11,12,13,14,15 \
