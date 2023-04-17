@@ -24,6 +24,7 @@ Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
 source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
+numactl --cpunodebind=1 --membind=1 -- \
 {{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_tengine.py \
          --address                {{ address }} \
          --port                   {{ port }} \
