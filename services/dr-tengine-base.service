@@ -24,10 +24,11 @@ Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
 source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
+numactl --cpunodebind=1 --membind=1 -- \
 {{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_tengine.py \
          --address                {{ address }} \
          --port                   {{ port }} \
-         --cores                  11,12,13,14,15 \
+         --cores                  21,22,23,24,25 \
          --gpu                    1 \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \

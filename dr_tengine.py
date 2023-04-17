@@ -663,8 +663,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 15
-                    act_gain1 = self.gain[1] + 15
+                    act_gain0 = self.gain[0] + 12
+                    act_gain1 = self.gain[1] + 12
                     rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
@@ -1159,8 +1159,8 @@ def main(argv):
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine_ring, write_ring,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(StatisticsOp(log, mcs_id, write_ring,
-                         ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
+    #ops.append(StatisticsOp(log, mcs_id, write_ring,
+    #                     ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
     ops.append(WriterOp(log, write_ring, beam0=args.beam,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,

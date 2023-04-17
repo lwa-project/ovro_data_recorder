@@ -768,7 +768,6 @@ class ImageOp(object):
                                                     mp, timestamp=ts)
                     
                     last_save = time.time()
-                    print('III - image time is', last_save-t0, 's')
                     
                 time_tag += navg * self.ntime_gulp
                 
