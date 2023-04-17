@@ -36,7 +36,7 @@ from bifrost.packet_writer import HeaderInfo, DiskWriter
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
-from bifrost.ndarray import copy_array, memset_array
+from bifrost.ndarray import copy_array
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.fft import Fft
@@ -323,7 +323,7 @@ class ReChannelizerOp(object):
                 ohdr_str = json.dumps(ohdr)
                 
                 # Zero out self.fdata in case chan0 has changed
-                memset_array(self.fdata, 0)
+                BFMemSet(self.fdata, 0)
                 
                 with oring.begin_sequence(time_tag=time_tag, header=ohdr_str) as oseq:
                     prev_time = time.time()
