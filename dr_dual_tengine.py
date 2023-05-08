@@ -647,7 +647,7 @@ class TEngineOp(object):
                 
                 ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
-                self.oring.resize(ogulp_size)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -878,7 +878,7 @@ class StatisticsOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
             ishape = (self.ntime_gulp,nbeam,ntune*npol)
-            self.iring.resize(igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
             
