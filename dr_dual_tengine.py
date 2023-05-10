@@ -47,19 +47,19 @@ BFNoSpinZone()
 
 INT_CHAN_BW = 50e3
 
-FILTER2BW = {1:   250000, 
-             2:   500000, 
-             3:  1000000, 
-             4:  2000000, 
-             5:  4900000, 
-             6:  9800000, 
+FILTER2BW = {1:   250000,
+             2:   500000,
+             3:  1000000,
+             4:  2000000,
+             5:  4900000,
+             6:  9800000,
              7: 19600000}
-FILTER2CHAN = {1:   250000//int(INT_CHAN_BW), 
-               2:   500000//int(INT_CHAN_BW), 
-               3:  1000000//int(INT_CHAN_BW), 
-               4:  2000000//int(INT_CHAN_BW), 
-               5:  4900000//int(INT_CHAN_BW), 
-               6:  9800000//int(INT_CHAN_BW), 
+FILTER2CHAN = {1:   250000//int(INT_CHAN_BW),
+               2:   500000//int(INT_CHAN_BW),
+               3:  1000000//int(INT_CHAN_BW),
+               4:  2000000//int(INT_CHAN_BW),
+               5:  4900000//int(INT_CHAN_BW),
+               6:  9800000//int(INT_CHAN_BW),
                7: 19600000//int(INT_CHAN_BW)}
 
 DRX_NSAMPLE_PER_PKT = 4096
