@@ -626,7 +626,7 @@ class TEngineOp(object):
             self.gain[tuning] = gain
             
             chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
-            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - INT_CHAN_BW / 2
+            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
             self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
             
             if self.gpu is not None:
@@ -653,7 +653,7 @@ class TEngineOp(object):
             for tuning in (0, 1):
                 try:
                     chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
-                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - INT_CHAN_BW / 2
+                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
                 except AttributeError:
                     chan0 = int(30e6 / INT_CHAN_BW + 0.5)
                     self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW + INT_CHAN_BW / 2
@@ -717,7 +717,7 @@ class TEngineOp(object):
                 
                 ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
-                self.oring.resize(ogulp_size)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -948,7 +948,7 @@ class StatisticsOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
             ishape = (self.ntime_gulp,nbeam,ntune*npol)
-            self.iring.resize(igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
             
