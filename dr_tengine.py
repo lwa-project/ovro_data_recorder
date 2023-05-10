@@ -467,7 +467,7 @@ class TEngineOp(object):
             self.gain[tuning] = gain
             
             chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
-            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*50e3 - 50e3 / 2
+            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*50e3 - (1-self.nchan_out%2) * 50e3 / 2
             self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
             
             if self.gpu is not None:
@@ -494,7 +494,7 @@ class TEngineOp(object):
             for tuning in (0, 1):
                 try:
                     chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
-                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*50e3 - 50e3 / 2
+                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*50e3 - (1-self.nchan_out%2) * 50e3 / 2
                 except AttributeError:
                     chan0 = int(30e6 / 50e3 + 0.5)
                     self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*50e3 + 50e3 / 2
