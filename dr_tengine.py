@@ -46,21 +46,22 @@ from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
 BFNoSpinZone()
 
+INT_CHAN_BW = 50e3
 
-FILTER2BW = {1:   250000, 
-             2:   500000, 
-             3:  1000000, 
-             4:  2000000, 
-             5:  4900000, 
-             6:  9800000, 
+FILTER2BW = {1:   250000,
+             2:   500000,
+             3:  1000000,
+             4:  2000000,
+             5:  4900000,
+             6:  9800000,
              7: 19600000}
-FILTER2CHAN = {1:   250000//50000, 
-               2:   500000//50000, 
-               3:  1000000//50000, 
-               4:  2000000//50000, 
-               5:  4900000//50000, 
-               6:  9800000//50000, 
-               7: 19600000//50000}
+FILTER2CHAN = {1:   250000//int(INT_CHAN_BW),
+               2:   500000//int(INT_CHAN_BW),
+               3:  1000000//int(INT_CHAN_BW),
+               4:  2000000//int(INT_CHAN_BW),
+               5:  4900000//int(INT_CHAN_BW),
+               6:  9800000//int(INT_CHAN_BW),
+               7: 19600000//int(INT_CHAN_BW)}
 
 
 DRX_NSAMPLE_PER_PKT = 4096
@@ -265,7 +266,7 @@ class ReChannelizerOp(object):
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
                 
-                ochan = int(round(CLOCK / 2 / 50e3))
+                ochan = int(round(CLOCK / 2 / INT_CHAN_BW))
                 otime_gulp = self.ntime_gulp*NCHAN // ochan
                 ogulp_size = otime_gulp*ochan*nbeam*npol*8 # complex64
                 oshape = (otime_gulp,ochan,nbeam,npol)
@@ -466,15 +467,15 @@ class TEngineOp(object):
             self.nchan_out = FILTER2CHAN[filt]
             self.gain[tuning] = gain
             
-            chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
-            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*50e3 - (1-self.nchan_out%2) * 50e3 / 2
+            chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
             self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
             
             if self.gpu is not None:
                 BFSetGPU(self.gpu)
                 
             phaseState = self.phaseState.copy(space='system')
-            phaseState[tuning] = fDiff/(self.nchan_out*50e3)
+            phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
             try:
                 if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
                     raise AttributeError()
@@ -493,11 +494,11 @@ class TEngineOp(object):
             
             for tuning in (0, 1):
                 try:
-                    chan0 = int(self.rFreq[tuning] / 50e3 + 0.5) - self.nchan_out//2
-                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*50e3 - (1-self.nchan_out%2) * 50e3 / 2
+                    chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
                 except AttributeError:
-                    chan0 = int(30e6 / 50e3 + 0.5)
-                    self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*50e3 + 50e3 / 2
+                    chan0 = int(30e6 / INT_CHAN_BW + 0.5)
+                    self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW + INT_CHAN_BW / 2
                     fDiff = 0.0
                 self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
                 
@@ -505,7 +506,7 @@ class TEngineOp(object):
                     BFSetGPU(self.gpu)
                     
                 phaseState = self.phaseState.copy(space='system')
-                phaseState[tuning] = fDiff/(self.nchan_out*50e3)
+                phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
                 try:
                     if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
                         raise AttributeError()
@@ -560,7 +561,7 @@ class TEngineOp(object):
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
-                ticksPerTime = int(FS) // int(50e3)
+                ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
                 sample_count = numpy.array([0,]*ntune, dtype=numpy.int64)
                 copy_array(self.sampleCount, sample_count)
@@ -581,15 +582,15 @@ class TEngineOp(object):
                     ohdr['time_tag'] = base_time_tag
                     ohdr['cfreq0']   = self.rFreq[0]
                     ohdr['cfreq1']   = self.rFreq[1]
-                    ohdr['bw']       = self.nchan_out*50e3
+                    ohdr['bw']       = self.nchan_out*INT_CHAN_BW
                     ohdr['gain0']    = self.gain[0]
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
                     ohdr_str = json.dumps(ohdr)
                     
                     # Update the channels to pull in
-                    tchan0 = int(self.rFreq[0] / 50e3 + 0.5) - self.nchan_out//2
-                    tchan1 = int(self.rFreq[1] / 50e3 + 0.5) - self.nchan_out//2
+                    tchan0 = int(self.rFreq[0] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+                    tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 12
