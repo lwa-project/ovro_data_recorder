@@ -74,11 +74,14 @@ def send_command(subsystem, command, **kwargs):
                 break
     
     except queue.Empty:
+        client.close()
         return False, s_id
     except Exception as e:
+        client.close()
         return False, s_id
     finally:
         client.cancel_watch(watch_id)
+        client.close()
         
     return True, found
 
