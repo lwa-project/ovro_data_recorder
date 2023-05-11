@@ -17,7 +17,7 @@ StandardError=syslog
 SyslogIdentifier=dr-vfast-{{ band }}
 
 # Run before process
-ExecStartPre=/bin/bash -c '[ -d /data{{ calim_host }}/log ] || mkdir -p /data{{ calim_host }}/log'
+ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
 
 # Setup the environment
 Environment=PYTHONUNBUFFERED=1
@@ -32,7 +32,12 @@ python3 {{ path }}/dr_visibilities.py \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --no-tar \
-         --logfile                /data{{ calim_host }}/log/dr-vfast-{{ band }}.%H.log'
+         --logfile                {{ logdir }}/dr-vfast-{{ band }}.%H.log'
 
 [Install]
 WantedBy=default.target
+
+# Configuration Logging
+# Generated: {{ generated }}
+# Input File:  {{ input_file }}
+# Input File MD5: {{ input_file_md5 }}

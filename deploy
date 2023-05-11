@@ -1,0 +1,88 @@
+#!/bin/bash
+# Distinct deployment servers
+# - cal-im
+# Distinct environments
+# - deployment -- reliable, tested
+# - development -- testing
+
+# Install etcd services in this user's /home/$SERVICE_USER/.config/systemd/user
+SERVICE_USER=pipeline
+
+# setup
+NAME="ovro_data_recorder"
+DATE=$(date --iso-8601=seconds)
+LOG=~/deploy_${NAME}_${DATE}.log
+
+set -ex >> ${LOG} 2>>${LOG}
+
+rm ~/deploy_${NAME}_*.log >> ${LOG} 2>>${LOG}  # clean up old logs
+echo ${HOSTNAME} >> ${LOG} 2>>${LOG}  # should be installing on calim
+echo ${PWD} >> ${LOG} 2>>${LOG}  # should be base of code repo
+whoami >> ${LOG} 2>>${LOG}  # should be user pipeline (or ubuntu?)
+
+if [[ ${PWD} =~ ${NAME} ]]; then
+    if [[ ${HOSTNAME} =~ calim0[1-8] ]]; then
+        ROOTDIR=${PWD}
+      	echo "${DATE}" >> ${LOG} 2>>${LOG}
+      	conda run -n  which python >> ${LOG} 2>>${LOG}
+      	if [[ $? == 0 ]]; then
+      	    conda run -n deployment git describe >> ${LOG} 2>>${LOG}
+      	fi
+        if [[ $? == 0 ]]; then
+            # Build the gridder extension for dr_visibilities.py
+            conda run -n deployment python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
+        fi
+        if [[ $? == 0 ]]; then
+            # Install rsyslog config. files
+            cd ${ROOTDIR}/rsyslog
+            conda run -n deployment python generate_rsyslog.py >> ${LOG} 2>>${LOG}
+            ## cp the_right_one.conf /etc/rsyslog.d/
+            ## systemctl restart rsyslog.service
+        fi
+        if [[ $? == 0 ]]; then
+            # Install the systemd services
+            cd ${ROOTDIR}/services
+            ## Power beams
+            conda run -n deployment python generate_services.py -e deployment -b >> ${LOG} 2>>${LOG}
+            cp dr-beam-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
+            ## Slow visibilities
+            conda run -n deployment python generate_services.py -e deployment -s >> ${LOG} 2>>${LOG}
+            cp dr-vslow-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
+            cp dr-manager-vslow.service /home/${SERVICE_USER}/.config/systemd/user/
+            ## Fast visibilities
+            conda run -n deployment python generate_services.py -e deployment -f >> ${LOG} 2>>${LOG}
+            cp dr-vfast-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
+            cp dr-manager-vfast.service /home/${SERVICE_USER}/.config/systemd/user/
+            systemctl --user daemon-reload
+        fi
+        if [[ $? == 0 ]]; then
+            # Enable the correct services for the current host
+            ## Determine the correct subbands/power beams for this host
+            HOSTNUM=`echo ${HOSTNAME} | sed -e 's/lwacalim//g;'`
+            HOSTNUM=`echo "10#${HOSTNUM}"`
+            SUB0=$(((${HOSTNUM}-1)*2+1))
+            SUB1=$(((${HOSTNUM}-1)*2+2))
+            for SUB in ${SUB0} ${SUB1}; do
+                ## Slow and fast visibilities
+                for type in "slow" "fast"; do
+                    systemclt --user enable dr-v${type}-${SUB}
+                done
+                ## Power beams one through 12
+                if (( ${SUB} <= 12 )); then
+                    systemctl --user enable dr-beam-${SUB}
+                fi
+            done
+            ## Slow and fast vis. managers
+            if (( ${HOSTNUM} == 1 )); then
+                for type in "slow" "fast"; do
+                    systemctl --user enable dr-manager-v${type}
+                done
+            fi
+            systemctl --user daemon-reload
+        fi
+    else
+        echo "Not installing on this host" >> ${LOG} 2>>${LOG}
+    fi
+else
+    echo "Not installing in this location" >> ${LOG} 2>>${LOG}
+fi

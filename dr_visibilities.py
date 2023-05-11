@@ -8,6 +8,7 @@ except NameError:
     
 import os
 import sys
+import glob
 import h5py
 import json
 import time
@@ -17,10 +18,11 @@ import signal
 import logging
 import argparse
 import threading
-import traceback
-from io import StringIO
 from functools import reduce
 from datetime import datetime, timedelta
+
+from gridder import WProjection
+from scipy.stats import scoreatpercentile as percentile
 
 from lwa_antpos.station import ovro
 
@@ -46,6 +48,8 @@ from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
+
+from casacore.tables import table as casa_table
 
 
 import PIL.Image, PIL.ImageDraw, PIL.ImageFont
@@ -514,6 +518,271 @@ class BaselineOp(object):
         self.log.info("BaselineOp - Done")
 
 
+class ImageOp(object):
+    def __init__(self, log, id, station, iring, cal_dir=None, ntime_gulp=1, guarantee=True, core=-1):
+        self.log        = log
+        self.station    = station
+        self.iring      = iring
+        self.cal_dir    = cal_dir
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.client = Client(id)
+        self._caltag = -1
+        self._last_cal_update = 0.0
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
+        
+    def _load_calibration(self, nstand, nbl, freq):
+        cal = None
+        
+        if self.cal_dir is not None:
+            # Get the modification time of the calibration directory
+            last_update = os.path.getmtime(self.cal_dir)
+            if last_update > self._last_cal_update:
+                ## Looks like the directory has been updated, reload
+                self.log.info("Image: Reloading calibration tables from '%s'", self.cal_dir)
+                calfiles = glob.glob(os.path.join(self.cal_dir, '*.bcal'))
+                
+                ## Load all calibration tables and save them be the first frequency
+                ## in each rouned to the nearest Hz
+                self._all_cals = {}
+                for calfile in calfiles:
+                    ### Calibration and flagging data
+                    caltab = casa_table(calfile, ack=False)
+                    calant = caltab.getcol('ANTENNA1')[...]
+                    caldata = caltab.getcol('CPARAM')[:,:,:]
+                    calflag = caltab.getcol('FLAG')[:,:,:]
+                    caltab.close()
+                    
+                    ### Calibration frequency range
+                    caltab = casa_table(os.path.join(calfile, 'SPECTRAL_WINDOW'), ack=False)
+                    calfreq = caltab.getcol('CHAN_FREQ')[...]
+                    calfreq = calfreq.ravel()
+                    caltab.close()
+                    
+                    ### Cache
+                    caltag = int(round(calfreq[0]))
+                    self._all_cals[caltag] = {'freq': calfreq,
+                                              'ant':  calant,
+                                              'data': caldata,
+                                              'flag': calflag}
+                ## Remove the old cached information and update the update time
+                try:
+                    del self._cal
+                except AttributeError:
+                    pass
+                self._caltag = -1
+                self._last_cal_update = last_update
+                
+            # Get the "calibration tag" for the current data set
+            caltag = int(round(freq[0]))
+            
+            if caltag == self._caltag:
+                # Great, we already have it
+                cal = self._cal
+            else:
+                # We need to make a new one for each baseline/channel/polarization
+                # NOTE: Lots of assumptions here about the antenna order
+                self._cal = numpy.zeros((nbl,freq.size,4), dtype=numpy.complex64)
+                base_cal = self._all_cals[caltag]
+                k = 0
+                for i in range(nstand):
+                    gix = (1 - base_cal['flag'][i,:,0]) / base_cal['data'][i,:,0]
+                    giy = (1 - base_cal['flag'][i,:,1]) / base_cal['data'][i,:,1]
+                    gix[numpy.where(~numpy.isfinite(gix))] = 0.0
+                    giy[numpy.where(~numpy.isfinite(giy))] = 0.0
+                    
+                    for j in range(i,nstand):
+                        gjx = (1 - base_cal['flag'][j,:,0]) / base_cal['data'][j,:,0]
+                        gjy = (1 - base_cal['flag'][j,:,1]) / base_cal['data'][j,:,1]
+                        gjx[numpy.where(~numpy.isfinite(gjx))] = 0.0
+                        gjy[numpy.where(~numpy.isfinite(gjy))] = 0.0
+                        
+                        self._cal[k,:,0] = gix*gjx.conj()
+                        self._cal[k,:,1] = gix*gjy.conj()
+                        self._cal[k,:,2] = giy*gjx.conj()
+                        self._cal[k,:,3] = giy*gjy.conj()
+                        k += 1
+                        
+                # Update cal and the "calibration tag"
+                cal = self._cal
+                self._caltag = caltag
+                
+        # Done - this can be None
+        return cal
+        
+    @staticmethod
+    def _colormap_and_convert(array, limits=[5, 99.95]):
+        output = numpy.zeros(array.shape+(3,), dtype=numpy.uint8)
+        
+        vmin, vmax = percentile(array.ravel(), limits)
+        array -= vmin
+        array /= (vmax-vmin)
+        output[...,0] = numpy.clip((-7.55*array**2 + 11.06*array - 2.96)*255, 0, 255)
+        output[...,1] = numpy.clip((-7.33*array**2 +  7.57*array - 0.83)*255, 0, 255)
+        output[...,2] = numpy.clip((-7.55*array**2 +  4.04*array + 0.55)*255, 0, 255)
+        return PIL.Image.fromarray(output).convert('RGB')
+    
+    def _plot_images(self, time_tag, freq, uvw, baselines, valid, order, has_cal=False):
+        # Plotting setup
+        nchan = freq.size
+        nbl = baselines.shape[0]
+        freq = freq[:4]
+        uvw = uvw[valid,:,:4]
+        baselines = baselines[valid,:4,:]
+
+        # Image XX and YY
+        imageXX, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselines[order,:,0].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+                                       200, 0.5, 0.1)
+        imageYY, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselines[order,:,3].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+                                       200, 0.5, 0.1)
+        imageXX = numpy.fft.fftshift(numpy.fft.ifft2(imageXX).real / corr)
+        imageYY = numpy.fft.fftshift(numpy.fft.ifft2(imageYY).real / corr)
+        
+        # Map the color scale
+        imXX = self._colormap_and_convert(imageXX[::-1,:])
+        imYY = self._colormap_and_convert(imageYY[::-1,:])
+        
+        # Image setup
+        im = PIL.Image.new('RGB', (860, 420))
+        draw = PIL.ImageDraw.Draw(im)
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        
+        ## XX
+        im.paste(imXX, ( 20, 20))
+
+        ## YY
+        im.paste(imYY, (440, 20))
+
+        ## Horizon circles + outside horizon blanking
+        draw.ellipse(( 20, 20,419,419), fill=None, outline='#000000')
+        draw.ellipse((440, 20,839,419), fill=None, outline='#000000')
+        for i in range(4):
+            ip = 20 + 399*(i//2)
+            jp = 20 + 399*(i%2)
+            PIL.ImageDraw.floodfill(im, (ip,    jp), value=(0,0,0), border=(0,0,0))
+            PIL.ImageDraw.floodfill(im, (ip+420,jp), value=(0,0,0), border=(0,0,0))
+            
+        # Details and labels
+        timeStr = datetime.utcfromtimestamp(time_tag / FS)
+        timeStr = timeStr.strftime("%Y/%m/%d %H:%M:%S UTC")
+        calStr = 'Uncal'
+        if has_cal:
+            calStr = 'Cal'
+        draw.text((  5,  5), timeStr, font = font, fill = '#FFFFFF')
+        draw.text((785,  5), "%.2f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
+        draw.text((805,405), calStr, font = font, fill = '#FFFFFF')
+        draw.text((  5, 30), 'XX', font = font, fill = '#FFFFFF')
+        draw.text((835, 30), 'YY', font = font, fill = '#FFFFFF')
+        
+        ## Logo-ize
+        logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
+        logo = logo.getchannel('A')
+        im.paste(logo, (5, 385))
+        
+        return im
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Image: Start of new sequence: %s", str(ihdr))
+            
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbl      = ihdr['nbl']
+            nstand   = ihdr['nstand']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+            
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
+            self.iring.resize(igulp_size)
+            
+            # Setup the arrays for the frequencies and baseline lenghts
+            freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
+            uvw = get_zenith_uvw(self.station, LWATime(time_tag, format='timetag'))
+            dist = numpy.sqrt((uvw[:,:2]**2).sum(axis=1))
+            uscl = freq / 299792458.0
+            uscl.shape = (1,1)+uscl.shape
+            uvw.shape += (1,)
+            uvw = uvw*uscl
+            valid = numpy.where((dist > 0.1) & (dist < 250))[0]
+            order = numpy.argsort(uvw[valid,2,0])
+            last_save = 0.0
+            
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                ## Setup and load
+                idata = ispan.data_view('ci32').reshape(ishape)
+                
+                if time.time() - last_save > 60:
+                    t0 = time.time()
+                    ## Timestamp
+                    tt = LWATime(time_tag, format='timetag')
+                    ts = tt.unix
+                    
+                    ## Load the calibration
+                    try:
+                        cal = self._load_calibration(nstand, nbl, freq)
+                    except Exception as e:
+                        self.log.warn("Image: Failed to load calibration solutions: %s", str(e))
+                        cal = None
+                        
+                    ## Plot
+                    bdata = idata[0,...]
+                    bdata = bdata.view(numpy.int32)
+                    bdata = bdata.reshape(ishape+(2,))
+                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
+                    bdata = bdata.astype(numpy.complex64)
+                    if cal is not None:
+                        bdata *= cal
+                    im = self._plot_images(time_tag, freq, uvw, bdata, valid, order, has_cal=(cal is not None))
+                    
+                    ## Save
+                    mp = ImageMonitorPoint.from_image(im)
+                    self.client.write_monitor_point('diagnostics/image',
+                                                    mp, timestamp=ts)
+                    
+                    last_save = time.time()
+                    
+                time_tag += navg * self.ntime_gulp
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': 0.0, 
+                                          'process_time': process_time,})
+                
+        self.log.info("ImageOp - Done")
+
+
 class StatisticsOp(object):
     def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=None):
         self.log        = log
@@ -613,7 +882,7 @@ class StatisticsOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, station, iring, ntime_gulp=1, fast=False, guarantee=True, core=None):
+    def __init__(self, log, mcs_id, station, iring, ntime_gulp=1, fast=False, guarantee=True, core=None):
         self.log        = log
         self.station    = station
         self.iring      = iring
@@ -621,6 +890,7 @@ class WriterOp(object):
         self.fast       = fast
         self.guarantee  = guarantee
         self.core       = core
+        self.client     = Client(mcs_id)
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -696,20 +966,9 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                        
-                    try:
-                        active_op.write(time_tag, idata)
-                    except Exception as writer_error:
-                        exc_type, exc_value, exc_traceback = sys.exc_info()
-                        fileObject = StringIO()
-                        traceback.print_tb(exc_traceback, file=fileObject)
-                        tbString = fileObject.getvalue()
-                        fileObject.close()
-                        
-                        self.log.warning("Write failed with %s at line %i", str(writer_error), exc_traceback.tb_lineno)
-                        for line in tbString.split('\n'):
-                            self.log.warning("Traceback: %s", line)
-                            
+                    active_op.write(time_tag, idata)
+                    if not self.fast:
+                        self.client.write_monitor_point('latest_time_tag', time_tag)    
                 elif was_active:
                     ### Recording just finished
                     #### Clean
@@ -719,7 +978,6 @@ class WriterOp(object):
                     #### Close
                     self.log.info("Ended operation - %s", QUEUE.previous)
                     QUEUE.previous.stop()
-                    
                 time_tag += navg
                 
                 curr_time = time.time()
@@ -762,6 +1020,10 @@ def main(argv):
                         help='do not store the measurement sets inside a tar file')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
+    parser.add_argument('--image', action='store_true',
+                        help='generate images for the inner core and a subset of the bandwidth')
+    parser.add_argument('--cal-dir', type=str,
+                        help='directory to look for beamformer calibration data in (only for --image)')
     args = parser.parse_args()
     
     # Process the -q/--quick option
@@ -846,12 +1108,16 @@ def main(argv):
                              ntime_gulp=args.gulp_size, core=cores.pop(0)))
         ops.append(BaselineOp(log, mcs_id, station, capture_ring,
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
+        if args.image:
+            ops.append(ImageOp(log, mcs_id, station, capture_ring,
+                               cal_dir=args.cal_dir, ntime_gulp=args.gulp_size,
+                               core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(WriterOp(log, station, capture_ring,
+    ops.append(WriterOp(log, mcs_id, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            nthread=len(ops)+5, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*8192/196e6))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))

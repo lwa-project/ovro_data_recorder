@@ -47,19 +47,19 @@ BFNoSpinZone()
 
 INT_CHAN_BW = 50e3
 
-FILTER2BW = {1:   250000, 
-             2:   500000, 
-             3:  1000000, 
-             4:  2000000, 
-             5:  4900000, 
-             6:  9800000, 
+FILTER2BW = {1:   250000,
+             2:   500000,
+             3:  1000000,
+             4:  2000000,
+             5:  4900000,
+             6:  9800000,
              7: 19600000}
-FILTER2CHAN = {1:   250000//int(INT_CHAN_BW), 
-               2:   500000//int(INT_CHAN_BW), 
-               3:  1000000//int(INT_CHAN_BW), 
-               4:  2000000//int(INT_CHAN_BW), 
-               5:  4900000//int(INT_CHAN_BW), 
-               6:  9800000//int(INT_CHAN_BW), 
+FILTER2CHAN = {1:   250000//int(INT_CHAN_BW),
+               2:   500000//int(INT_CHAN_BW),
+               3:  1000000//int(INT_CHAN_BW),
+               4:  2000000//int(INT_CHAN_BW),
+               5:  4900000//int(INT_CHAN_BW),
+               6:  9800000//int(INT_CHAN_BW),
                7: 19600000//int(INT_CHAN_BW)}
 
 DRX_NSAMPLE_PER_PKT = 4096
@@ -556,7 +556,7 @@ class TEngineOp(object):
             self.gain[tuning] = gain
             
             chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
-            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - INT_CHAN_BW / 2
+            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
             self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
             
             if self.gpu is not None:
@@ -583,7 +583,7 @@ class TEngineOp(object):
             for tuning in (0, 1):
                 try:
                     chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
-                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - INT_CHAN_BW / 2
+                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
                 except AttributeError:
                     chan0 = int(30e6 / INT_CHAN_BW + 0.5)
                     self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW + INT_CHAN_BW / 2
@@ -647,7 +647,7 @@ class TEngineOp(object):
                 
                 ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
-                self.oring.resize(ogulp_size)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -878,7 +878,7 @@ class StatisticsOp(object):
             
             igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
             ishape = (self.ntime_gulp,nbeam,ntune*npol)
-            self.iring.resize(igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
             
@@ -1206,15 +1206,25 @@ def main(argv):
     ops.append(WriterOp(log, write1_ring, beam0=args.beam+1,
                         npkt_gulp=32, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id_0, args, FILE_QUEUE_0, quota=args.record_directory_quota,
-                            nthread=len(ops)+7, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(GlobalLogger(log, mcs_id_1, args, FILE_QUEUE_1, quota=args.record_directory_quota,
-                            nthread=len(ops)+6, gulp_time=args.gulp_size*8192/196e6))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_0, args.record_directory, FILE_QUEUE_0, DRX_QUEUE_0))
     ops.append(VoltageBeamCommandProcessor(log, mcs_id_1, args.record_directory, FILE_QUEUE_1, DRX_QUEUE_1))
     
     # Setup the threads
-    threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
-    
+    threads = []
+    thread_names = []
+    for op in ops:
+        base_name = type(op).__name__
+        name_count = 0
+        name = base_name
+        while name in thread_names:
+            name_count += 1
+            name = base_name+str(name_count)
+        thread_names.append(name)
+        threads.append(threading.Thread(target=op.main, name=name))
+        
     """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)

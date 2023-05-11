@@ -19,10 +19,6 @@ from lwams import *
 __all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
-# Temporary file directory
-_TEMP_BASEDIR = "/tmp/"
-
-
 class FileWriterBase(object):
     """
     Class to represent a file to write data to for the specified time period.
@@ -257,14 +253,18 @@ class HDF5Writer(FileWriterBase):
             size = min([self._counter_max - self._counter, len(time_tags)])
             range_start = 0
             
-        # Write
-        ## Timestamps
-        self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
-        ## Data
-        for i in range(data.shape[-1]):
-            self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
-        # Update the counter
-        self._counter += size
+        try:
+            # Write
+            ## Timestamps
+            self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
+            ## Data
+            for i in range(data.shape[-1]):
+                self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
+            # Update the counter
+            self._counter += size
+        except ValueError:
+            # If we are here that probably means the file has been closed
+            pass
 
 
 class MeasurementSetWriter(FileWriterBase):
@@ -277,14 +277,8 @@ class MeasurementSetWriter(FileWriterBase):
         FileWriterBase.__init__(self, filename, start_time, stop_time, reduction=None)
         
         # Setup
-        self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
-        if not os.path.exists(self._tempdir):
-            os.mkdir(self._tempdir)
         self.nint_per_file = nint_per_file
         self.is_tarred = is_tarred
-        
-        # Cleanup
-        atexit.register(shutil.rmtree, self._tempdir, ignore_errors=True)
         
     def start(self, station, chan0, navg, nchan, chan_bw, npol, pols):
         """
@@ -304,10 +298,6 @@ class MeasurementSetWriter(FileWriterBase):
         except AttributeError:
             pass
             
-        # Create the template
-        self._template = os.path.join(self._tempdir, 'template')
-        create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
-        
         # Update the file completion margin
         self._margin = timedelta(seconds=max([1, int(round(time_step / FS))]))
         self._padded_stop_time = self.stop_time + self._margin
@@ -319,6 +309,7 @@ class MeasurementSetWriter(FileWriterBase):
         self._nant = len(self._station.antennas)
         self._freq = freq
         self._nchan = nchan
+        self._raw_pols = pols
         self._pols = [STOKES_CODES[p] for p in pols]
         self._npol = len(self._pols)
         self._nint = self.nint_per_file
@@ -331,55 +322,32 @@ class MeasurementSetWriter(FileWriterBase):
         tcent  = LWATime(time_tag + self._time_step // 2, format='timetag', scale='utc')
         tstop  = LWATime(time_tag + self._time_step, format='timetag', scale='utc')
         
-        # Make a copy of the template
+        # Build a template for the file
         if self._counter == 0:
             self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
-            self.tempname = os.path.join(self._tempdir, self.tagname)
-            with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(['cp', '-r', self._template, self.tempname],
-                                      stderr=dn)
-                
+            self.tagname = os.path.join(self.filename, self.tagname)
+            create_ms(self.tagname, self._station, self._tint, self._freq, self._raw_pols, nint=self._nint)
+            
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
         # Update the time
-        update_time(self.tempname, self._counter, tstart, tcent, tstop)
+        update_time(self.tagname, self._counter, tstart, tcent, tstop)
         
         # Update the pointing direction
-        update_pointing(self.tempname, self._counter, *zen)
+        update_pointing(self.tagname, self._counter, *zen)
         
         # Fill in the main table
-        update_data(self.tempname, self._counter, data[0,...])
+        update_data(self.tagname, self._counter, data[0,...])
         
         # Save it to its final location
         self._counter += 1
         if self._counter == self._nint:
             if self.is_tarred:
-                filename = os.path.join(self.filename, "%s.tar" % self.tagname)
-                save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
-            else:
-                filename = os.path.join(self.filename, self.tagname)
-                save_cmd = ['cp', '-rf', self.tempname, filename]
-            with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
-            shutil.rmtree(self.tempname)
+                tarname = self.tagname+'.tar'
+                save_cmd = ['tar', 'cf', tarname, os.path.basename(self.tagname)]
+                with open('/dev/null', 'wb') as dn:
+                    subprocess.check_call(save_cmd, stderr=dn, cwd=self.filename)
+                shutil.rmtree(self.tagname)
+                
             self._counter = 0
-            
-    def stop(self):
-        """
-        Close out the file and then call the 'post_stop_task' method.
-        """
-        
-        try:
-            shutil.rmtree(self._template)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self._tempdir)
-        except OSError:
-            pass
-            
-        try:
-            self.post_stop_task()
-        except NotImplementedError:
-            pass
