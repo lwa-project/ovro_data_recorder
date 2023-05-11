@@ -80,6 +80,8 @@ def send_command(subsystem, command, **kwargs):
     finally:
         client.cancel_watch(watch_id)
         
+    client.close()
+    
     return True, found
 
 
