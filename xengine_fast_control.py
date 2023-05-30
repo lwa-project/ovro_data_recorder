@@ -51,7 +51,7 @@ class FastVisibilityControl(object):
             addr = ipaddress.IPv4Address(addr_base) + j // 2
             port = port_base + j % 2
             with AllowedPipelineFailure(p):
-                p.corr_output_part_control.set_destination(addr, port)
+                p.corr_output_part.set_destination(addr, port)
                 
     def set_fast_antennas(self, antennas):
         """
@@ -77,7 +77,7 @@ class FastVisibilityControl(object):
                 
         for p in self.pipelines:
             with AllowedPipelineFailure(p):
-                p.corr_subsel_control.set_baseline_select(baselines)
+                p.corr_subsel.set_baseline_select(baselines)
                 
     def get_fast_antennas(self, as_index=False):
         """
@@ -87,7 +87,7 @@ class FastVisibilityControl(object):
         """
         
         # Get the list
-        baselines = self.pipelines[0].corr_subsel_control.get_baseline_select()
+        baselines = self.pipelines[0].corr_subsel.get_baseline_select()
         
         # Find the unique antennas
         antennas = []
