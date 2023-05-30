@@ -3,7 +3,7 @@ import ipaddress
 
 from lwa352_pipeline_control import Lwa352PipelineControl
 
-from mnc.common import NPIPELINE
+from mnc.common import NPIPELINE, ETCD_HOST
 from mnc.xengine_beamformer_control import AllowedPipelineFailure
 from mnc.xengine_beamformer_control import NSERVER, NSTAND
 
