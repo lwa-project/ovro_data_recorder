@@ -91,7 +91,7 @@ class FastVisibilityControl(object):
         
         # Find the unique antennas
         antennas = []
-        for pair in baseline:
+        for pair in baselines:
             ant1, ant2 = pair
             std1, pol1 = ant1
             std2, pol2 = ant2
