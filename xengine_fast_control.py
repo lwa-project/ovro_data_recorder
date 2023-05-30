@@ -16,7 +16,6 @@ NSTAND_FAST = 48
 class FastVisibilityControl(object):
     def __init__(self, servers=None, nserver=8, npipeline_per_server=4, station=ovro, etcdhost=ETCD_HOST):
         # Validate
-        assert(beam in list(range(1,16+1)))
         assert(nserver <= NSERVER)
         assert(nserver*npipeline_per_server <= NPIPELINE)
         if servers is not None:
