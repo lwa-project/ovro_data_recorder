@@ -35,6 +35,8 @@ from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
 
+from xengine_fast_control import FastStation
+
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
 from bifrost.packet_capture import PacketCaptureCallback, UDPCapture, DiskReader
@@ -1028,7 +1030,7 @@ def main(argv):
     station = ovro
     if args.quick:
         args.nint_per_file = max([10, args.nint_per_file])
-        station = ovro.select_subset(list(range(1, 48+1)))
+        station = FastStation(servers=['lxdlwagpu01'], station=ovro)
         
     # Fork, if requested
     if args.fork:

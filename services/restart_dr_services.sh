@@ -46,7 +46,7 @@ else
   # Restart all running
   for unit in ${units}; do
     unit=`basename ${unit}`
-    running=`systemctl --user list-units | grep ${unit} | grep running`
+    running=`systemctl --user list-units | grep ${unit} | grep -e running -e failed`
     if [[ "${running}" != "" ]]; then
       echo "Restarting '${unit}'..."
       systemctl --user restart ${unit}
