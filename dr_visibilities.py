@@ -1030,7 +1030,7 @@ def main(argv):
     station = ovro
     if args.quick:
         args.nint_per_file = max([10, args.nint_per_file])
-        station = FastStation(ovro)
+        station = FastStation(servers=['lxdlwagpu01'], station=ovro)
         
     # Fork, if requested
     if args.fork:
