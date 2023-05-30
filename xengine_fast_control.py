@@ -113,9 +113,11 @@ class FastStation(object):
     like object for getting the antennas in use.
     """
     
-    def __init__(self, station=ovro):
+    def __init__(self, servers=None, nserver=8, npipeline_per_server=4, station=ovro, etcdhost=ETCD_HOST):
         self._station = station
-        self._control = FastVisibilityControl(station=station)
+        self._control = FastVisibilityControl(servers=servers, nserver=nserver,
+                                              npipeline_per_server=npipeline_per_server,
+                                              station=station, etcdhost=etcdhost)
         
         # Initial dummy subselected station
         self._substation = self._station.select_subset(list(range(1, NSTAND_FAST+1)))
