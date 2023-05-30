@@ -132,6 +132,14 @@ class FastStation(object):
             self._substation.antennas[i] = copy.deepcopy(ant)
             
     @property
+    def name(self):
+        """
+        Return the name of the station.
+        """
+        
+        return self._substation.name
+        
+    @property
     def ecef(self):
         """
         Return the Earth centered, Earth fixed location of the array in meters.
