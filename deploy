@@ -24,7 +24,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
     if [[ ${HOSTNAME} =~ calim0[1-8] ]]; then
         ROOTDIR=${PWD}
       	echo "${DATE}" >> ${LOG} 2>>${LOG}
-      	conda run -n  which python >> ${LOG} 2>>${LOG}
+      	conda run -n deployment which python >> ${LOG} 2>>${LOG}
       	if [[ $? == 0 ]]; then
       	    conda run -n deployment git describe >> ${LOG} 2>>${LOG}
       	fi
