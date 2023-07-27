@@ -1,11 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import division, print_function
-try:
-    range = xrange
-except NameError:
-    pass
-    
 import os
 import sys
 import h5py

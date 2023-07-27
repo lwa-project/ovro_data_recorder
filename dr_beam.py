@@ -1,10 +1,4 @@
-#!/usr/bin/env python
-
-from __future__ import division, print_function
-try:
-    range = xrange
-except NameError:
-    pass
+#!/usr/bin/env python3
 
 import os
 import sys
