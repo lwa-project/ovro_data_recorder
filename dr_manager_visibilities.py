@@ -108,7 +108,7 @@ def main(argv):
                         help='band polling interval in seconds')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
-    parser.add_arugment('--debug', action='store_true',
+    parser.add_argument('--debug', action='store_true',
                         help='enable debugging messages in the log')
     parser.add_argument('-q', '--quick', action='store_true',
                         help='run in fast visibiltiy mode')

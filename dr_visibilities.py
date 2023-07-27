@@ -1002,7 +1002,7 @@ def main(argv):
                         help='gulp size for ring buffers')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
-    parser.add_arugment('--debug', action='store_true',
+    parser.add_argument('--debug', action='store_true',
                         help='enable debugging messages in the log')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
