@@ -58,7 +58,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
             for SUB in ${SUB0} ${SUB1}; do
                 ## Slow and fast visibilities
                 for type in "slow" "fast"; do
-                    systemclt --user enable dr-v${type}-${SUB}
+                    systemctl --user enable dr-v${type}-${SUB}
                 done
                 ## Power beams one through 12
                 if (( ${SUB} <= 12 )); then
