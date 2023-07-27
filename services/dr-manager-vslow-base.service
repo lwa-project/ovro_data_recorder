@@ -11,11 +11,6 @@ LimitMEMLOCK=infinity
 KillSignal=SIGTERM
 TimeoutStopSec=20
 
-# Logging
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=dr-manager-vslow
-
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
 
