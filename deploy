@@ -26,7 +26,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
       	echo "${DATE}" >> ${LOG} 2>>${LOG}
       	conda run -n deployment which python >> ${LOG} 2>>${LOG}
       	if [[ $? == 0 ]]; then
-      	    conda run -n deployment git describe >> ${LOG} 2>>${LOG}
+      	    conda run -n deployment git describe --always >> ${LOG} 2>>${LOG}
       	fi
         if [[ $? == 0 ]]; then
             # Build the gridder extension for dr_visibilities.py
