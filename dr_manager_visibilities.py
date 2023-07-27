@@ -108,6 +108,8 @@ def main(argv):
                         help='band polling interval in seconds')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
+    parser.add_arugment('--debug', action='store_true',
+                        help='enable debugging messages in the log')
     parser.add_argument('-q', '--quick', action='store_true',
                         help='run in fast visibiltiy mode')
     parser.add_argument('-f', '--fork', action='store_true',
@@ -130,7 +132,7 @@ def main(argv):
         logHandler = LogFileHandler(args.logfile)
     logHandler.setFormatter(logFormat)
     log.addHandler(logHandler)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
     log.info("Cmdline args:")
