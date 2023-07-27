@@ -281,13 +281,16 @@ class StorageLogger(object):
         self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
         if to_remove:
             for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
-                remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
-                while remove_process.poll() is None:
-                    self.shutdown_event.wait(5)
-                    if self.shutdown_event.is_set():
-                        remove_process.kill()
-                        return
-                self.log.debug('Quota: Removed %i items.', len(chunk))
+                try:
+                    remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
+                    while remove_process.poll() is None:
+                        self.shutdown_event.wait(5)
+                        if self.shutdown_event.is_set():
+                            remove_process.kill()
+                            return
+                    self.log.debug('Quota: Removed %i items.', len(chunk))
+                except OSError as e:
+                    self.log.warn('Quota: Failed to remove %i items - %s', len(chunk), str(e))
             self.log.debug("=== Quota Report ===")
             self.log.debug(" items removed: %i", len(to_remove))
             self.log.debug(" space freed: %i B", to_remove_size)
