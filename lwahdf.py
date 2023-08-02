@@ -95,6 +95,7 @@ def set_frequencies(f, frequency):
     tun = obs.get('Tuning1', None)
     tun['freq'] = frequency.astype('<f8')
     tun['freq'].attrs['Units'] = 'Hz'
+    return tun['freq']
 
 
 def set_time(f, tint, count, format='unix', scale='utc'):
