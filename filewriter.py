@@ -219,6 +219,9 @@ class HDF5Writer(FileWriterBase):
         self._counter = 0
         self._counter_max = chunks
         self._started = True
+
+        # Enable concurrent access to the file
+        self._interface.swmr_mode = True
         
     def write(self, time_tag, data):
         """
@@ -257,9 +260,11 @@ class HDF5Writer(FileWriterBase):
             # Write
             ## Timestamps
             self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
+            self._time.flush()
             ## Data
             for i in range(data.shape[-1]):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
+                self._pols[i].flush()
             # Update the counter
             self._counter += size
         except ValueError:
