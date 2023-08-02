@@ -82,7 +82,7 @@ def create_hdf5(filename, beam, overwrite=False):
     return f
 
 
-def set_frequencies(f, frequency, swmr=False):
+def set_frequencies(f, frequency):
     """
     Define the frequency setup.
     """
@@ -95,11 +95,9 @@ def set_frequencies(f, frequency, swmr=False):
     tun = obs.get('Tuning1', None)
     tun['freq'] = frequency.astype('<f8')
     tun['freq'].attrs['Units'] = 'Hz'
-    if swmr:
-        tun['freq'].swmr_mode = True
 
 
-def set_time(f, tint, count, format='unix', scale='utc', swmr=False):
+def set_time(f, tint, count, format='unix', scale='utc'):
     """
     Set the integration time in seconds and create a data set to hold the time
     stamps.  Return the HDF5 data set.
@@ -113,12 +111,10 @@ def set_time(f, tint, count, format='unix', scale='utc', swmr=False):
                                                                   "formats": ["<i8", "<f8"]}))
     tim.attrs['format'] = 'unix'
     tim.attrs['scale'] = 'utc'
-    if swmr:
-        tim.swmr_mode = True
     return tim
 
 
-def set_polarization_products(f, pols, count, swmr=False):
+def set_polarization_products(f, pols, count):
     """
     Set the polarization products and create a data set for each.  Returns a
     dictionary of data sets keyed by the product name and its numeric index in
@@ -145,8 +141,6 @@ def set_polarization_products(f, pols, count, swmr=False):
         d = tun.create_dataset(p, (count, nchan), '<f4', chunks=(chunk_size, nchan))
         d.attrs['axis0'] = 'time'
         d.attrs['axis1'] = 'frequency'
-        if swmr:
-            d.swmr_mode = True
         data_products[i] = d
         data_products[p] = d
     return data_products
