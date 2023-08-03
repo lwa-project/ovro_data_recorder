@@ -2,6 +2,7 @@ import os
 import sys
 import h5py
 import json
+import time
 import numpy
 import atexit
 import shutil
@@ -223,6 +224,7 @@ class HDF5Writer(FileWriterBase):
         # Enable concurrent access to the file
         self._interface.swmr_mode = True
         self._freq.flush()
+        self._last_flush = time.time()
         
     def write(self, time_tag, data):
         """
@@ -261,13 +263,19 @@ class HDF5Writer(FileWriterBase):
             # Write
             ## Timestamps
             self._time[self._counter:self._counter+size] = time_tags[range_start:range_start+size]
-            self._time.flush()
             ## Data
             for i in range(data.shape[-1]):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
                 self._pols[i].flush()
             # Update the counter
             self._counter += size
+            # Flush every 10 s
+            if time.time() - self._last_flush > 10:
+                self._time.flush()
+                for pds in self._pols:
+                    pds.flush()
+                self._last_flush = time.time()
+                
         except ValueError:
             # If we are here that probably means the file has been closed
             pass
