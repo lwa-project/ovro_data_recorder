@@ -210,7 +210,7 @@ class HDF5Writer(FileWriterBase):
         
         # Create and fill
         self._interface = create_hdf5(self.filename, beam)
-        set_frequencies(self._interface, freq)
+        self._freq = set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * int(round(FS/CHAN_BW))
         self._start_time_tag = LWATime(self.start_time, format='datetime', scale='utc').tuple
@@ -222,6 +222,7 @@ class HDF5Writer(FileWriterBase):
 
         # Enable concurrent access to the file
         self._interface.swmr_mode = True
+        self._freq.flush()
         
     def write(self, time_tag, data):
         """
