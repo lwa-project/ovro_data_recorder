@@ -343,6 +343,8 @@ class SpectraOp(object):
                     mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=ts)
+                    del mp
+                    del im
                     
                     last_save = time.time()
                     self.log.info('SpectraOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
@@ -500,6 +502,8 @@ class BaselineOp(object):
                     mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/baselines',
                                                     mp, timestamp=ts)
+                    del mp
+                    del im
                     
                     last_save = time.time()
                     self.log.info('BaselineOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
@@ -766,6 +770,8 @@ class ImageOp(object):
                     mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/image',
                                                     mp, timestamp=ts)
+                    del mp
+                    del im
                     
                     last_save = time.time()
                     self.log.info('ImageOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
@@ -865,6 +871,7 @@ class StatisticsOp(object):
                         value = MultiMonitorPoint([data[:,i].tolist() for i in range(data.shape[1])],
                                                   timestamp=ts, field=data_pols)
                         self.client.write_monitor_point('statistics/%s' % name, value)
+                        del value
                         
                     last_save = time.time()
                     self.log.info('StatisticsOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
