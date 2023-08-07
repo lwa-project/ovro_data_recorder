@@ -274,6 +274,7 @@ class SpectraOp(object):
                     mp = ImageMonitorPoint.from_figure(fig)
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=tt.unix)
+                    del mp
                     
                     last_save = time.time()
                     
@@ -365,6 +366,7 @@ class StatisticsOp(object):
                     for data,name in zip((data_min,data_avg,data_max), ('min','avg','max')):
                         value = MultiMonitorPoint(data.tolist(), timestamp=ts, field=data_pols)
                         self.client.write_monitor_point('statistics/%s' % name, value)
+                        del value
                         
                     last_save = time.time()
                     
