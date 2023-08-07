@@ -5,6 +5,8 @@ import threading
 from subprocess import Popen, DEVNULL
 from collections import deque
 
+import resource
+
 from bifrost.proclog import load_by_pid
 
 from mnc.mcs import MonitorPoint, Client
@@ -184,6 +186,8 @@ class PerformanceLogger(object):
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
+            self.log.info('PerformanceLogger - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
+            
             # Sleep
             if once:
                 break
@@ -344,6 +348,8 @@ class StorageLogger(object):
             if self.quota is not None:
                 self._manage_quota()
                 
+            self.log.info('StorageLogger - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
+            
             # Sleep
             if once:
                 break
@@ -573,6 +579,8 @@ class StatusLogger(object):
                 self.log.debug(" active time remaining: %s", time_left)
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
+            
+            self.log.info('StatusLogger - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
             
             # Sleep
             if once:

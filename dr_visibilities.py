@@ -15,6 +15,8 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
+import resource
+
 from gridder import WProjection
 from scipy.stats import scoreatpercentile as percentile
 
@@ -343,6 +345,7 @@ class SpectraOp(object):
                                                     mp, timestamp=ts)
                     
                     last_save = time.time()
+                    self.log.info('SpectraOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
                     
                 time_tag += navg * self.ntime_gulp
                 
@@ -499,6 +502,7 @@ class BaselineOp(object):
                                                     mp, timestamp=ts)
                     
                     last_save = time.time()
+                    self.log.info('BaselineOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
                     
                 time_tag += navg * self.ntime_gulp
                 
@@ -764,6 +768,7 @@ class ImageOp(object):
                                                     mp, timestamp=ts)
                     
                     last_save = time.time()
+                    self.log.info('ImageOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
                     
                 time_tag += navg * self.ntime_gulp
                 
@@ -862,6 +867,7 @@ class StatisticsOp(object):
                         self.client.write_monitor_point('statistics/%s' % name, value)
                         
                     last_save = time.time()
+                    self.log.info('StatisticsOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
                     
                 time_tag += navg * self.ntime_gulp
                 
@@ -974,6 +980,9 @@ class WriterOp(object):
                     QUEUE.previous.stop()
                 time_tag += navg
                 
+                if not self.fast:
+                    self.log.info('WriterOp - Max RSS %i kB', resource.getrusage(resource.RUSAGE_THREAD).ru_maxrss)
+                    
                 curr_time = time.time()
                 process_time = curr_time - prev_time
                 prev_time = curr_time
