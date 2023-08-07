@@ -951,12 +951,14 @@ class WriterOp(object):
                     first_gulp = False
                     
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
-                idata = idata.view(numpy.int32)
-                idata = idata.reshape(ishape+(2,))
-                idata = idata[...,0] + 1j*idata[...,1]
-                idata /= norm_factor
-                idata = idata.astype(numpy.complex64)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
+                try:
+                    cdata.real = idata[...,0]
+                    cdata.imag = idata[...,1]
+                except NameError:
+                    cdata = idata[...,0] + 1j*idata[...,1]
+                    cdata = cdata.astype(numpy.complex64)
+                cdata /= norm_factor
                 
                 ## Determine what to do
                 active_op = QUEUE.active
@@ -966,7 +968,7 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, idata)
+                    active_op.write(time_tag, cdata)
                     if not self.fast:
                         self.client.write_monitor_point('latest_time_tag', time_tag)    
                 elif was_active:
@@ -989,6 +991,11 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+            try:
+                del cdata
+            except NameError:
+                pass
                 
         self.log.info("WriterOp - Done")
 
