@@ -323,7 +323,7 @@ class SpectraOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -331,9 +331,7 @@ class SpectraOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata.view(numpy.int32)
-                    adata = adata.reshape(ishape+(2,))
-                    adata = adata[0,autos,:,:,0]
+                    adata = idata[0,autos,:,:,0]
                     adata = adata[:,:,[0,3]]
                     
                     ## Plot
@@ -483,7 +481,7 @@ class BaselineOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -491,11 +489,12 @@ class BaselineOp(object):
                     ts = tt.unix
                     
                     ## Plot
-                    bdata = idata[0,...]
-                    bdata = bdata.view(numpy.int32)
-                    bdata = bdata.reshape(ishape+(2,))
-                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
-                    bdata = bdata.astype(numpy.complex64)
+                    try:
+                        bdata.real[...] = idata[0,:,:,:,0]
+                        bdata.imag[...] = idata[0,:,:,:,1]
+                    except NameError:
+                        bdata = idata[0,:,:,:,0] + 1j*idata[0,:,:,:,1]
+                        bdata = bdata.astype(numpy.complex64)
                     im = self._plot_baselines(time_tag, freq, dist, bdata, valid)
                     
                     ## Save
@@ -516,6 +515,11 @@ class BaselineOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': 0.0, 
                                           'process_time': process_time,})
+                
+            try:
+                del bdata
+            except NameError:
+                pass
                 
         self.log.info("BaselineOp - Done")
 
@@ -741,7 +745,7 @@ class ImageOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 
                 if time.time() - last_save > 60:
                     t0 = time.time()
@@ -757,11 +761,12 @@ class ImageOp(object):
                         cal = None
                         
                     ## Plot
-                    bdata = idata[0,...]
-                    bdata = bdata.view(numpy.int32)
-                    bdata = bdata.reshape(ishape+(2,))
-                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
-                    bdata = bdata.astype(numpy.complex64)
+                    try:
+                        bdata.real[...] = idata[0,:,:,:,0]
+                        bdata.imag[...] = idata[0,:,:,:,1]
+                    except NameError:
+                        bdata = idata[0,:,:,:,0] + 1j*idata[0,:,:,:,1]
+                        bdata = bdata.astype(numpy.complex64)
                     if cal is not None:
                         bdata *= cal
                     im = self._plot_images(time_tag, freq, uvw, bdata, valid, order, has_cal=(cal is not None))
@@ -784,6 +789,11 @@ class ImageOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': 0.0, 
                                           'process_time': process_time,})
+                
+            try:
+                del bdata
+            except NameError:
+                pass
                 
         self.log.info("ImageOp - Done")
 
@@ -855,9 +865,8 @@ class StatisticsOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata.view(numpy.int32)
-                    adata = adata.reshape(ishape+(2,))
-                    adata = adata[0,autos,:,:,0]
+                    idata = idata.view(numpy.int32).reshape(ishape+(2,))
+                    adata = idata[0,autos,:,:,0]
                     adata = adata[:,:,[0,3]]
                     
                     ## Run the statistics over all times/channels
@@ -960,8 +969,8 @@ class WriterOp(object):
                 ## Setup and load
                 idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 try:
-                    cdata.real = idata[...,0]
-                    cdata.imag = idata[...,1]
+                    cdata.real[...] = idata[...,0]
+                    cdata.imag[...] = idata[...,1]
                 except NameError:
                     cdata = idata[...,0] + 1j*idata[...,1]
                     cdata = cdata.astype(numpy.complex64)
