@@ -644,31 +644,39 @@ class ImageOp(object):
         freq = freq[:4]
         uvw = uvw[valid,:,:4]
         baselines = baselines[valid,:4,:]
+        wgts = numpy.ones(baselines.shape, dtype=numpy.float32)
+        
+        # Form I and V visibilities
+        baselinesI = baselines[...,0] + baselines[...,3]
+        baselinesV = baselines[...,1] - baselines[...,2]
+        temp = baselinesV.imag
+        baselinesV.imag = -baselinesV.real
+        baselinesV.real = temp
 
-        # Image XX and YY
-        imageXX, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
-                                       baselines[order,:,0].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+        # Image I and V
+        imageI, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselinesI[order,:,0].ravel(), wgts[order,:,0].ravel(),
                                        200, 0.5, 0.1)
-        imageYY, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
-                                       baselines[order,:,3].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+        imageV, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselinesV[order,:,3].ravel(), wgts[order,:,3].ravel(),
                                        200, 0.5, 0.1)
-        imageXX = numpy.fft.fftshift(numpy.fft.ifft2(imageXX).real / corr)
-        imageYY = numpy.fft.fftshift(numpy.fft.ifft2(imageYY).real / corr)
+        imageI = numpy.fft.fftshift(numpy.fft.ifft2(imageI).real / corr)
+        imageV = numpy.fft.fftshift(numpy.fft.ifft2(imageV).real / corr)
         
         # Map the color scale
-        imXX = self._colormap_and_convert(imageXX[::-1,:])
-        imYY = self._colormap_and_convert(imageYY[::-1,:])
+        imI = self._colormap_and_convert(imageI[::-1,:])
+        imV = self._colormap_and_convert(numpy.abs(imageV[::-1,:]))
         
         # Image setup
         im = PIL.Image.new('RGB', (860, 420))
         draw = PIL.ImageDraw.Draw(im)
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
         
-        ## XX
-        im.paste(imXX, ( 20, 20))
+        ## I
+        im.paste(imI, ( 20, 20))
 
-        ## YY
-        im.paste(imYY, (440, 20))
+        ## |V|
+        im.paste(imV, (440, 20))
 
         ## Horizon circles + outside horizon blanking
         draw.ellipse(( 20, 20,419,419), fill=None, outline='#000000')
@@ -688,8 +696,8 @@ class ImageOp(object):
         draw.text((  5,  5), timeStr, font = font, fill = '#FFFFFF')
         draw.text((785,  5), "%.2f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
         draw.text((805,405), calStr, font = font, fill = '#FFFFFF')
-        draw.text((  5, 30), 'XX', font = font, fill = '#FFFFFF')
-        draw.text((835, 30), 'YY', font = font, fill = '#FFFFFF')
+        draw.text((  5, 30), 'I', font = font, fill = '#FFFFFF')
+        draw.text((835, 30), '|V|', font = font, fill = '#FFFFFF')
         
         ## Logo-ize
         logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
