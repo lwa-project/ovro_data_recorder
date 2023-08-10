@@ -655,10 +655,10 @@ class ImageOp(object):
 
         # Image I and V
         imageI, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
-                                       baselinesI[order,:,0].ravel(), wgts[order,:,0].ravel(),
+                                       baselinesI[order,:].ravel(), wgts[order,:,0].ravel(),
                                        200, 0.5, 0.1)
         imageV, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
-                                       baselinesV[order,:,3].ravel(), wgts[order,:,3].ravel(),
+                                       baselinesV[order,:].ravel(), wgts[order,:,3].ravel(),
                                        200, 0.5, 0.1)
         imageI = numpy.fft.fftshift(numpy.fft.ifft2(imageI).real / corr)
         imageV = numpy.fft.fftshift(numpy.fft.ifft2(imageV).real / corr)
