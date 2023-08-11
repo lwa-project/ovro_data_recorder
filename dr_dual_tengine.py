@@ -1,11 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import division, print_function
-try:
-    range = xrange
-except NameError:
-    pass
-    
 import os
 import sys
 import h5py
@@ -1179,6 +1173,8 @@ def main(argv):
                         help='disable the PFB inverter')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
+    parser.add_argument('--debug', action='store_true',
+                        help='enable debugging messages in the log')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
     parser.add_argument('-q', '--record-directory-quota', type=quota_size, default=0,
@@ -1203,7 +1199,7 @@ def main(argv):
         logHandler = LogFileHandler(args.logfile)
     logHandler.setFormatter(logFormat)
     log.addHandler(logHandler)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
     log.info("Cmdline args:")

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from astropy.time import TimeDelta
 
-from mnc.common import LWATime, synchronize_time
+from mnc.common import CLOCK, LWATime, synchronize_time
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
 from reductions import *
@@ -439,7 +439,8 @@ class DRX(CommandBase):
             assert(beam in (1,2))
             assert(tuning in (1,2))
             assert(filter in self._bandwidths.keys())
-            assert(central_freq > self._bandwidths[filter]/2)
+            assert((central_freq > self._bandwidths[filter]/2) \
+                   and (central_freq < (CLOCK/2 - self._bandwidths[filter]/2)))
             assert(gain >= 0 and gain <= 15)
             assert(subslot >=0 and subslot <= 99)
         except (TypeError, AssertionError) as e:

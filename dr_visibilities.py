@@ -1,10 +1,4 @@
-#!/usr/bin/env python
-
-from __future__ import division, print_function
-try:
-    range = xrange
-except NameError:
-    pass
+#!/usr/bin/env python3
     
 import os
 import sys
@@ -34,6 +28,8 @@ from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
+
+from xengine_fast_control import FastStation
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -325,7 +321,7 @@ class SpectraOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -333,9 +329,7 @@ class SpectraOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata.view(numpy.int32)
-                    adata = adata.reshape(ishape+(2,))
-                    adata = adata[0,autos,:,:,0]
+                    adata = idata[0,autos,:,:,0]
                     adata = adata[:,:,[0,3]]
                     
                     ## Plot
@@ -345,6 +339,8 @@ class SpectraOp(object):
                     mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=ts)
+                    del mp
+                    del im
                     
                     last_save = time.time()
                     
@@ -482,7 +478,7 @@ class BaselineOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 
                 if time.time() - last_save > 60:
                     ## Timestamp
@@ -490,17 +486,20 @@ class BaselineOp(object):
                     ts = tt.unix
                     
                     ## Plot
-                    bdata = idata[0,...]
-                    bdata = bdata.view(numpy.int32)
-                    bdata = bdata.reshape(ishape+(2,))
-                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
-                    bdata = bdata.astype(numpy.complex64)
+                    try:
+                        bdata.real[...] = idata[0,:,:,:,0]
+                        bdata.imag[...] = idata[0,:,:,:,1]
+                    except NameError:
+                        bdata = idata[0,:,:,:,0] + 1j*idata[0,:,:,:,1]
+                        bdata = bdata.astype(numpy.complex64)
                     im = self._plot_baselines(time_tag, freq, dist, bdata, valid)
                     
                     ## Save
                     mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/baselines',
                                                     mp, timestamp=ts)
+                    del mp
+                    del im
                     
                     last_save = time.time()
                     
@@ -512,6 +511,11 @@ class BaselineOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': 0.0, 
                                           'process_time': process_time,})
+                
+            try:
+                del bdata
+            except NameError:
+                pass
                 
         self.log.info("BaselineOp - Done")
 
@@ -636,31 +640,39 @@ class ImageOp(object):
         freq = freq[:4]
         uvw = uvw[valid,:,:4]
         baselines = baselines[valid,:4,:]
+        wgts = numpy.ones(baselines.shape, dtype=numpy.float32)
+        
+        # Form I and V visibilities
+        baselinesI = baselines[...,0] + baselines[...,3]
+        baselinesV = baselines[...,1] - baselines[...,2]
+        temp = baselinesV.imag
+        baselinesV.imag = -baselinesV.real
+        baselinesV.real = temp
 
-        # Image XX and YY
-        imageXX, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
-                                       baselines[order,:,0].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+        # Image I and V
+        imageI, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselinesI[order,:].ravel(), wgts[order,:,0].ravel(),
                                        200, 0.5, 0.1)
-        imageYY, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
-                                       baselines[order,:,3].ravel(), numpy.ones(baselines.shape, dtype=numpy.float32).ravel(),
+        imageV, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
+                                       baselinesV[order,:].ravel(), wgts[order,:,3].ravel(),
                                        200, 0.5, 0.1)
-        imageXX = numpy.fft.fftshift(numpy.fft.ifft2(imageXX).real / corr)
-        imageYY = numpy.fft.fftshift(numpy.fft.ifft2(imageYY).real / corr)
+        imageI = numpy.fft.fftshift(numpy.fft.ifft2(imageI).real / corr)
+        imageV = numpy.fft.fftshift(numpy.fft.ifft2(imageV).real / corr)
         
         # Map the color scale
-        imXX = self._colormap_and_convert(imageXX[::-1,:])
-        imYY = self._colormap_and_convert(imageYY[::-1,:])
+        imI = self._colormap_and_convert(imageI[::-1,:])
+        imV = self._colormap_and_convert(numpy.abs(imageV[::-1,:]))
         
         # Image setup
         im = PIL.Image.new('RGB', (860, 420))
         draw = PIL.ImageDraw.Draw(im)
         font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
         
-        ## XX
-        im.paste(imXX, ( 20, 20))
+        ## I
+        im.paste(imI, ( 20, 20))
 
-        ## YY
-        im.paste(imYY, (440, 20))
+        ## |V|
+        im.paste(imV, (440, 20))
 
         ## Horizon circles + outside horizon blanking
         draw.ellipse(( 20, 20,419,419), fill=None, outline='#000000')
@@ -680,8 +692,8 @@ class ImageOp(object):
         draw.text((  5,  5), timeStr, font = font, fill = '#FFFFFF')
         draw.text((785,  5), "%.2f MHz" % (freq.mean()/1e6,), font = font, fill = '#FFFFFF')
         draw.text((805,405), calStr, font = font, fill = '#FFFFFF')
-        draw.text((  5, 30), 'XX', font = font, fill = '#FFFFFF')
-        draw.text((835, 30), 'YY', font = font, fill = '#FFFFFF')
+        draw.text((  5, 30), 'I', font = font, fill = '#FFFFFF')
+        draw.text((835, 30), '|V|', font = font, fill = '#FFFFFF')
         
         ## Logo-ize
         logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
@@ -737,7 +749,7 @@ class ImageOp(object):
                 prev_time = curr_time
                 
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
                 
                 if time.time() - last_save > 60:
                     t0 = time.time()
@@ -753,11 +765,12 @@ class ImageOp(object):
                         cal = None
                         
                     ## Plot
-                    bdata = idata[0,...]
-                    bdata = bdata.view(numpy.int32)
-                    bdata = bdata.reshape(ishape+(2,))
-                    bdata = bdata[0,:,:,:,0] + 1j*bdata[0,:,:,:,1]
-                    bdata = bdata.astype(numpy.complex64)
+                    try:
+                        bdata.real[...] = idata[0,:,:,:,0]
+                        bdata.imag[...] = idata[0,:,:,:,1]
+                    except NameError:
+                        bdata = idata[0,:,:,:,0] + 1j*idata[0,:,:,:,1]
+                        bdata = bdata.astype(numpy.complex64)
                     if cal is not None:
                         bdata *= cal
                     im = self._plot_images(time_tag, freq, uvw, bdata, valid, order, has_cal=(cal is not None))
@@ -766,6 +779,8 @@ class ImageOp(object):
                     mp = ImageMonitorPoint.from_image(im)
                     self.client.write_monitor_point('diagnostics/image',
                                                     mp, timestamp=ts)
+                    del mp
+                    del im
                     
                     last_save = time.time()
                     
@@ -777,6 +792,11 @@ class ImageOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': 0.0, 
                                           'process_time': process_time,})
+                
+            try:
+                del bdata
+            except NameError:
+                pass
                 
         self.log.info("ImageOp - Done")
 
@@ -848,9 +868,8 @@ class StatisticsOp(object):
                     ts = tt.unix
                     
                     ## Pull out the auto-correlations
-                    adata = idata.view(numpy.int32)
-                    adata = adata.reshape(ishape+(2,))
-                    adata = adata[0,autos,:,:,0]
+                    idata = idata.view(numpy.int32).reshape(ishape+(2,))
+                    adata = idata[0,autos,:,:,0]
                     adata = adata[:,:,[0,3]]
                     
                     ## Run the statistics over all times/channels
@@ -864,6 +883,7 @@ class StatisticsOp(object):
                         value = MultiMonitorPoint([data[:,i].tolist() for i in range(data.shape[1])],
                                                   timestamp=ts, field=data_pols)
                         self.client.write_monitor_point('statistics/%s' % name, value)
+                        del value
                         
                     last_save = time.time()
                     
@@ -949,12 +969,14 @@ class WriterOp(object):
                     first_gulp = False
                     
                 ## Setup and load
-                idata = ispan.data_view('ci32').reshape(ishape)
-                idata = idata.view(numpy.int32)
-                idata = idata.reshape(ishape+(2,))
-                idata = idata[...,0] + 1j*idata[...,1]
-                idata /= norm_factor
-                idata = idata.astype(numpy.complex64)
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
+                try:
+                    cdata.real[...] = idata[...,0]
+                    cdata.imag[...] = idata[...,1]
+                except NameError:
+                    cdata = idata[...,0] + 1j*idata[...,1]
+                    cdata = cdata.astype(numpy.complex64)
+                cdata /= norm_factor
                 
                 ## Determine what to do
                 active_op = QUEUE.active
@@ -964,7 +986,7 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, idata)
+                    active_op.write(time_tag, cdata)
                     if not self.fast:
                         self.client.write_monitor_point('latest_time_tag', time_tag)    
                 elif was_active:
@@ -984,6 +1006,11 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+                
+            try:
+                del cdata
+            except NameError:
+                pass
                 
         self.log.info("WriterOp - Done")
 
@@ -1006,6 +1033,8 @@ def main(argv):
                         help='gulp size for ring buffers')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
+    parser.add_argument('--debug', action='store_true',
+                        help='enable debugging messages in the log')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
     parser.add_argument('-t', '--record-directory-quota', type=quota_size, default=0,
@@ -1028,7 +1057,7 @@ def main(argv):
     station = ovro
     if args.quick:
         args.nint_per_file = max([10, args.nint_per_file])
-        station = ovro.select_subset(list(range(1, 48+1)))
+        station = FastStation(servers=['lxdlwagpu01'], station=ovro)
         
     # Fork, if requested
     if args.fork:
@@ -1046,7 +1075,7 @@ def main(argv):
         logHandler = LogFileHandler(args.logfile)
     logHandler.setFormatter(logFormat)
     log.addHandler(logHandler)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
     log.info("Cmdline args:")

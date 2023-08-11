@@ -24,20 +24,13 @@ if [[ ${PWD} =~ ${NAME} ]]; then
     if [[ ${HOSTNAME} =~ calim0[1-8] ]]; then
         ROOTDIR=${PWD}
       	echo "${DATE}" >> ${LOG} 2>>${LOG}
-      	conda run -n  which python >> ${LOG} 2>>${LOG}
+      	conda run -n deployment which python >> ${LOG} 2>>${LOG}
       	if [[ $? == 0 ]]; then
-      	    conda run -n deployment git describe >> ${LOG} 2>>${LOG}
+      	    conda run -n deployment git describe --always >> ${LOG} 2>>${LOG}
       	fi
         if [[ $? == 0 ]]; then
             # Build the gridder extension for dr_visibilities.py
             conda run -n deployment python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
-        fi
-        if [[ $? == 0 ]]; then
-            # Install rsyslog config. files
-            cd ${ROOTDIR}/rsyslog
-            conda run -n deployment python generate_rsyslog.py >> ${LOG} 2>>${LOG}
-            ## cp the_right_one.conf /etc/rsyslog.d/
-            ## systemctl restart rsyslog.service
         fi
         if [[ $? == 0 ]]; then
             # Install the systemd services
@@ -65,7 +58,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
             for SUB in ${SUB0} ${SUB1}; do
                 ## Slow and fast visibilities
                 for type in "slow" "fast"; do
-                    systemclt --user enable dr-v${type}-${SUB}
+                    systemctl --user enable dr-v${type}-${SUB}
                 done
                 ## Power beams one through 12
                 if (( ${SUB} <= 12 )); then

@@ -1,10 +1,4 @@
-#!/usr/bin/env python
-
-from __future__ import division, print_function
-try:
-    range = xrange
-except NameError:
-    pass
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -280,6 +274,7 @@ class SpectraOp(object):
                     mp = ImageMonitorPoint.from_figure(fig)
                     self.client.write_monitor_point('diagnostics/spectra',
                                                     mp, timestamp=tt.unix)
+                    del mp
                     
                     last_save = time.time()
                     
@@ -371,6 +366,7 @@ class StatisticsOp(object):
                     for data,name in zip((data_min,data_avg,data_max), ('min','avg','max')):
                         value = MultiMonitorPoint(data.tolist(), timestamp=ts, field=data_pols)
                         self.client.write_monitor_point('statistics/%s' % name, value)
+                        del value
                         
                     last_save = time.time()
                     
@@ -505,6 +501,8 @@ def main(argv):
                         help='gulp size for ring buffers')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
+    parser.add_argument('--debug', action='store_true',
+                        help='enable debugging messages in the log')
     parser.add_argument('-r', '--record-directory', type=str, default=os.path.abspath('.'),
                         help='directory to save recorded files to')
     parser.add_argument('-q', '--record-directory-quota', type=quota_size, default=0,
@@ -530,7 +528,7 @@ def main(argv):
         logHandler = LogFileHandler(args.logfile)
     logHandler.setFormatter(logFormat)
     log.addHandler(logHandler)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
     log.info("Cmdline args:")

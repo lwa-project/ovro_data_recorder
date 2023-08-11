@@ -292,6 +292,12 @@ class MeasurementSetWriter(FileWriterBase):
         if not isinstance(pols, (tuple, list)):
             pols = [p.strip().rstrip() for p in pols.split(',')]
             
+        # Refresh the station - needed for fast visibilities
+        try:
+            station.refresh()
+        except AttributeError:
+            pass
+            
         # Update the file completion margin
         self._margin = timedelta(seconds=max([1, int(round(time_step / FS))]))
         self._padded_stop_time = self.stop_time + self._margin

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASEDIR=/home/pipeline/ovro_data_recorder/services/
+BASEDIR=`dirname $0 | xargs realpath`
 HOST=`hostname | grep lwacalim`
 if [[ ${HOST} == "" ]]; then
   echo "Must be run on a calim node"

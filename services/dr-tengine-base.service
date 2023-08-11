@@ -32,7 +32,8 @@ numactl --cpunodebind=1 --membind=1 -- \
          --gpu                    1 \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
-         --logfile                {{ logdir }}/dr-tengine.log'
+         --logfile                {{ logdir }}/dr-tengine.log \
+         --debug'
 
 [Install]
 WantedBy=multi-user.target
