@@ -646,8 +646,8 @@ class ImageOp(object):
         baselinesI = baselines[...,0] + baselines[...,3]
         baselinesV = baselines[...,1] - baselines[...,2]
         temp = baselinesV.imag
-        baselinesV.imag = -baselinesV.real
-        baselinesV.real = temp
+        baselinesV.imag = baselinesV.real
+        baselinesV.real = -temp
 
         # Image I and V
         imageI, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
