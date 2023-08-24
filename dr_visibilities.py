@@ -626,6 +626,8 @@ class ImageOp(object):
         output = numpy.zeros(array.shape+(3,), dtype=numpy.uint8)
         
         vmin, vmax = percentile(array.ravel(), limits)
+        if vmax == vmin:
+            vmax = vmin + 1
         array -= vmin
         array /= (vmax-vmin)
         output[...,0] = numpy.clip((-7.55*array**2 + 11.06*array - 2.96)*255, 0, 255)
