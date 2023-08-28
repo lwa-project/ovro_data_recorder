@@ -699,8 +699,9 @@ class ImageOp(object):
         
         ## Logo-ize
         logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
-        logo = logo.getchannel('A')
-        im.paste(logo, (5, 385))
+        logo_img = logo.getchannel('A')
+        im.paste(logo_img, (5, 385))
+        logo.close()
         
         return im
         
