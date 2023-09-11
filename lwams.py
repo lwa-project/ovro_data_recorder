@@ -393,7 +393,7 @@ def _write_main_table(filename, config):
                                     comment='Pointer to spectralwindow table')
     
     desc = tableutil.maketabdesc([col1, col2, col3])
-    tb = table("%s/DATA_DESCRIPTION" % filename, desc, nrow=nint, ack=False)
+    tb = table("%s/DATA_DESCRIPTION" % filename, desc, nrow=1, ack=False)
     
     tb.putcol('FLAG_ROW', [0,]*nint, 0, nint)
     tb.putcol('POLARIZATION_ID', [0,]*nint, 0, nint)
@@ -706,7 +706,7 @@ def _write_observation_table(filename, config):
     tb.putcol('INTERVAL', [tint,]*nint, 0, nint)
     tb.putcol('NAME', ['zenith',]*nint, 0, nint)
     tb.putcol('NUM_LINES', [0,]*nint, 0, nint)
-    tb.putcol('SOURCE_ID', [0,]*nint, 0, nint)
+    tb.putcol('SOURCE_ID', list(range(nint)), 0, nint)
     tb.putcol('SPECTRAL_WINDOW_ID', [-1,]*nint, 0, nint)
     tb.putcol('TIME', [0.0,]*nint, 0, nint)
     #tb.putcol('TRANSITION', []*nint, 0, nint)

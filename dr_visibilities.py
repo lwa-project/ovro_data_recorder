@@ -626,6 +626,8 @@ class ImageOp(object):
         output = numpy.zeros(array.shape+(3,), dtype=numpy.uint8)
         
         vmin, vmax = percentile(array.ravel(), limits)
+        if vmax == vmin:
+            vmax = vmin + 1
         array -= vmin
         array /= (vmax-vmin)
         output[...,0] = numpy.clip((-7.55*array**2 + 11.06*array - 2.96)*255, 0, 255)
@@ -646,8 +648,8 @@ class ImageOp(object):
         baselinesI = baselines[...,0] + baselines[...,3]
         baselinesV = baselines[...,1] - baselines[...,2]
         temp = baselinesV.imag
-        baselinesV.imag = -baselinesV.real
-        baselinesV.real = temp
+        baselinesV.imag = baselinesV.real
+        baselinesV.real = -temp
 
         # Image I and V
         imageI, _, corr = WProjection(uvw[order,0,:].ravel(), uvw[order,1,:].ravel(), uvw[order,2,:].ravel(),
@@ -697,8 +699,9 @@ class ImageOp(object):
         
         ## Logo-ize
         logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
-        logo = logo.getchannel('A')
-        im.paste(logo, (5, 385))
+        logo_img = logo.getchannel('A')
+        im.paste(logo_img, (5, 385))
+        logo.close()
         
         return im
         

@@ -558,6 +558,12 @@ class StatusLogger(object):
                     info = 'Warning condition(s) cleared'
                 elif self.last_summary == 'error':
                     info = 'Error condition(s) cleared'
+            elif summary == 'warning':
+                ## Forced logging of warnings conditions
+                self.log.warn("Status report: %s", info)
+            elif summary == 'error':
+                ## Forced logging of error conditions
+                self.log.error("Status report: %s", info)
             self.client.write_monitor_point('summary', summary, timestamp=ts)
             self.client.write_monitor_point('info', info, timestamp=ts)
             self.last_summary = summary
