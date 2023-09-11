@@ -249,7 +249,7 @@ class ReChannelizerOp(object):
         ## PFB data arrays
         self.fdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
         self.gdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
-        self.gdata2 = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        self.gdata2 = BFArray(shape=(self.ntime_gulp//4,4,NCHAN*nbeam*npol), dtype=numpy.complex64, space='cuda')
         ## PFB inversion matrix
         matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
         self.imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
