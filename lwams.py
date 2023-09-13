@@ -395,9 +395,9 @@ def _write_main_table(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3])
     tb = table("%s/DATA_DESCRIPTION" % filename, desc, nrow=1, ack=False)
     
-    tb.putcol('FLAG_ROW', [0,]*nint, 0, nint)
-    tb.putcol('POLARIZATION_ID', [0,]*nint, 0, nint)
-    tb.putcol('SPECTRAL_WINDOW_ID', [0,]*nint, 0, nint)
+    tb.putcol('FLAG_ROW', [0,]*1, 0, 1)
+    tb.putcol('POLARIZATION_ID', [0,]*1, 0, 1)
+    tb.putcol('SPECTRAL_WINDOW_ID', [0,]*1, 0, 1)
     
     tb.flush()
     tb.close()
