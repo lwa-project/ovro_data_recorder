@@ -453,7 +453,11 @@ class WriterOp(object):
                     
                 ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
-                ndata = idata / norm_factor
+                try:
+                    ndata[...] = idata
+                except NameError:
+                    ndata = idata.copy()
+                ndata /= norm_factor
                 
                 ## Determine what to do
                 active_op = QUEUE.active
@@ -482,6 +486,11 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+
+            try:
+                del ndata
+            except NameError:
+                pass
                 
         self.log.info("WriterOp - Done")
 
