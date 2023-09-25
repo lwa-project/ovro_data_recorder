@@ -431,6 +431,8 @@ class WriterOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size)
+
+            norm_factor = navg
             
             first_gulp = True 
             prev_time = time.time()
@@ -451,6 +453,7 @@ class WriterOp(object):
                     
                 ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
+                ndata = idata / norm_factor
                 
                 ## Determine what to do
                 active_op = QUEUE.active
@@ -460,7 +463,7 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, idata)
+                    active_op.write(time_tag, ndata)
                 elif was_active:
                     ### Recording just finished - clean
                     #### Clean
