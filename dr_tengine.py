@@ -384,6 +384,9 @@ class ReChannelizerOp(object):
                 chan_bw  = ihdr['bw'] / nchan
                 npol     = ihdr['npol']
                 
+                assert(nbeam == 1)
+                assert(npol  == 2)
+                
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8        # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam*npol)
                 self.iring.resize(igulp_size, 15*igulp_size)
@@ -423,12 +426,12 @@ class ReChannelizerOp(object):
                             
                             # Pad out to the full 98 MHz bandwidth
                             BFMap(f"""
-                                  a(i,j+{chan0},k) = b(i,j,k);
-                                  a(i,j+{chan0},k) = b(i,j,k);
+                                  a(i,j+{chan0},0) = b(i,j,0);
+                                  a(i,j+{chan0},1) = b(i,j,1);
                                   """,
                                   {'a': self.fdata, 'b': idata},
-                                  axis_names=('i','j','k'),
-                                  shape=(self.ntime_gulp,nchan,nbeam*npol))
+                                  axis_names=('i','j'),
+                                  shape=(self.ntime_gulp,nchan))
                             
                             ## PFB inversion
                             ### Initial IFFT
@@ -686,6 +689,9 @@ class TEngineOp(object):
                 npol     = ihdr['npol']
                 ntune    = 2
                 
+                assert(nbeam == 1)
+                assert(npol  == 2)
+                
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8                # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
@@ -751,23 +757,23 @@ class TEngineOp(object):
                                 ## Prune the data ahead of the IFFT
                                 try:
                                     BFMap(f"""
-                                          a(i,j,k,0,l) = b(i,{tchan0}+j,k,l);
-                                          a(i,j,k,1,l) = b(i,{tchan1}+j,k,l);
+                                          a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
+                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
                                           """,
                                           {'a': bdata, 'b': idata},
-                                          axis_names=('i','j','k','l'),
-                                          shape=(self.ntime_gulp,self.nchan_out,nbeam,npol))
+                                          axis_names=('i','j'),
+                                          shape=(self.ntime_gulp,self.nchan_out))
                                 except NameError:
                                     bshape = (self.ntime_gulp,self.nchan_out,nbeam,ntune,npol)
                                     bdata = BFArray(shape=bshape, dtype=numpy.complex64, space='cuda')
                                     
                                     BFMap(f"""
-                                          a(i,j,k,0,l) = b(i,{tchan0}+j,k,l);
-                                          a(i,j,k,1,l) = b(i,{tchan1}+j,k,l);
+                                          a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
+                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
                                           """,
                                           {'a': bdata, 'b': idata},
-                                          axis_names=('i','j','k','l'),
-                                          shape=(self.ntime_gulp,self.nchan_out,nbeam,npol))
+                                          axis_names=('i','j'),
+                                          shape=(self.ntime_gulp,self.nchan_out))
                                     
                                 ## IFFT
                                 try:
