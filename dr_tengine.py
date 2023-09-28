@@ -759,7 +759,9 @@ class TEngineOp(object):
                                 try:
                                     BFMap(f"""
                                           a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
-                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                          a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
+                                          a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
+                                          a(i,j,0,1,1) = b(i,{tchan0}+j,0,1);
                                           """,
                                           {'a': bdata, 'b': idata},
                                           axis_names=('i','j'),
@@ -770,7 +772,9 @@ class TEngineOp(object):
                                     
                                     BFMap(f"""
                                           a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
-                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                          a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
+                                          a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
+                                          a(i,j,0,1,1) = b(i,{tchan0}+j,0,1);
                                           """,
                                           {'a': bdata, 'b': idata},
                                           axis_names=('i','j'),
