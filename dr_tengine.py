@@ -259,7 +259,7 @@ class GPUCopyOp(object):
                 nchan = ihdr['nchan']
                 nbeam = ihdr['nbeam']
                 npol  = ihdr['npol']
-                igulp_size = self.ntime_gulp*nchan*nbeam*npol*8     # np.complex64
+                igulp_size = self.ntime_gulp*nchan*nbeam*npol*8     # numpy.complex64
                 ogulp_size = igulp_size
                 
                 ticksPerTime = int(FS) // int(CHAN_BW)
@@ -285,8 +285,8 @@ class GPUCopyOp(object):
                             prev_time = curr_time
                             
                             ## Setup and load
-                            idata = ispan.data_view(np.uint8)
-                            odata = ospan.data_view(np.uint8)
+                            idata = ispan.data_view(numpy.uint8)
+                            odata = ospan.data_view(numpy.uint8)
                             
                             ## Copy
                             copy_array(odata, idata)
