@@ -733,8 +733,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 12
-                    act_gain1 = self.gain[1] + 12
+                    act_gain0 = self.gain[0] + 12 - 6
+                    act_gain1 = self.gain[1] + 12 - 6
                     rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
@@ -761,7 +761,7 @@ class TEngineOp(object):
                                           a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
                                           a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
                                           a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
-                                          a(i,j,0,1,1) = b(i,{tchan0}+j,0,1);
+                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
                                           """,
                                           {'a': bdata, 'b': idata},
                                           axis_names=('i','j'),
@@ -774,7 +774,7 @@ class TEngineOp(object):
                                           a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
                                           a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
                                           a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
-                                          a(i,j,0,1,1) = b(i,{tchan0}+j,0,1);
+                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
                                           """,
                                           {'a': bdata, 'b': idata},
                                           axis_names=('i','j'),
