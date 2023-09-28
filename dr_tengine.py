@@ -402,6 +402,7 @@ class ReChannelizerOp(object):
                 ohdr['chan0'] = 0
                 ohdr['nchan'] = ochan
                 ohdr['bw']    = CLOCK / 2
+                ohdr['pfb_inverter'] = int(self.pfb_inverter)
                 ohdr_str = json.dumps(ohdr)
                 
                 # Zero out self.fdata in case chan0 has changed
@@ -689,6 +690,7 @@ class TEngineOp(object):
                 chan_bw  = ihdr['bw'] / nchan
                 npol     = ihdr['npol']
                 ntune    = 2
+                pfb_inverter = ihdr['pfb_inverter']
                 
                 assert(nbeam == 1)
                 assert(npol  == 2)
@@ -733,8 +735,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 12 - 6
-                    act_gain1 = self.gain[1] + 12 - 6
+                    act_gain0 = self.gain[0] + 12 - 6*pfb_inverter
+                    act_gain1 = self.gain[1] + 12 - 6*pfb_inverter
                     rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
