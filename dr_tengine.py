@@ -30,14 +30,13 @@ from bifrost.packet_writer import HeaderInfo, DiskWriter
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
-from bifrost.ndarray import copy_array
+from bifrost.ndarray import copy_array, memset_array
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.fft import Fft
 from bifrost.fir import Fir
 from bifrost.quantize import quantize as Quantize
 from bifrost.unpack import unpack as Unpack
-from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
 BFNoSpinZone()
@@ -244,6 +243,8 @@ class ReChannelizerOp(object):
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
         # Setup the PFB inverter
+        if self.gpu is not None:
+            BFSetGPU(self.gpu)
         ## Metadata
         nbeam, npol = self.nbeam_max, 2
         ## PFB data arrays
@@ -317,7 +318,7 @@ class ReChannelizerOp(object):
                 ohdr_str = json.dumps(ohdr)
                 
                 # Zero out self.fdata in case chan0 has changed
-                BFMemSet(self.fdata, 0)
+                memset_array(self.fdata, 0)
                 
                 with oring.begin_sequence(time_tag=time_tag, header=ohdr_str) as oseq:
                     prev_time = time.time()
