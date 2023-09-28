@@ -377,7 +377,7 @@ class ReChannelizerOp(object):
                                     pfft.init(self.gdata, self.gdata2, axes=1)
                                     pfft.execute(self.gdata, self.gdata2, inverse=False)
                                     
-                                BFMap("a *= b / %f" % np.sqrt(NCHAN,*4*ochan),
+                                BFMap("a *= b / %f" % numpy.sqrt(NCHAN,*4*ochan),
                                       {'a':self.gdata2, 'b':self.imatrix})
                                      
                                 pfft.execute(self.gdata2, self.gdata, inverse=True)
