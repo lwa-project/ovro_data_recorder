@@ -268,6 +268,7 @@ class GPUCopyOp(object):
                 ohdr = ihdr.copy()
                 ohdr_str = json.dumps(ohdr)
                 
+                self.iring.resize(igulp_size, 10*igulp_size)
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 prev_time = time.time()
