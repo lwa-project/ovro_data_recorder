@@ -324,14 +324,8 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Build a template for the file
         if self._counter == 0:
-            self.tagname = os.path.join(self.filename,
-                                        f"{(self._freq[0]/1e6):.0f}MHz",
-                                        tstart.datetime.strftime('%Y-%m-%d'),
-                                        tstart.datetime.strfimte('%H'))
-            if not os.path.exists(self.tagname):
-                os.makedirs(self.tagname, exist_ok=True)
-            self.tagname = os.path.join(self.tagname,
-                                        "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6))
+            self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
+            self.tagname = os.path.join(self.filename, self.tagname)
             create_ms(self.tagname, self._station, self._tint, self._freq, self._raw_pols, nint=self._nint)
             
         # Find the point overhead
