@@ -20,6 +20,7 @@ SyslogIdentifier=dr-tengine
 ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
 
 # Setup the environment
+Environment=GRPC_ENABLE_FORK_SUPPORT=true
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
