@@ -280,17 +280,20 @@ class StorageLogger(object):
                 to_remove_size += f_size
         self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
         if to_remove:
+            batch = 0
             for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
+                batch += 1
                 try:
                     remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
                     while remove_process.poll() is None:
                         self.shutdown_event.wait(20)
                         if self.shutdown_event.is_set():
                             remove_process.kill()
+                            self.log.warning('Quota: Failed to remove %i items - batch #%i took too long, giving up', len(chunk), batch)
                             return
                     self.log.debug('Quota: Removed %i items.', len(chunk))
                 except OSError as e:
-                    self.log.warn('Quota: Failed to remove %i items - %s', len(chunk), str(e))
+                    self.log.warning('Quota: Failed to remove %i items - %s', len(chunk), str(e))
             self.log.debug("=== Quota Report ===")
             self.log.debug(" items removed: %i", len(to_remove))
             self.log.debug(" space freed: %i B", to_remove_size)
@@ -560,7 +563,7 @@ class StatusLogger(object):
                     info = 'Error condition(s) cleared'
             elif summary == 'warning':
                 ## Forced logging of warnings conditions
-                self.log.warn("Status report: %s", info)
+                self.log.warning("Status report: %s", info)
             elif summary == 'error':
                 ## Forced logging of error conditions
                 self.log.error("Status report: %s", info)
