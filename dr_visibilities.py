@@ -1007,6 +1007,9 @@ class WriterOp(object):
                             self.log.error("Write error asserted - initial error: %s", str(e))
                         write_error_counter += 1
                         
+                        if write_error_counter % 500 == 0:
+                            self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            
                 elif was_active:
                     ### Recording just finished
                     #### Clean
