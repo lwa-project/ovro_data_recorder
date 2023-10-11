@@ -955,6 +955,8 @@ class WriterOp(object):
             norm_factor = navg // (2*NCHAN)
             
             first_gulp = True
+            write_error_asserted = False
+            write_error_counter = 0
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             for ispan in iseq_spans:
@@ -989,9 +991,22 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, cdata)
-                    if not self.fast:
-                        self.client.write_monitor_point('latest_time_tag', time_tag)    
+                    try:
+                        active_op.write(time_tag, cdata)
+                        if not self.fast:
+                            self.client.write_monitor_point('latest_time_tag', time_tag)
+                            
+                        if write_error_asserted:
+                            write_error_asserted = False
+                            self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            write_error_counter = 0
+                            
+                    except Exception as e:
+                        if not write_error_asserted:
+                            write_error_asserted = True
+                            self.log.error("Write error asserted - initial error: %s", str(e))
+                        write_error_counter += 1
+                        
                 elif was_active:
                     ### Recording just finished
                     #### Clean
