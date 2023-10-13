@@ -435,9 +435,11 @@ class TimeStorageLogger(object):
                         mark_as_retain = True
                         
                     try:
+                        ## YYYY-MM-DD/HH
                         fndate = datetime.strptime(name, '%Y-%m-%d/%H')
                     except ValueError:
                         try:
+                            ## YYYY-MM-DD only
                             fndate = datetime.strptime(name, '%Y-%m-%d')
                             fndate = fndate.replace(hour=23)
                         except ValueError:
@@ -800,8 +802,9 @@ class StatusLogger(object):
 
 class GlobalLogger(object):
     """
-    Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`DiskStorageLogger`,
-    and :py:class:`StatusLogger` and runs their main methods as a unit.
+    Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`DiskStorageLogger`/
+    :py:class:`TimeStorageLogger`, and :py:class:`StatusLogger` and runs their
+    main methods as a unit.
     """
     
     def __init__(self, log, id, args, queue, quota=None, threads=None,
