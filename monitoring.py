@@ -784,7 +784,7 @@ class GlobalLogger(object):
     
     def __init__(self, log, id, args, queue, quota=None, threads=None,
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
-                 update_interval_storage=1800, update_interval_status=20,
+                 update_interval_storage=3600, update_interval_status=20,
                  quota_mode='disk'):
         self.log = log
         if shutdown_event is None:
