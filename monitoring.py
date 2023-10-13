@@ -422,11 +422,6 @@ class TimeStorageLogger(object):
                 if name.startswith(os.path.sep):
                     name = name[len(os.path.sep):]
                     
-                if name.find('retain') != -1:
-                    new_files.append(filename)
-                    new_file_ages.append(0)
-                    continue
-                    
                 try:
                     fndate = datetime.strptime(name, '%Y-%m-%d/%H')
                 except ValueError:
@@ -460,9 +455,10 @@ class TimeStorageLogger(object):
                     self.log.error(msg)
                     raise ValueError(msg)
                 else:
-                    to_remove.append(fn)
-                    if fa > to_remove_oldest:
-                        to_remove_oldest = fa
+                    if fn.find('_retain') == -1:
+                        to_remove.append(fn)
+                        if fa > to_remove_oldest:
+                            to_remove_oldest = fa
         self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
         if to_remove:
             batch = 0
