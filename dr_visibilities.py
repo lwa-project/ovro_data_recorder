@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
     
 import os
+import re
 import sys
 import glob
 import h5py
@@ -53,6 +54,34 @@ BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
 QUEUE = FileOperationsQueue()
+
+
+def quota_size(value):
+    """
+    Convert a human readable time frame (e.g. 1d 4:00 for 1 day, 4 hours) into a
+    number of seconds.
+    """
+    
+    _TIME_RE = re.compile(r'((?P<days>\d+)d ?)?((?P<hours>\d+):)?(?P<minutes>\d{1,2})')
+    
+    value = str(value)
+    mtch = _UNITS_RE.match(value)
+    if mtch is None:
+        aise ValueError("Cannot interpret '%s' as a quota size" % value)
+    value = 0.0
+    try:
+        value += 24*int(mtch.groups('days'), 10)
+    except TypeError:
+        pass
+    try:
+        value += int(mtch.groups('hours'), 10))
+    except TypeError:
+        pass
+    try:
+        value += int(mtch.groups('minutes'), 10)/60.0
+    except TypeError:
+        pass
+    return int(value*3600)
 
 
 class CaptureOp(object):
@@ -1165,7 +1194,8 @@ def main(argv):
     ops.append(WriterOp(log, mcs_id, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK)))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK),  # Ugh, hard coded
+                            quota_mode='time'))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
