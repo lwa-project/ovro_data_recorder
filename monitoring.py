@@ -411,28 +411,50 @@ class TimeStorageLogger(object):
         self.log.debug(f"TimeStorageLogger: Updating storage usage in {self.directory}.")
         try:
             current_files = glob.glob(os.path.join(self.directory, '*'))
-            current_files.extend(glob.glob(os.path.join(self.directory, '*', '*')))
             current_files.sort()    # The files should have sensible names that
                                     # reflect their creation times
             
             t_now = datetime.utcnow()
             new_files, new_file_ages = deque(), deque()
             for filename in current_files:
-                name = filename.replace(self.directory, '')
-                if name.startswith(os.path.sep):
-                    name = name[len(os.path.sep):]
-                    
-                try:
-                    fndate = datetime.strptime(name, '%Y-%m-%d/%H')
-                except ValueError:
+                # For each top level YYYY-MM-DD directory, find all of its sub-
+                # directories
+                batch_filenames = [filename,]
+                batch_filenames.extend(glob.glob(os.path.join(filename, '*')))
+                
+                # For each entry, come up with a global retention flag and an
+                # age
+                mark_as_retain = False
+                batch_ages = []
+                for fn in batch_filenames:
+                    name = fn.replace(self.directory, '')
+                    if name.startswith(os.path.sep):
+                        name = name[len(os.path.sep):]
+                        
+                    if name.find('_retain') != -1:
+                        mark_as_retain = True
+                        
                     try:
-                        fndate = datetime.strptime(name, '%Y-%m-%d')
-                        fndate = fndate.replace(hour=23)
+                        fndate = datetime.strptime(name, '%Y-%m-%d/%H')
                     except ValueError:
-                        continue
-                age = (t_now - fndate).total_seconds()
-                new_files.append(filename)
-                new_file_ages.append(age)
+                        try:
+                            fndate = datetime.strptime(name, '%Y-%m-%d')
+                            fndate = fndate.replace(hour=23)
+                        except ValueError:
+                            continue
+                    fnage = (t_now - fndate).total_seconds()
+                    ages.append(fnage)
+                    
+                # If the global retention flag is set than that means there is
+                # at least one HH sub-directory that should be retained.  Modify
+                # the name of the parent YYYY-MM-DD directory to make sure it
+                # isn't purged by the quota manager.
+                if mark_as_retain:
+                    batch_filenames[0] += '_retain'
+                    
+                # Update new_* with this batch
+                new_files.extend(batch_filenames)
+                new_file_ages.extend(batch_ages)
         except Exception as e:
             self.log.warning("Quota manager could not refresh the file list: %s", str(e))
         self._files = new_files
