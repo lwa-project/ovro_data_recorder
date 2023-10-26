@@ -797,7 +797,7 @@ class TEngineOp(object):
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap("""
                                       auto k = (j / 2);// % 2;
-                                      a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                      a(i,j) *= r(k)*exp(Complex<float>(0.0, -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
                                       axis_names=('i','j'),
