@@ -26,7 +26,7 @@ NUMERIC_STOKES = { 1:'I',   2:'Q',   3:'U',   4:'V',
 
 
 # Whether or not to flush the tables to disk before closing
-FORCE_TABLE_FLUSH = True
+FORCE_TABLE_FLUSH = False
 
 
 def get_zenith(station, lwatime):
