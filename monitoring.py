@@ -407,10 +407,14 @@ class TimeStorageLogger(object):
         self.client.write_monitor_point('storage/active_directory_count',
                                         0, timestamp=ts)
         
-    def _update(self):
-        self.log.debug(f"TimeStorageLogger: Updating storage usage in {self.directory}.")
+    def _update(self, frequency_Hz=None):
+        active_dir = self.directory
+        if frequency_Hz is not None:
+            active_dir = os.path.join(active_dir, f"{frequency_Hz/1e6:.0f}MHz")
+            
+        self.log.debug(f"TimeStorageLogger: Updating storage usage in {active_dir}.")
         try:
-            current_files = glob.glob(os.path.join(self.directory, '*'))
+            current_files = glob.glob(os.path.join(active_dir, '*'))
             current_files.sort()    # The files should have sensible names that
                                     # reflect their creation times
             
@@ -427,7 +431,7 @@ class TimeStorageLogger(object):
                 mark_as_retain = False
                 batch_ages = []
                 for fn in batch_filenames:
-                    name = fn.replace(self.directory, '')
+                    name = fn.replace(active_dir, '')
                     if name.startswith(os.path.sep):
                         name = name[len(os.path.sep):]
                         
@@ -514,8 +518,10 @@ class TimeStorageLogger(object):
         while not self.shutdown_event.is_set():
             # Update the state
             t0 = time.time()
-            self._update()
-            
+            active_freq = self.client.read_monitor_point('latest_frequency')
+            if active_freq is not None:
+                self._update(frequency_Hz=active_freq.value)
+                
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
@@ -548,8 +554,9 @@ class TimeStorageLogger(object):
             
             # Quota management, if needed
             if self.quota is not None:
-                self._manage_quota()
-                
+                if active_freq is not None:
+                    self._manage_quota()
+                    
             # Sleep
             if once:
                 break

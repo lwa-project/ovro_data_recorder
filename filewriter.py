@@ -325,6 +325,7 @@ class MeasurementSetWriter(FileWriterBase):
         # Build a template for the file
         if self._counter == 0:
             self.tagname = os.path.join(self.filename,
+                                        f"{self._freq[0]/1e6:.0f}MHz",
                                         tstart.datetime.strftime("%Y-%m-%d"),
                                         tstart.datetime.strftime("%H"))
             if not os.path.exists(self.tagname):
