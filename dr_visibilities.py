@@ -983,6 +983,8 @@ class WriterOp(object):
             
             norm_factor = navg // (2*NCHAN)
             
+            self.client.write_monitor_point('latest_frequency', chan0*chan_bw, unit='Hz')
+            
             first_gulp = True
             write_error_asserted = False
             write_error_counter = 0
