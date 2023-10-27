@@ -10,7 +10,13 @@ from bifrost.proclog import load_by_pid
 
 from mnc.mcs import MonitorPoint, Client
 
+<<<<<<< HEAD
 __all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
+=======
+from version import version as repo_version
+
+__all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
+>>>>>>> main
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
@@ -595,6 +601,8 @@ class StatusLogger(object):
         
     def _reset(self):
         ts = time.time()
+        self.client.write_monitor_point('version', repo_version, timestamp=ts)
+        
         for entry in ('op-type', 'op-tag'):
             self.client.write_monitor_point(entry, None, timestamp=ts)
             

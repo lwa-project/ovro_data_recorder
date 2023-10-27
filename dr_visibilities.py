@@ -29,6 +29,7 @@ from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
+from version import version as repo_version
 
 from xengine_fast_control import FastStation
 
@@ -1130,6 +1131,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
+    log.info("Version: %s", repo_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))

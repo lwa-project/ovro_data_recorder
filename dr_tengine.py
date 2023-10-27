@@ -20,6 +20,7 @@ from mnc.mcs import MultiMonitorPoint, Client
 from operations import FileOperationsQueue, DrxOperationsQueue
 from monitoring import GlobalLogger
 from control import VoltageBeamCommandProcessor
+from version import version as repo_version
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -641,7 +642,7 @@ class TEngineOp(object):
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap("""
                                       auto k = (j / 2) % 2;
-                                      a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                      a(i,j) *= r(k)*exp(Complex<float>(0.0, -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
                                       axis_names=('i','j'),
@@ -1035,6 +1036,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
+    log.info("Version: %s", repo_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
