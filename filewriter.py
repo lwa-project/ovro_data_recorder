@@ -2,6 +2,7 @@ import os
 import sys
 import h5py
 import json
+import time
 import numpy
 import atexit
 import shutil
@@ -210,7 +211,7 @@ class HDF5Writer(FileWriterBase):
         
         # Create and fill
         self._interface = create_hdf5(self.filename, beam)
-        set_frequencies(self._interface, freq)
+        self._freq = set_frequencies(self._interface, freq)
         self._time = set_time(self._interface, navg / CHAN_BW, chunks)
         self._time_step = navg * int(round(FS/CHAN_BW))
         self._start_time_tag = LWATime(self.start_time, format='datetime', scale='utc').tuple
@@ -219,6 +220,11 @@ class HDF5Writer(FileWriterBase):
         self._counter = 0
         self._counter_max = chunks
         self._started = True
+
+        # Enable concurrent access to the file
+        self._interface.swmr_mode = True
+        self._freq.flush()
+        self._last_flush = time.time()
         
     def write(self, time_tag, data):
         """
@@ -260,8 +266,16 @@ class HDF5Writer(FileWriterBase):
             ## Data
             for i in range(data.shape[-1]):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
+                self._pols[i].flush()
             # Update the counter
             self._counter += size
+            # Flush every 10 s
+            if time.time() - self._last_flush > 10:
+                self._time.flush()
+                for pds in self._pols:
+                    pds.flush()
+                self._last_flush = time.time()
+                
         except ValueError:
             # If we are here that probably means the file has been closed
             pass
