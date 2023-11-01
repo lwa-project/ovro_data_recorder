@@ -266,14 +266,13 @@ class HDF5Writer(FileWriterBase):
             ## Data
             for i in range(data.shape[-1]):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
-                self._pols[i].flush()
             # Update the counter
             self._counter += size
             # Flush every 10 s
             if time.time() - self._last_flush > 10:
                 self._time.flush()
-                for pds in self._pols:
-                    pds.flush()
+                for i in range(data.shape[-1]):
+                    self._pols[i].flush()
                 self._last_flush = time.time()
                 
         except ValueError:
