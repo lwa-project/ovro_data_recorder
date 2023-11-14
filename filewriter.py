@@ -361,13 +361,13 @@ class MeasurementSetWriter(FileWriterBase):
         zen = get_zenith(self._station, tcent)
         
         # Update the time
-        update_time(self.tagname, self._counter, tstart, tcent, tstop)
+        update_time(self.tempname, self._counter, tstart, tcent, tstop)
         
         # Update the pointing direction
-        update_pointing(self.tagname, self._counter, *zen)
+        update_pointing(self.tempname, self._counter, *zen)
         
         # Fill in the main table
-        update_data(self.tagname, self._counter, data[0,...])
+        update_data(self.tempname, self._counter, data[0,...])
         
         # Save it to its final location
         self._counter += 1
