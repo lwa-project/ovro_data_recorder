@@ -379,10 +379,15 @@ class MeasurementSetWriter(FileWriterBase):
                 filename = os.path.join(self.filename, self.tagname)
                 save_cmd = ['cp', '-rf', self.tempname, filename]
             with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
-            shutil.rmtree(self.tempname, ignore_errors=True)
-            self._counter = 0
-            
+                try:
+                    subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
+                    shutil.rmtree(self.tempname, ignore_errors=True)
+                    self._counter = 0
+                except subprocess.CalledProcessError as e:
+                    shutil.rmtree(self.tempname, ignore_errors=True)
+                    self._counter = 0
+                    raise e
+                    
     def stop(self):
         """
         Close out the file and then call the 'post_stop_task' method.
