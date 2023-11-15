@@ -594,7 +594,7 @@ class ImageOp(object):
             else:
                 # We need to make a new one for each baseline/channel/polarization
                 # NOTE: Lots of assumptions here about the antenna order
-                self._cal = numpy.zeros((nbl,freq.size,4), dtype=numpy.complex64)
+                self._cal = numpy.zeros((2*nbl,freq.size,4), dtype=numpy.complex64)
                 base_cal = self._all_cals[caltag]
                 k = 0
                 for i in range(nstand):
@@ -613,6 +613,7 @@ class ImageOp(object):
                         self._cal[k,:,1] = gix*gjy.conj()
                         self._cal[k,:,2] = giy*gjx.conj()
                         self._cal[k,:,3] = giy*gjy.conj()
+                        self._cal[nbl+k,:,:] = self._cal[k,:,:].conj()
                         k += 1
                         
                 # Update cal and the "calibration tag"
@@ -730,11 +731,12 @@ class ImageOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             # Setup the arrays for the frequencies and baseline lenghts
             freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
             uvw = get_zenith_uvw(self.station, LWATime(time_tag, format='timetag'))
+            uvw = numpy.concatenate([uvw, -uvw], axis=0)
             dist = numpy.sqrt((uvw[:,:2]**2).sum(axis=1))
             uscl = freq / 299792458.0
             uscl.shape = (1,1)+uscl.shape
@@ -770,11 +772,14 @@ class ImageOp(object):
                         
                     ## Plot
                     try:
-                        bdata.real[...] = idata[0,:,:,:,0]
-                        bdata.imag[...] = idata[0,:,:,:,1]
+                        bdata.real[:nbl,...] =  idata[0,:,:,:,0]
+                        bdata.imag[:nbl,...] =  idata[0,:,:,:,1]
+                        bdata.real[nbl:,...] =  idata[0,:,:,:,0]
+                        bdata.imag[nbl:,...] = -idata[0,:,:,:,1]
                     except NameError:
                         bdata = idata[0,:,:,:,0] + 1j*idata[0,:,:,:,1]
                         bdata = bdata.astype(numpy.complex64)
+                        bdata = numpy.concatenate([bdata, bdata.conj()], axis=0)
                     if cal is not None:
                         bdata *= cal
                     im = self._plot_images(time_tag, freq, uvw, bdata, valid, order, has_cal=(cal is not None))
