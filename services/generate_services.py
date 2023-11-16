@@ -53,7 +53,10 @@ def main(args):
                 port      = config['power_beams'][beam]['port']
                 directory = config['power_beams'][beam]['directory']
                 quota     = config['power_beams'][beam]['quota']
-                logdir    = os.path.join(os.path.dirname(directory), 'log')
+                try:
+                    logdir = config['power_beams'][beam]['logdir']
+                except KeyError:
+                    logdir = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
                     cores = [72,73,74,75]
                     last_address = address
@@ -84,7 +87,10 @@ def main(args):
                 port      = config['slow_vis'][band]['port']
                 directory = config['slow_vis'][band]['directory']
                 quota     = config['slow_vis'][band]['quota']
-                logdir    = os.path.join(os.path.dirname(directory), 'log')
+                try:
+                    logdir = config['slow_vis'][band]['logdir']
+                except KeyError:
+                    logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
                     cores = [50,51,52,53,54,55]
                     last_address = address
@@ -133,7 +139,10 @@ def main(args):
                 port      = config['fast_vis'][band]['port']
                 directory = config['fast_vis'][band]['directory']
                 quota     = config['fast_vis'][band]['quota']
-                logdir    = os.path.join(os.path.dirname(directory), 'log')
+                try:
+                    logdir = config['fast_vis'][band]['logdir']
+                except KeyError:
+                    logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
                     cores = [62,63,64,65,66,67]
                     last_address = address
@@ -179,7 +188,10 @@ def main(args):
                 port      = config['voltage_beams'][beam]['port']
                 directory = config['voltage_beams'][beam]['directory']
                 quota     = config['voltage_beams'][beam]['quota']
-                logdir    = os.path.join(os.path.dirname(directory), 'log')
+                try:
+                    logdir = config['voltage_beams'][beam]['logdir']
+                except KeyError:
+                    logdir    = os.path.join(os.path.dirname(directory), 'log')
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           address=address, port=port,
                                           directory=directory, quota=quota, logdir=logdir,
