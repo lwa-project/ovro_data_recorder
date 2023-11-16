@@ -830,6 +830,7 @@ class GlobalLogger(object):
         SLC = {'disk': DiskStorageLogger,
                'time': TimeStorageLogger}
         try:
+            SLC_thread_name = 'StorageLogger-'+quota_mode
             SLC = SLC[quota_mode]
         except KeyError:
             raise ValueError("Unknown quota managment mode '%s'" % quota_mode)
@@ -845,7 +846,7 @@ class GlobalLogger(object):
                     thread_names.append(type(t).__name__)
                 
         # Threads associated with this logger...
-        for new_thread in (type(self).__name__, 'PerformanceLogger', 'StorageLogger', 'StatusLogger'):
+        for new_thread in (type(self).__name__, 'PerformanceLogger', SLC_thread_name, 'StatusLogger'):
             # ... with a catch to deal with potentially other instances
             name = new_thread
             name_count = 0
