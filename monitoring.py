@@ -451,7 +451,7 @@ class TimeStorageLogger(object):
                         except ValueError:
                             continue
                     fnage = (t_now - fndate).total_seconds()
-                    ages.append(fnage)
+                    batch_ages.append(fnage)
                     
                 # If the global retention flag is set than that means there is
                 # at least one HH sub-directory that should be retained.  Modify
