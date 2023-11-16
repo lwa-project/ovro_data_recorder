@@ -27,7 +27,7 @@ def create_hdf5(filename, beam, overwrite=False):
             os.unlink(filename)
             
     # Open the file
-    f = h5py.File(filename, mode='w')
+    f = h5py.File(filename, mode='w', libver='latest')
     
     # Top level attributes
     ## Observer and Project Info.
@@ -95,6 +95,7 @@ def set_frequencies(f, frequency):
     tun = obs.get('Tuning1', None)
     tun['freq'] = frequency.astype('<f8')
     tun['freq'].attrs['Units'] = 'Hz'
+    return tun['freq']
 
 
 def set_time(f, tint, count, format='unix', scale='utc'):
