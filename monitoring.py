@@ -367,6 +367,13 @@ class StorageLogger(object):
 
 
 def launch_mp_storagelogger(log, id, directory, quota=None, shutdown_event=None, update_interval=3600):
+    """
+    Wrapper around StorageLogger so that it can be run in a separate process with
+    multiprocessing.  The argument/keywords are handled the same as in
+    StorageLogger with the exception of `log` which is expected to be a filename
+    for the logfile or `None` for `sys.stdout`.
+    """
+    
     ilog = logging.getLogger(__name__)
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
