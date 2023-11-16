@@ -75,7 +75,7 @@ def quota_size(value):
     except TypeError:
         pass
     try:
-        value += int(mtch.groups('hours'), 10))
+        value += int(mtch.groups('hours'), 10)
     except TypeError:
         pass
     try:
