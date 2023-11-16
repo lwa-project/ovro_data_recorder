@@ -68,7 +68,7 @@ def quota_size(value):
     value = str(value)
     mtch = _UNITS_RE.match(value)
     if mtch is None:
-        aise ValueError("Cannot interpret '%s' as a quota size" % value)
+        raise ValueError("Cannot interpret '%s' as a quota size" % value)
     value = 0.0
     try:
         value += 24*int(mtch.groups('days'), 10)
