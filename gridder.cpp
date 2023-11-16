@@ -572,21 +572,6 @@ static int gridder_exec(PyObject *module) {
     PyObject* all = PyList_New(0);
     PyList_Append(all, PyUnicode_FromString("WProjection"));
     PyModule_AddObject(module, "__all__", all);
-    
-    // LSL FFTW Wisdom
-    PyObject* pModule = PyImport_ImportModule("lsl.common.paths");
-    if( pModule != NULL ) {
-        PyObject* pDataPath = PyObject_GetAttrString(pModule, "WISDOM");
-        if( pDataPath != NULL ) {
-            char filename[256];
-            sprintf(filename, "%s/fftwf_wisdom.txt", PyString_AsString(pDataPath));
-            read_wisdom(filename, module);
-        }
-        Py_XDECREF(pDataPath);
-    } else {
-      PyErr_Warn(PyExc_RuntimeWarning, "Cannot load the LSL FFTWF wisdom");
-    }
-    Py_XDECREF(pModule);
     return 0;
 }
 
