@@ -481,7 +481,7 @@ class TimeStorageLogger(object):
                 if (len(fn) <= len(self.directory)) or \
                     (not fn.startswith(self.directory)) or \
                         (len(fn) <= MINIMUM_TO_DELETE_PATH_LENGTH):
-                    msg = "DiskStorageLogger: Quota management has unexpected path to remove: %s" % fn
+                    msg = "TimeStorageLogger: Quota management has unexpected path to remove: %s" % fn
                     self.log.error(msg)
                     raise ValueError(msg)
                 else:
@@ -522,8 +522,9 @@ class TimeStorageLogger(object):
             t0 = time.time()
             active_freq = self.client.read_monitor_point('latest_frequency')
             if active_freq is not None:
-                self._update(frequency_Hz=active_freq.value)
-                
+                if active_freq.value is not None:
+                    self._update(frequency_Hz=active_freq.value)
+                    
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
