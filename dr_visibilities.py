@@ -1002,7 +1002,7 @@ class WriterOp(object):
             
             norm_factor = navg // (2*NCHAN)
             
-            self.client.write_monitor_point('latest_frequency', chan0*chan_bw, unit='Hz')
+            self.client.write_monitor_point('latest_frequency', chan_to_freq(chan0), unit='Hz')
             
             first_gulp = True
             write_error_asserted = False
@@ -1083,6 +1083,8 @@ class WriterOp(object):
             except NameError:
                 pass
                 
+        self.client.write_monitor_point('latest_frequency', None, unit='Hz')
+        
         self.log.info("WriterOp - Done")
 
 
