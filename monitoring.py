@@ -10,13 +10,9 @@ from bifrost.proclog import load_by_pid
 
 from mnc.mcs import MonitorPoint, Client
 
-<<<<<<< HEAD
-__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
-=======
 from version import version as repo_version
 
-__all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
->>>>>>> main
+__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
