@@ -344,6 +344,8 @@ class MeasurementSetWriter(FileWriterBase):
         self._counter = 0
         self._started = True
         
+        self._last_tagpath = ''
+        
     def write(self, time_tag, data):
         tstart = LWATime(time_tag, format='timetag', scale='utc')
         tcent  = LWATime(time_tag + self._time_step // 2, format='timetag', scale='utc')
@@ -355,8 +357,9 @@ class MeasurementSetWriter(FileWriterBase):
                                         f"{self._freq[0]/1e6:.0f}MHz",
                                         tstart.datetime.strftime("%Y-%m-%d"),
                                         tstart.datetime.strftime("%H"))
-            if not os.path.exists(self.tagpath):
+            if self.tagpath != self._last_tagpath:
                 os.makedirs(self.tagpath, exist_ok=True)
+                self._last_tagpath = self.tagpath
             self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
             self.tempname = os.path.join(self._tempdir, self.tagname)
             with open('/dev/null', 'wb') as dn:
