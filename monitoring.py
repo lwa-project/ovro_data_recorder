@@ -1,13 +1,17 @@
 import os
+import sys
 import glob
 import time
+import logging
 import threading
+import multiprocessing
 from subprocess import Popen, DEVNULL
 from collections import deque
 
 from bifrost.proclog import load_by_pid
 
 from mnc.mcs import MonitorPoint, Client
+from mnc.common import LogFileHandler
 
 from version import version as repo_version
 
@@ -362,6 +366,22 @@ class StorageLogger(object):
             self.log.info("StorageLogger - Done")
 
 
+def launch_mp_storagelogger(log, id, directory, quota=None, shutdown_event=None, update_interval=3600):
+    ilog = logging.getLogger(__name__)
+    logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    logFormat.converter = time.gmtime
+    if log is None:
+        logHandler = logging.StreamHandler(sys.stdout)
+    else:
+        logHandler = LogFileHandler(log)
+    logHandler.setFormatter(logFormat)
+    ilog.addHandler(logHandler)
+    
+    sl = StorageLogger(ilog, id, directory, quota=quota, update_interval=update_interval)
+    sl.main()
+    
+
 class StatusLogger(object):
     """
     Monitoring class for logging the overall status of a pipeline.  This aggregates
@@ -465,7 +485,7 @@ class StatusLogger(object):
             # Get the current metrics that matter
             missing_threads = []
             if self.thread_names is not None:
-                found_threads = []
+                found_threads = ['StorageLogger']
                 for t in threading.enumerate():
                     if t.name in self.thread_names:
                         found_threads.append(t.name)
@@ -671,21 +691,40 @@ class GlobalLogger(object):
         # Create the per-logger threads using the pre-determined thread names
         threads = []
         threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
-        threads.append(threading.Thread(target=self.storage.main, name=self._thread_names[2]))
+        threads.append(None)
         threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
         
         # Start the threads
         for thread in threads:
+            if thread is None:
+                continue
+                
             self.log.info(f"GlobalLogger - Starting '{thread.name}'")
             #thread.daemon = True
             thread.start()
             
+        # Start the processes
+        self.log.info(f"GlobalLogger - Starting 'StorageLogger' in a separate process")
+        ctx = multiprocessing.get_context('spawn')
+        slp = ctx.Process(target=launch_mp_storagelogger,
+                          args=(None, self.storage.id, self.storage.directory),
+                          kwargs={'quota': self.storage.quota, 'update_interval': self.storage.update_interval})
+        slp.start()
+        
         # Wait for us to finish up
         while not self._shutdown_event.is_set():
             time.sleep(1)
             
         # Done
         for thread in threads:
+            if thread is None:
+                continue
+                
             self.log.info(f"GlobalLogger - Waiting on '{thread.name}' to exit")
             thread.join()
+            
+        # End the processes
+        self.log.info(f"GlobalLogger - Waiting on 'StorageLogger' process to exit")
+        slp.terminate()
+        
         self.log.info("GlobalLogger - Done")
