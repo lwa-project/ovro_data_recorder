@@ -396,12 +396,13 @@ class StatusLogger(object):
     an overall state of the pipeline.
     """
     
-    def __init__(self, log, id, queue, thread_names=None, gulp_time=None,
-                 shutdown_event=None, update_interval=10):
+    def __init__(self, log, id, queue, thread_names=None, process_ids=None,
+                 gulp_time=None, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
         self.thread_names = thread_names
+        self.process_ids = process_ids
         self.gulp_time = gulp_time
         if shutdown_event is None:
             shutdown_event = threading.Event()
@@ -411,6 +412,9 @@ class StatusLogger(object):
         self.client = Client(id)
         self.last_summary = 'booting'
         self._reset()
+        
+    def update_process_ids(self, process_ids=None):
+        self.process_ids = process_ids
         
     def _reset(self):
         ts = time.time()
@@ -492,11 +496,18 @@ class StatusLogger(object):
             # Get the current metrics that matter
             missing_threads = []
             if self.thread_names is not None:
-                found_threads = ['StorageLogger']
+                found_threads = []
                 for t in threading.enumerate():
                     if t.name in self.thread_names:
                         found_threads.append(t.name)
                 missing_threads = [t for t in self.thread_names if t not in found_threads]
+            missing_processes = []
+            if self.process_ids is not None:
+                found_processes = []
+                for p in self.process_ids:
+                    if os.path.exists(f"/proc/{p}"):
+                        found_processes.append(p)
+                missing_processes = [p for p in self.process_ids if p not in found_processes]
             nfound = 0
             missing = self.client.read_monitor_point('bifrost/rx_missing')
             if missing is not None:
@@ -532,6 +543,13 @@ class StatusLogger(object):
                 ntmissing = len(missing_threads)
                 new_summary = 'error'
                 new_info = "Found %i missing threads - %s" % (ntmissing, ','.join(missing_threads))
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            if len(missing_processes) > 0:
+                ## Sub-process check
+                npmissing = len(missing_processes)
+                new_summary = 'error'
+                new_info = "Found %i missing sub-processes - %s" % (npmissing, ','.join(missing_processes))
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
             if dused > 0.99:
@@ -653,7 +671,7 @@ class GlobalLogger(object):
                     thread_names.append(type(t).__name__)
                 
         # Threads associated with this logger...
-        for new_thread in (type(self).__name__, 'PerformanceLogger', 'StorageLogger', 'StatusLogger'):
+        for new_thread in (type(self).__name__, 'PerformanceLogger', 'StatusLogger'):
             # ... with a catch to deal with potentially other instances
             name = new_thread
             name_count = 0
@@ -669,13 +687,13 @@ class GlobalLogger(object):
             
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
                                       update_interval=update_interval_perf)
-        self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
-                                     shutdown_event=shutdown_event,
-                                     update_interval=update_interval_storage)
         self.status = StatusLogger(log, id, queue, thread_names=thread_names,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=update_interval_status)
+        
+        self.storage = {'log': log, 'id':  id, 'directory': args.record_directory, 
+                        'quota': quota, 'update_interval': update_interval}
         
     @property
     def shutdown_event(self):
@@ -684,7 +702,7 @@ class GlobalLogger(object):
     @shutdown_event.setter
     def shutdown_event(self, event):
         self._shutdown_event = event
-        for attr in ('perf', 'storage', 'status'):
+        for attr in ('perf', 'status'):
             logger = getattr(self, attr, None)
             if logger is None:
                 continue
@@ -695,38 +713,36 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
+        # Create and spawn a sub-process for running the StorageLogger
+        ## Create
+        ctx = multiprocessing.get_context('spawn')
+        slp = ctx.Process(target=launch_mp_storagelogger,
+                          args=(None, self.storage['id'], self.storage['directory']),
+                          kwargs={'quota': self.storage['quota'],
+                                  'update_interval': self.storage['update_interval']})
+        ## Start
+        self.log.info(f"GlobalLogger - Starting 'StorageLogger' in a separate process")
+        slp.start()
+        ## Update the status logger to know to look for this process
+        self.staus.update_process_ids([slp.pid,])
+        
         # Create the per-logger threads using the pre-determined thread names
         threads = []
         threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
-        threads.append(None)
         threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
         
         # Start the threads
         for thread in threads:
-            if thread is None:
-                continue
-                
             self.log.info(f"GlobalLogger - Starting '{thread.name}'")
             #thread.daemon = True
             thread.start()
             
-        # Start the processes
-        self.log.info(f"GlobalLogger - Starting 'StorageLogger' in a separate process")
-        ctx = multiprocessing.get_context('spawn')
-        slp = ctx.Process(target=launch_mp_storagelogger,
-                          args=(None, self.storage.id, self.storage.directory),
-                          kwargs={'quota': self.storage.quota, 'update_interval': self.storage.update_interval})
-        slp.start()
-        
         # Wait for us to finish up
         while not self._shutdown_event.is_set():
             time.sleep(1)
             
         # Done
         for thread in threads:
-            if thread is None:
-                continue
-                
             self.log.info(f"GlobalLogger - Waiting on '{thread.name}' to exit")
             thread.join()
             
