@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
     
 import os
-import re
 import sys
 import glob
 import h5py
@@ -63,25 +62,39 @@ def quota_size(value):
     number of seconds.
     """
     
-    _TIME_RE = re.compile(r'((?P<days>\d+)d ?)?((?P<hours>\d+):)?(?P<minutes>\d{1,2})')
-    
-    value = str(value)
-    mtch = _TIME_RE.match(value)
-    if mtch is None:
+    w = d = h = m = 0
+    wfound = dfound = hfound = mfound = False
+    try:
+        w, value = value.split('w', 1)
+        w = int(w)
+        value = value.strip()
+        wfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        d, value = value.split('d', 1)
+        d = int(d)
+        value = value.strip()
+        dfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        h, value = value.split(':', 1)
+        h = int(h)
+        value = value.strip()
+        hfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        m = int(value)
+        mfound = True
+    except ValueError:
+        pass
+        
+    if not (wfound or dfound or hfound or mfound):
         raise ValueError("Cannot interpret '%s' as a quota size" % value)
-    value = 0.0
-    try:
-        value += 24*int(mtch.groups('days'), 10)
-    except TypeError:
-        pass
-    try:
-        value += int(mtch.groups('hours'), 10)
-    except TypeError:
-        pass
-    try:
-        value += int(mtch.groups('minutes'), 10)/60.0
-    except TypeError:
-        pass
+        
+    value = 7*24*w + 24*d + h + m/60.0
     return int(value*3600)
 
 
