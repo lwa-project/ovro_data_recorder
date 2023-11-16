@@ -538,8 +538,8 @@ class TimeStorageLogger(object):
             # Find the total size of all files
             ts = time.time()
             file_count = len(self._files)
-            file_oldest = max(self._file_ages)
-            file_newest = min(self._file_ages)
+            file_oldest = max(self._file_ages, default=0.0)
+            file_newest = min(self._file_ages, default=0.0)
             self.client.write_monitor_point('storage/active_directory',
                                             self.directory, timestamp=ts)
             self.client.write_monitor_point('storage/active_directory_count',
