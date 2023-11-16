@@ -713,18 +713,21 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
-        # Create and spawn a sub-process for running the StorageLogger
-        ## Create
+        # Create a multiprocessing.Process for running the StorageLogger
         ctx = multiprocessing.get_context('spawn')
-        slp = ctx.Process(target=launch_mp_storagelogger,
-                          args=(None, self.storage['id'], self.storage['directory']),
-                          kwargs={'quota': self.storage['quota'],
-                                  'update_interval': self.storage['update_interval']})
-        ## Start
-        self.log.info(f"GlobalLogger - Starting 'StorageLogger' in a separate process")
-        slp.start()
-        ## Update the status logger to know to look for this process
-        self.staus.update_process_ids([slp.pid,])
+        processes = []
+        processes.append(ctx.Process(target=launch_mp_storagelogger,
+                                     name='StorageLogger',
+                                     args=(None, self.storage['id'], self.storage['directory']),
+                                     kwargs={'quota': self.storage['quota'],
+                                             'update_interval': self.storage['update_interval']})
+        # Start the sub-processes
+        for proc in processes:
+            self.log.info(f"GlobalLogger - Starting '{proc.name}' in a separate process")
+            proc.start()
+            
+        # Update the status logger to know to look for these sub-processes
+        self.staus.update_process_ids([p.pid for p in processes])
         
         # Create the per-logger threads using the pre-determined thread names
         threads = []
@@ -747,7 +750,8 @@ class GlobalLogger(object):
             thread.join()
             
         # End the processes
-        self.log.info(f"GlobalLogger - Waiting on 'StorageLogger' process to exit")
-        slp.terminate()
-        
+        for proc in processes:
+            self.log.info(f"GlobalLogger - Waiting on '{proc.name}' process to exit")
+            proc.terminate()
+            
         self.log.info("GlobalLogger - Done")
