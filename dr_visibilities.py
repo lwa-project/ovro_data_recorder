@@ -66,7 +66,7 @@ def quota_size(value):
     _TIME_RE = re.compile(r'((?P<days>\d+)d ?)?((?P<hours>\d+):)?(?P<minutes>\d{1,2})')
     
     value = str(value)
-    mtch = _UNITS_RE.match(value)
+    mtch = _TIME_RE.match(value)
     if mtch is None:
         raise ValueError("Cannot interpret '%s' as a quota size" % value)
     value = 0.0
