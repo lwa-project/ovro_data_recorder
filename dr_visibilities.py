@@ -56,6 +56,48 @@ BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 QUEUE = FileOperationsQueue()
 
 
+def quota_size(value):
+    """
+    Convert a human readable time frame (e.g. 1d 4:00 for 1 day, 4 hours) into a
+    number of seconds.
+    """
+    
+    w = d = h = m = 0
+    wfound = dfound = hfound = mfound = False
+    try:
+        w, value = value.split('w', 1)
+        w = int(w)
+        value = value.strip()
+        wfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        d, value = value.split('d', 1)
+        d = int(d)
+        value = value.strip()
+        dfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        h, value = value.split(':', 1)
+        h = int(h)
+        value = value.strip()
+        hfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        m = int(value)
+        mfound = True
+    except ValueError:
+        pass
+        
+    if not (wfound or dfound or hfound or mfound):
+        raise ValueError("Cannot interpret '%s' as a quota size" % value)
+        
+    value = 7*24*w + 24*d + h + m/60.0
+    return int(value*3600)
+
+
 class CaptureOp(object):
     def __init__(self, log, sock, oring, nbl, ntime_gulp=1,
                  slot_ntime=6, fast=False, shutdown_event=None, core=None):
@@ -960,6 +1002,8 @@ class WriterOp(object):
             
             norm_factor = navg // (2*NCHAN)
             
+            self.client.write_monitor_point('latest_frequency', chan_to_freq(chan0), unit='Hz')
+            
             first_gulp = True
             write_error_asserted = False
             write_error_counter = 0
@@ -1039,6 +1083,8 @@ class WriterOp(object):
             except NameError:
                 pass
                 
+        self.client.write_monitor_point('latest_frequency', None, unit='Hz')
+        
         self.log.info("WriterOp - Done")
 
 
@@ -1172,7 +1218,8 @@ def main(argv):
     ops.append(WriterOp(log, mcs_id, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK)))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK),  # Ugh, hard coded
+                            quota_mode='time'))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))
