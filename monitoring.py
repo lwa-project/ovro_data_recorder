@@ -949,7 +949,7 @@ class GlobalLogger(object):
         ctx = multiprocessing.get_context('spawn')
         processes = []
         processes.append(ctx.Process(target=_launch_mp_storagelogger,
-                                     name='StorageLogger',
+                                     name='StorageLogger-'+self.storage['quota_mode'],
                                      args=(self.storage['quota_mode'], logname, self.storage['id'], self.storage['directory']),
                                      kwargs={'quota': self.storage['quota'],
                                              'update_interval': self.storage['update_interval']})
