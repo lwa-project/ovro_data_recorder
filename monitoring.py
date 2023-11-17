@@ -935,12 +935,22 @@ class GlobalLogger(object):
         Main logging loop that calls the main methods of all child loggers.
         """
         
+        # Figure out the base logger filename (if possible)
+        logname = None
+        for handler in self.log.handlers:
+            try:
+                logname = handler.baseFilename
+                logname = logname+'-storage'
+                break
+            except AttributeError:
+                pass
+                
         # Create a multiprocessing.Process for running the StorageLogger
         ctx = multiprocessing.get_context('spawn')
         processes = []
         processes.append(ctx.Process(target=_launch_mp_storagelogger,
                                      name='StorageLogger',
-                                     args=(self.storage['quota_mode'], None, self.storage['id'], self.storage['directory']),
+                                     args=(self.storage['quota_mode'], logname, self.storage['id'], self.storage['directory']),
                                      kwargs={'quota': self.storage['quota'],
                                              'update_interval': self.storage['update_interval']})
         # Start the sub-processes
