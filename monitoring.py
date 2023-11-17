@@ -4,6 +4,7 @@ import time
 import threading
 from subprocess import Popen, DEVNULL
 from collections import deque
+from datetime import datetime
 
 from bifrost.proclog import load_by_pid
 
@@ -11,7 +12,7 @@ from mnc.mcs import MonitorPoint, Client
 
 from version import version as repo_version
 
-__all__ = ['PerformanceLogger', 'StorageLogger', 'StatusLogger', 'GlobalLogger']
+__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
@@ -199,7 +200,7 @@ class PerformanceLogger(object):
             self.log.info("PerformanceLogger - Done")
 
 
-class StorageLogger(object):
+class DiskStorageLogger(object):
     """
     Monitoring class for logging how storage is used by a pipeline and for enforcing
     a directory quota, if needed.
@@ -238,7 +239,7 @@ class StorageLogger(object):
                                         0, timestamp=ts)
         
     def _update(self):
-        self.log.debug(f"StorageLogger: Updating storage usage in {self.directory}.")
+        self.log.debug(f"DiskStorageLogger: Updating storage usage in {self.directory}.")
         try:
             current_files = glob.glob(os.path.join(self.directory, '*'))
             current_files.sort()    # The files should have sensible names that
@@ -274,7 +275,7 @@ class StorageLogger(object):
             if (len(fn) <= len(self.directory)) or \
                 (not fn.startswith(self.directory)) or \
                     (len(fn) <= MINIMUM_TO_DELETE_PATH_LENGTH):
-                msg = "StorageLogger: Quota management has unexpected path to remove: %s" % fn
+                msg = "DiskStorageLogger: Quota management has unexpected path to remove: %s" % fn
                 self.log.error(msg)
                 raise ValueError(msg)
             else:
@@ -359,7 +360,217 @@ class StorageLogger(object):
             
         if not once:
             self._halt()
-            self.log.info("StorageLogger - Done")
+            self.log.info("DiskStorageLogger - Done")
+
+
+class TimeStorageLogger(object):
+    """
+    Monitoring class for logging how storage is used by a pipeline and for enforcing
+    a time-based directory quota, if needed.
+    
+    ..note:: This function assumes the following directory structure:
+     * directory
+     * directory/YYYY-MM-DD
+     * directory/YYYY-MM-DD/HH
+     * directory/YYYY-MM-DD/HH/<data>
+    Quota managment is done based on the naming of the YYYY-MM-DD and HH
+    directories and deletions are done at the YYYY-MM-DD and HH levels.
+    """
+    
+    def __init__(self, log, id, directory, quota=None, shutdown_event=None, update_interval=3600):
+        self.log = log
+        self.id = id
+        self.directory = directory
+        if quota == 0:
+            quota = None
+        self.quota = quota
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        self.update_interval = update_interval
+        
+        self.client = Client(id)
+        
+        self._reset()
+        
+    def _reset(self):
+        self._files = deque()
+        self._file_ages = deque()
+        
+        ts = time.time()
+        self.client.write_monitor_point('storage/active_disk_size',
+                                        0, timestamp=ts, unit='B')
+        self.client.write_monitor_point('storage/active_disk_free',
+                                        0, timestamp=ts, unit='B')
+        self.client.write_monitor_point('storage/active_directory',
+                                        self.directory, timestamp=ts)
+        self.client.write_monitor_point('storage/active_directory_size',
+                                        0, timestamp=ts, unit='B')
+        self.client.write_monitor_point('storage/active_directory_count',
+                                        0, timestamp=ts)
+        
+    def _update(self, frequency_Hz=None):
+        active_dir = self.directory
+        if frequency_Hz is not None:
+            active_dir = os.path.join(active_dir, f"{frequency_Hz/1e6:.0f}MHz")
+            
+        self.log.debug(f"TimeStorageLogger: Updating storage usage in {active_dir}.")
+        try:
+            current_files = glob.glob(os.path.join(active_dir, '*'))
+            current_files.sort()    # The files should have sensible names that
+                                    # reflect their creation times
+            
+            t_now = datetime.utcnow()
+            new_files, new_file_ages = deque(), deque()
+            for filename in current_files:
+                # For each top level YYYY-MM-DD directory, find all of its sub-
+                # directories
+                batch_filenames = [filename,]
+                batch_filenames.extend(glob.glob(os.path.join(filename, '*')))
+                
+                # For each entry, come up with a global retention flag and an
+                # age
+                mark_as_retain = False
+                batch_ages = []
+                for fn in batch_filenames:
+                    name = fn.replace(active_dir, '')
+                    if name.startswith(os.path.sep):
+                        name = name[len(os.path.sep):]
+                        
+                    if name.find('_retain') != -1:
+                        mark_as_retain = True
+                        
+                    try:
+                        ## YYYY-MM-DD/HH
+                        fndate = datetime.strptime(name, '%Y-%m-%d/%H')
+                    except ValueError:
+                        try:
+                            ## YYYY-MM-DD only
+                            fndate = datetime.strptime(name, '%Y-%m-%d')
+                            fndate = fndate.replace(hour=23)
+                        except ValueError:
+                            continue
+                    fnage = (t_now - fndate).total_seconds()
+                    batch_ages.append(fnage)
+                    
+                # If the global retention flag is set than that means there is
+                # at least one HH sub-directory that should be retained.  Modify
+                # the name of the parent YYYY-MM-DD directory to make sure it
+                # isn't purged by the quota manager.
+                if mark_as_retain:
+                    batch_filenames[0] += '_retain'
+                    
+                # Update new_* with this batch
+                new_files.extend(batch_filenames)
+                new_file_ages.extend(batch_ages)
+        except Exception as e:
+            self.log.warning("Quota manager could not refresh the file list: %s", str(e))
+        self._files = new_files
+        self._file_ages = new_file_ages
+ 
+    def _halt(self):
+        self._reset()
+        
+    def _manage_quota(self):
+        t0 = time.time()
+        
+        to_remove = []
+        to_remove_oldest = 0
+        for fn,fa in zip(self._files, self._file_ages):
+            if fa > self.quota:
+                if (len(fn) <= len(self.directory)) or \
+                    (not fn.startswith(self.directory)) or \
+                        (len(fn) <= MINIMUM_TO_DELETE_PATH_LENGTH):
+                    msg = "TimeStorageLogger: Quota management has unexpected path to remove: %s" % fn
+                    self.log.error(msg)
+                    raise ValueError(msg)
+                else:
+                    if fn.find('_retain') == -1:
+                        to_remove.append(fn)
+                        if fa > to_remove_oldest:
+                            to_remove_oldest = fa
+        self.log.debug("Quota: Number of items to remove: %i", len(to_remove))
+        if to_remove:
+            batch = 0
+            for chunk in [to_remove[i:i+100] for i in range(0, len(to_remove), 100)]:
+                batch += 1
+                try:
+                    remove_process = Popen(['/bin/rm', '-rf'] + chunk, stdout=DEVNULL, stderr=DEVNULL)
+                    while remove_process.poll() is None:
+                        self.shutdown_event.wait(20)
+                        if self.shutdown_event.is_set():
+                            remove_process.kill()
+                            self.log.warning('Quota: Failed to remove %i items - batch #%i took too long, giving up', len(chunk), batch)
+                            return
+                    self.log.debug('Quota: Removed %i items.', len(chunk))
+                except OSError as e:
+                    self.log.warning('Quota: Failed to remove %i items - %s', len(chunk), str(e))
+            self.log.debug("=== Quota Report ===")
+            self.log.debug(" items removed: %i", len(to_remove))
+            self.log.debug(" oldest item removed: %.3f hr", (to_remove_oldest/3600.))
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
+            self.log.debug("===   ===")
+            
+    def main(self, once=False):
+        """
+        Main logging loop.  May be run only once with the "once" keyword set to
+        True.
+        """
+        
+        while not self.shutdown_event.is_set():
+            # Update the state
+            t0 = time.time()
+            active_freq = self.client.read_monitor_point('latest_frequency')
+            if active_freq is not None:
+                if active_freq.value is not None:
+                    self._update(frequency_Hz=active_freq.value)
+                    
+            # Find the disk size and free space for the disk hosting the
+            # directory - this should be quota-aware
+            ts = time.time()
+            st = os.statvfs(self.directory)
+            disk_free = st.f_bavail * st.f_frsize
+            disk_total = st.f_blocks * st.f_frsize
+            self.client.write_monitor_point('storage/active_disk_size',
+                                            disk_total, timestamp=ts, unit='B')
+            self.client.write_monitor_point('storage/active_disk_free',
+                                            disk_free, timestamp=ts, unit='B')
+            
+            # Find the total size of all files
+            ts = time.time()
+            file_count = len(self._files)
+            file_oldest = max(self._file_ages, default=0.0)
+            file_newest = min(self._file_ages, default=0.0)
+            self.client.write_monitor_point('storage/active_directory',
+                                            self.directory, timestamp=ts)
+            self.client.write_monitor_point('storage/active_directory_count',
+                                            file_count, timestamp=ts)
+            
+            # Report
+            self.log.debug("=== Storage Report ===")
+            self.log.debug(" directory: %s", self.directory)
+            self.log.debug(" disk size: %i B", disk_total)
+            self.log.debug(" disk free: %i B", disk_free)
+            self.log.debug(" age range: %.3f to %.3f hr", (file_newest/3600.), (file_oldest)/3600.0)
+            self.log.debug(" elapsed time: %.3f s", time.time()-t0)
+            self.log.debug("===   ===")
+            
+            # Quota management, if needed
+            if self.quota is not None:
+                if active_freq is not None:
+                    self._manage_quota()
+                    
+            # Sleep
+            if once:
+                break
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
+            
+        if not once:
+            self._halt()
+            self.log.info("TimeStorageLogger - Done")
 
 
 class StatusLogger(object):
@@ -603,18 +814,28 @@ class StatusLogger(object):
 
 class GlobalLogger(object):
     """
-    Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`StorageLogger`,
-    and :py:class:`StatusLogger` and runs their main methods as a unit.
+    Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`DiskStorageLogger`/
+    :py:class:`TimeStorageLogger`, and :py:class:`StatusLogger` and runs their
+    main methods as a unit.
     """
     
     def __init__(self, log, id, args, queue, quota=None, threads=None,
                  gulp_time=None, shutdown_event=None, update_interval_perf=10,
-                 update_interval_storage=1800, update_interval_status=20):
+                 update_interval_storage=3600, update_interval_status=20,
+                 quota_mode='disk'):
         self.log = log
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
         
+        SLC = {'disk': DiskStorageLogger,
+               'time': TimeStorageLogger}
+        try:
+            SLC_thread_name = 'StorageLogger-'+quota_mode
+            SLC = SLC[quota_mode]
+        except KeyError:
+            raise ValueError("Unknown quota managment mode '%s'" % quota_mode)
+            
         thread_names = []
         self._thread_names = []
         if threads is not None:
@@ -626,7 +847,7 @@ class GlobalLogger(object):
                     thread_names.append(type(t).__name__)
                 
         # Threads associated with this logger...
-        for new_thread in (type(self).__name__, 'PerformanceLogger', 'StorageLogger', 'StatusLogger'):
+        for new_thread in (type(self).__name__, 'PerformanceLogger', SLC_thread_name, 'StatusLogger'):
             # ... with a catch to deal with potentially other instances
             name = new_thread
             name_count = 0
@@ -642,9 +863,9 @@ class GlobalLogger(object):
             
         self.perf = PerformanceLogger(log, id, queue, shutdown_event=shutdown_event,
                                       update_interval=update_interval_perf)
-        self.storage = StorageLogger(log, id, args.record_directory, quota=quota,
-                                     shutdown_event=shutdown_event,
-                                     update_interval=update_interval_storage)
+        self.storage = SLC(log, id, args.record_directory, quota=quota,
+                            shutdown_event=shutdown_event,
+                            update_interval=update_interval_storage)
         self.status = StatusLogger(log, id, queue, thread_names=thread_names,
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
