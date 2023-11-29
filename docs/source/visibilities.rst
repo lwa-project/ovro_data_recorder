@@ -24,6 +24,9 @@ The pipeline is written in the Bifrost framework and has five blocks:
    the visibility amplitude for the center frequency channel as a function of `(u,v)`
    radial distance every 60 s.  This block is only active for the slow visibility
    mode.
+ * ``ImageOp`` - This reads in the visibility data, along with calibration tables,
+   and write a PNG image that shows the sky as imaged using the core every 60 s.
+   This block is only active for the slow visibility mode.
  * ``StatisticsOp`` - This reads in the visibility data and computes per-antenna
    minimum/mean/maximum values across frequency from the auto-correlations on a 
    60 s cadence.
@@ -104,6 +107,7 @@ and # is the GPU pipeline that is being recorded.
     * active_directory_count - The number of files in the
       recording directory.
    
+  * /mon/drv[s]#/latest_frequency - Latest frequency for the written slow visibility file.
   * /mon/drv[s]#/latest_time_tag - Latest timetag for the written slow visibility file.
   * /mon/drv[sf]#/summary - An overall status of the pipeline.  Possible values
     are "normal", "warning", and "error".
