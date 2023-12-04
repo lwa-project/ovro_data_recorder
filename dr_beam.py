@@ -60,7 +60,7 @@ class CaptureOp(object):
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
-        time_tag *= 2*NCHAN     # Seems to be needed now
+        time_tag = seq0 * 2*NCHAN * navg
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -598,10 +598,10 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
-                           ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+                           ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
-                             ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+                             ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
     ops.append(SpectraOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
