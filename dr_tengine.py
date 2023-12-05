@@ -22,6 +22,7 @@ from mnc.mcs import MultiMonitorPoint, Client
 from operations import FileOperationsQueue, DrxOperationsQueue
 from monitoring import GlobalLogger
 from control import VoltageBeamCommandProcessor
+from version import version as repo_version
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -400,6 +401,7 @@ class ReChannelizerOp(object):
                 
                 ohdr = ihdr.copy()
                 ohdr['chan0'] = 0
+                ohdr['cfreq0'] = 0.0
                 ohdr['nchan'] = ochan
                 ohdr['bw']    = CLOCK / 2
                 ohdr['pfb_inverter'] = int(self.pfb_inverter)
@@ -612,7 +614,7 @@ class TEngineOp(object):
             if self.gpu is not None:
                 BFSetGPU(self.gpu)
                 
-            phaseState = self.phaseState.copy(space='system')
+            phaseState = numpy.array(self.phaseState.copy(space='system'))
             phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
             try:
                 if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
@@ -622,7 +624,7 @@ class TEngineOp(object):
                 phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
             phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
             phaseRot = phaseRot.astype(numpy.complex64)
-            copy_array(self.phaseState, phaseState)
+            copy_array(self.phaseState, BFArray(phaseState))
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
             
             return True
@@ -643,7 +645,7 @@ class TEngineOp(object):
                 if self.gpu is not None:
                     BFSetGPU(self.gpu)
                     
-                phaseState = self.phaseState.copy(space='system')
+                phaseState = numpy.array(self.phaseState.copy(space='system'))
                 phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
                 try:
                     if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
@@ -653,7 +655,7 @@ class TEngineOp(object):
                     phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
                 phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
                 phaseRot = phaseRot.astype(numpy.complex64)
-                copy_array(self.phaseState, phaseState)
+                copy_array(self.phaseState, BFArray(phaseState))
                 self.phaseRot = BFAsArray(phaseRot, space='cuda')
                 
             return False
@@ -737,7 +739,7 @@ class TEngineOp(object):
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 12 - 6*pfb_inverter
                     act_gain1 = self.gain[1] + 12 - 6*pfb_inverter
-                    rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
+                    rel_gain = numpy.array([1.0, 2**(act_gain0-act_gain1)], dtype=numpy.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
@@ -796,8 +798,8 @@ class TEngineOp(object):
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap("""
-                                      auto k = (j / 2);// % 2;
-                                      a(i,j) *= r(k)*exp(Complex<float>(0.0, -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                      auto k = (j / 2) % 2;
+                                      a(i,j) *= r(k)*exp(Complex<float>(0.0, -2*BF_PI_F*fmod(g(k)*s(k), 1.0)))*b(i,k);
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
                                       axis_names=('i','j'),
@@ -849,7 +851,7 @@ class TEngineOp(object):
                                     ogulp_size = ngulp_size
                                     oshape = nshape
                                     
-                                    self.oring.resize(ogulp_size)
+                                    self.oring.resize(ogulp_size, 10*ogulp_size)
                                     
                                 ### Clean-up
                                 try:
@@ -1192,6 +1194,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
+    log.info("Version: %s", repo_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))

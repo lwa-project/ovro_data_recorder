@@ -28,6 +28,7 @@ from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import VisibilityCommandProcessor
 from lwams import get_zenith_uvw
+from version import version as repo_version
 
 from xengine_fast_control import FastStation
 
@@ -53,6 +54,48 @@ BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
 QUEUE = FileOperationsQueue()
+
+
+def quota_size(value):
+    """
+    Convert a human readable time frame (e.g. 1d 4:00 for 1 day, 4 hours) into a
+    number of seconds.
+    """
+    
+    w = d = h = m = 0
+    wfound = dfound = hfound = mfound = False
+    try:
+        w, value = value.split('w', 1)
+        w = int(w)
+        value = value.strip()
+        wfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        d, value = value.split('d', 1)
+        d = int(d)
+        value = value.strip()
+        dfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        h, value = value.split(':', 1)
+        h = int(h)
+        value = value.strip()
+        hfound = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        m = int(value)
+        mfound = True
+    except ValueError:
+        pass
+        
+    if not (wfound or dfound or hfound or mfound):
+        raise ValueError("Cannot interpret '%s' as a quota size" % value)
+        
+    value = 7*24*w + 24*d + h + m/60.0
+    return int(value*3600)
 
 
 class CaptureOp(object):
@@ -593,7 +636,7 @@ class ImageOp(object):
             else:
                 # We need to make a new one for each baseline/channel/polarization
                 # NOTE: Lots of assumptions here about the antenna order
-                self._cal = numpy.zeros((nbl,freq.size,4), dtype=numpy.complex64)
+                self._cal = numpy.zeros((2*nbl,freq.size,4), dtype=numpy.complex64)
                 base_cal = self._all_cals[caltag]
                 k = 0
                 for i in range(nstand):
@@ -612,6 +655,7 @@ class ImageOp(object):
                         self._cal[k,:,1] = gix*gjy.conj()
                         self._cal[k,:,2] = giy*gjx.conj()
                         self._cal[k,:,3] = giy*gjy.conj()
+                        self._cal[nbl+k,:,:] = self._cal[k,:,:].conj()
                         k += 1
                         
                 # Update cal and the "calibration tag"
@@ -729,11 +773,12 @@ class ImageOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size)
+            self.iring.resize(igulp_size, 10*igulp_size)
             
             # Setup the arrays for the frequencies and baseline lenghts
             freq = chan0*chan_bw + numpy.arange(nchan)*chan_bw
             uvw = get_zenith_uvw(self.station, LWATime(time_tag, format='timetag'))
+            uvw = numpy.concatenate([uvw, -uvw], axis=0)
             dist = numpy.sqrt((uvw[:,:2]**2).sum(axis=1))
             uscl = freq / 299792458.0
             uscl.shape = (1,1)+uscl.shape
@@ -769,11 +814,14 @@ class ImageOp(object):
                         
                     ## Plot
                     try:
-                        bdata.real[...] = idata[0,:,:,:,0]
-                        bdata.imag[...] = idata[0,:,:,:,1]
+                        bdata.real[:nbl,...] =  idata[0,:,:,:,0]
+                        bdata.imag[:nbl,...] =  idata[0,:,:,:,1]
+                        bdata.real[nbl:,...] =  idata[0,:,:,:,0]
+                        bdata.imag[nbl:,...] = -idata[0,:,:,:,1]
                     except NameError:
                         bdata = idata[0,:,:,:,0] + 1j*idata[0,:,:,:,1]
                         bdata = bdata.astype(numpy.complex64)
+                        bdata = numpy.concatenate([bdata, bdata.conj()], axis=0)
                     if cal is not None:
                         bdata *= cal
                     im = self._plot_images(time_tag, freq, uvw, bdata, valid, order, has_cal=(cal is not None))
@@ -954,7 +1002,11 @@ class WriterOp(object):
             
             norm_factor = navg // (2*NCHAN)
             
+            self.client.write_monitor_point('latest_frequency', chan_to_freq(chan0), unit='Hz')
+            
             first_gulp = True
+            write_error_asserted = False
+            write_error_counter = 0
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             for ispan in iseq_spans:
@@ -989,9 +1041,25 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, cdata)
-                    if not self.fast:
-                        self.client.write_monitor_point('latest_time_tag', time_tag)    
+                    try:
+                        active_op.write(time_tag, cdata)
+                        if not self.fast:
+                            self.client.write_monitor_point('latest_time_tag', time_tag)
+                            
+                        if write_error_asserted:
+                            write_error_asserted = False
+                            self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            write_error_counter = 0
+                            
+                    except Exception as e:
+                        if not write_error_asserted:
+                            write_error_asserted = True
+                            self.log.error("Write error asserted - initial error: %s", str(e))
+                        write_error_counter += 1
+                        
+                        if write_error_counter % 500 == 0:
+                            self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            
                 elif was_active:
                     ### Recording just finished
                     #### Clean
@@ -1015,6 +1083,8 @@ class WriterOp(object):
             except NameError:
                 pass
                 
+        self.client.write_monitor_point('latest_frequency', None, unit='Hz')
+        
         self.log.info("WriterOp - Done")
 
 
@@ -1081,6 +1151,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
+    log.info("Version: %s", repo_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
@@ -1147,7 +1218,8 @@ def main(argv):
     ops.append(WriterOp(log, mcs_id, station, capture_ring,
                         ntime_gulp=args.gulp_size, fast=args.quick, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
-                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK)))  # Ugh, hard coded
+                            threads=ops, gulp_time=args.gulp_size*2400*(1 if args.quick else 100)*(2*NCHAN/CLOCK),  # Ugh, hard coded
+                            quota_mode='time'))
     ops.append(VisibilityCommandProcessor(log, mcs_id, args.record_directory, QUEUE,
                                           nint_per_file=args.nint_per_file,
                                           is_tarred=not args.no_tar))

@@ -21,6 +21,7 @@ from reductions import *
 from operations import FileOperationsQueue
 from monitoring import GlobalLogger
 from control import PowerBeamCommandProcessor
+from version import version as repo_version
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -59,7 +60,7 @@ class CaptureOp(object):
     def seq_callback(self, seq0, time_tag, navg, chan0, nchan, nbeam, hdr_ptr, hdr_size_ptr):
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
-        time_tag *= 2*NCHAN     # Seems to be needed now
+        time_tag = seq0 * 2*NCHAN * navg
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
@@ -431,8 +432,12 @@ class WriterOp(object):
             igulp_size = self.ntime_gulp*nbeam*nchan*npol*4        # float32
             ishape = (self.ntime_gulp,nbeam,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size)
+
+            norm_factor = navg
             
-            first_gulp = True 
+            first_gulp = True
+            write_error_asserted = False
+            write_error_counter = 0
             prev_time = time.time()
             iseq_spans = iseq.read(igulp_size)
             for ispan in iseq_spans:
@@ -451,6 +456,11 @@ class WriterOp(object):
                     
                 ## Setup and load
                 idata = ispan.data_view(numpy.float32).reshape(ishape)
+                try:
+                    ndata[...] = idata
+                except NameError:
+                    ndata = idata.copy()
+                ndata /= norm_factor
                 
                 ## Determine what to do
                 active_op = QUEUE.active
@@ -460,7 +470,22 @@ class WriterOp(object):
                         self.log.info("Started operation - %s", active_op)
                         active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
-                    active_op.write(time_tag, idata)
+                    try:
+                        active_op.write(time_tag, ndata)
+                        if write_error_asserted:
+                            write_error_asserted = False
+                            self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            write_error_counter = 0
+                            
+                    except Exception as e:
+                        if not write_error_asserted:
+                            write_error_asserted = True
+                            self.log.error("Write error asserted - initial error: %s", str(e))
+                        write_error_counter += 1
+                        
+                        if write_error_counter % 500 == 0:
+                            self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            
                 elif was_active:
                     ### Recording just finished - clean
                     #### Clean
@@ -479,6 +504,11 @@ class WriterOp(object):
                 self.perf_proclog.update({'acquire_time': acquire_time, 
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
+
+            try:
+                del ndata
+            except NameError:
+                pass
                 
         self.log.info("WriterOp - Done")
 
@@ -531,6 +561,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
+    log.info("Version: %s", repo_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
@@ -567,10 +598,10 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, NPIPELINE,
-                           ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+                           ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
-                             ntime_gulp=args.gulp_size, slot_ntime=1000, core=cores.pop(0)))
+                             ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
     ops.append(SpectraOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(StatisticsOp(log, mcs_id, capture_ring,

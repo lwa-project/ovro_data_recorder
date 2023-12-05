@@ -24,6 +24,7 @@ python3 {{ path }}/dr_visibilities.py \
          --port                   {{ port }} \
          --cores                  {{ cores }} \
          --quick \
+         --nint-per-file          100 \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --no-tar \
