@@ -1257,6 +1257,7 @@ def main(argv):
     # Setup the threads
     threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
     
+    """
     t_now = LWATime(datetime.utcnow() + timedelta(seconds=15), format='datetime', scale='utc')
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
@@ -1264,6 +1265,7 @@ def main(argv):
     r = c.send_command(mcs_id, 'record', beam=args.beam,
                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r)
+    """
     
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
