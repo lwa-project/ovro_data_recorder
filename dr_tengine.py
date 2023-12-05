@@ -695,7 +695,7 @@ class TEngineOp(object):
                                     ogulp_size = ngulp_size
                                     oshape = nshape
                                     
-                                    self.oring.resize(ogulp_size)
+                                    self.oring.resize(ogulp_size, 10*ogulp_size)
                                     
                                 ### Clean-up
                                 try:
