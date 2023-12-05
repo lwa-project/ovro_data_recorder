@@ -679,7 +679,7 @@ class TEngineOp(object):
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 15
                     act_gain1 = self.gain[1] + 15
-                    rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
+                    rel_gain = numpy.array([1.0, 2**(act_gain0-act_gain1)], dtype=numpy.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
