@@ -1065,7 +1065,7 @@ class WriterOp(object):
             igulp_size = ntime_gulp*nbeam*ntune*npol
             
             # Figure out where we need to be in the buffer to be at a frame boundary
-            NPACKET_SET = 16
+            NPACKET_SET = 4
             ticksPerSample = int(FS) // int(bw)
             toffset = int(time_tag0) // ticksPerSample
             soffset = toffset % (NPACKET_SET*int(ntime_pkt))
