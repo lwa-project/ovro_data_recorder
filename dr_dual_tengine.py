@@ -558,7 +558,7 @@ class TEngineOp(object):
             if self.gpu is not None:
                 BFSetGPU(self.gpu)
                 
-            phaseState = self.phaseState.copy(space='system')
+            phaseState = numpy.array(self.phaseState.copy(space='system'))
             phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
             try:
                 if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
@@ -568,7 +568,7 @@ class TEngineOp(object):
                 phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
             phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
             phaseRot = phaseRot.astype(numpy.complex64)
-            copy_array(self.phaseState, phaseState)
+            copy_array(self.phaseState, BFArray(phaseState))
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
             
             return True
@@ -589,7 +589,7 @@ class TEngineOp(object):
                 if self.gpu is not None:
                     BFSetGPU(self.gpu)
                     
-                phaseState = self.phaseState.copy(space='system')
+                phaseState = numpy.array(self.phaseState.copy(space='system'))
                 phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
                 try:
                     if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
@@ -599,7 +599,7 @@ class TEngineOp(object):
                     phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
                 phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
                 phaseRot = phaseRot.astype(numpy.complex64)
-                copy_array(self.phaseState, phaseState)
+                copy_array(self.phaseState, BFArray(phaseState))
                 self.phaseRot = BFAsArray(phaseRot, space='cuda')
                 
             return False
