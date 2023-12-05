@@ -269,6 +269,7 @@ class ReChannelizerOp(object):
                 
                 ohdr = ihdr.copy()
                 ohdr['chan0'] = 0
+                ohdr['cfreq0'] = 0.0
                 ohdr['nchan'] = ochan
                 ohdr['bw']    = CLOCK / 2
                 ohdr_str = json.dumps(ohdr)
