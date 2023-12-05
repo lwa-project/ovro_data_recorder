@@ -738,6 +738,11 @@ class StatusLogger(object):
                 nfound += 1
             else:
                 total = MonitorPoint(0)
+            loadavg = self.client.read_monitor_point('system/load_average/one_minute')
+            if loadavg is not None:
+                nfound += 1
+            else:
+                loadavg = MonitorPoint(0)
             free = self.client.read_monitor_point('storage/active_disk_free')
             if free is not None:
                 nfound += 1
@@ -827,9 +832,11 @@ class StatusLogger(object):
             elif summary == 'warning':
                 ## Forced logging of warnings conditions
                 self.log.warning("Status report: %s", info)
+                self.log.warning("One minute load average: %.2f", loadavg.value)
             elif summary == 'error':
                 ## Forced logging of error conditions
                 self.log.error("Status report: %s", info)
+                self.log.error("One minute load average: %.2f", loadavg.value)
             self.client.write_monitor_point('summary', summary, timestamp=ts)
             self.client.write_monitor_point('info', info, timestamp=ts)
             self.last_summary = summary
