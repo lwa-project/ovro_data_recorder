@@ -907,10 +907,9 @@ class TEngineOp(object):
 
 
 class StatisticsOp(object):
-    def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=None):
+    def __init__(self, log, id, iring, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
-        self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
         
@@ -923,7 +922,7 @@ class StatisticsOp(object):
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
-        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
         
     def main(self):
         if self.core is not None:
