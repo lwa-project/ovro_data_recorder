@@ -1120,9 +1120,9 @@ class WriterOp(object):
                         time_tag_cur = time_tag + t*ticksPerSample*DRX_NSAMPLE_PER_PKT
                         
                         try:
-                            udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
+                            udt.send(desc0, time_tag_cur, ticksPerSample*DRX_NSAMPLE_PER_PKT, desc_src+self.beam0, 128, 
                                      data0[t:t+NPACKET_SET,:,:])
-                            udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
+                            udt.send(desc1, time_tag_cur, ticksPerSample*DRX_NSAMPLE_PER_PKT, desc_src+8+self.beam0, 128, 
                                      data1[t:t+NPACKET_SET,:,:])
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
