@@ -946,7 +946,7 @@ class StatisticsOp(object):
             gain0    = ihdr['gain0']
             gain1    = ihdr['gain1']
             filt     = ihdr['filter']
-            npkt     = ihdr['npkt']
+            npkts    = ihdr['npkts']
             nbeam    = ihdr['nbeam']
             ntune    = ihdr['ntune']
             npol     = ihdr['npol']
@@ -954,8 +954,8 @@ class StatisticsOp(object):
             time_tag0 = iseq.time_tag
             time_tag  = time_tag0
             
-            igulp_size = ntune*npkt*nbeam*ntune*npol*DRX_NSAMPLE_PER_PKT*1        # ci4
-            ishape = (ntune,npkt,nbeam,npol,DRX_NSAMPLE_PER_PKT)
+            igulp_size = ntune*npkts*nbeam*ntune*npol*DRX_NSAMPLE_PER_PKT*1        # ci4
+            ishape = (ntune,npkts,nbeam,npol,DRX_NSAMPLE_PER_PKT)
             self.iring.resize(igulp_size, 10*igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
@@ -1065,17 +1065,17 @@ class WriterOp(object):
             gain0    = ihdr['gain0']
             gain1    = ihdr['gain1']
             filt     = ihdr['filter']
-            npkt     = ihdr['npkt']
+            npkts    = ihdr['npkts']
             nbeam    = ihdr['nbeam']
             ntune    = ihdr['ntune']
             npol     = ihdr['npol']
             fdly     = (ihdr['fir_size'] - 1) / 2.0
             time_tag0 = iseq.time_tag
             time_tag  = time_tag0
-            igulp_size = ntune*npkt*nbeam*npol*DRX_NSAMPLE_PER_PKT
+            igulp_size = ntune*npkts*nbeam*npol*DRX_NSAMPLE_PER_PKT
             
             # Figure out how to break up the packets into sets
-            NPACKET_SET = 7 if npkt % 7 == 0 else 5
+            NPACKET_SET = 7 if npkts % 7 == 0 else 5
             
             # Correct for FIR filter delay
             ticksPerSample = int(FS) // int(bw)
@@ -1116,8 +1116,8 @@ class WriterOp(object):
                         udt = DiskWriter("drx", fh, core=self.core)
                         was_active = True
                         
-                    for t in range(0, npkt, NPACKET_SET):
-                        time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
+                    for t in range(0, npkts, NPACKET_SET):
+                        time_tag_cur = time_tag + t*ticksPerSample*DRX_NSAMPLE_PER_PKT
                         
                         try:
                             udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
@@ -1137,7 +1137,7 @@ class WriterOp(object):
                     del udt
                     FILE_QUEUE.previous.stop()
                     
-                time_tag += int(ntime_gulp)*ticksPerSample
+                time_tag += npkts*DRX_NSAMPLE_PER_PKT*ticksPerSample
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -1251,9 +1251,9 @@ def main(argv):
     ops.append(TEngineOp(log, tengine_ring, write_ring,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     #ops.append(StatisticsOp(log, mcs_id, write_ring,
-    #                     ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
+    #                     core=cores.pop(0)))
     ops.append(WriterOp(log, write_ring, beam0=args.beam,
-                        npkt_gulp=32, core=cores.pop(0)))
+                        core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
