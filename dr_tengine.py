@@ -840,9 +840,9 @@ class TEngineOp(object):
                                     
                                 ## Save
                                 try:
-                                    copy_array(wdata, qdata)
+                                    copy_array(wdata, tdata)
                                 except NameError:
-                                    wdata = qdata.copy('cuda_host')
+                                    wdata = tdata.copy('cuda_host')
                                 odata[...] = wdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
