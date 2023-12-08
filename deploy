@@ -42,6 +42,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
         fi
         if [[ $? == 0 ]]; then
             # Build the gridder extension for dr_visibilities.py
+            cd ${ROOTDIR}
             conda run -n deployment python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
         fi
         if [[ $? == 0 ]]; then
@@ -104,6 +105,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
             fi
             if [[ $? == 0 ]]; then
                 # Build the gridder extension for dr_visibilities.py
+                cd ${ROOTDIR}
                 conda run -n casa python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
             fi
             if [[ $? == 0 ]]; then
