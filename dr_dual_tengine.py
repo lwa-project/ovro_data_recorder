@@ -14,6 +14,8 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
+from scipy.signal import get_window as scipy_window, firwin as scipy_firwin
+
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
@@ -29,13 +31,12 @@ from bifrost.packet_writer import HeaderInfo, DiskWriter
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
-from bifrost.ndarray import copy_array
+from bifrost.ndarray import copy_array, memset_array
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.fft import Fft
 from bifrost.fir import Fir
 from bifrost.quantize import quantize as Quantize
-from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
 BFNoSpinZone()
@@ -64,6 +65,14 @@ FILE_QUEUE_0 = FileOperationsQueue()
 FILE_QUEUE_1 = FileOperationsQueue()
 DRX_QUEUE_0 = DrxOperationsQueue()
 DRX_QUEUE_1 = DrxOperationsQueue()
+
+
+def pfb_window(P):
+    win_coeffs = scipy_window("hamming", 4*P)
+    sinc       = scipy_firwin(4*P, cutoff=1.0/P, window="rectangular")
+    win_coeffs *= sinc
+    win_coeffs /= win_coeffs.max()
+    return win_coeffs
 
 
 class CaptureOp(object):
@@ -295,14 +304,16 @@ class BeamSelectOp(object):
 
 
 class ReChannelizerOp(object):
-    def __init__(self, log, iring, oring, ntime_gulp=250, guarantee=True, core=None, gpu=None):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.ntime_gulp = ntime_gulp
-        self.guarantee  = guarantee
-        self.core       = core
-        self.gpu        = gpu
+    def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, pfb_inverter=True, guarantee=True, core=None, gpu=None):
+        self.log          = log
+        self.iring        = iring
+        self.oring        = oring
+        self.ntime_gulp   = ntime_gulp
+        self.nbeam_max    = nbeam_max
+        self.pfb_inverter = pfb_inverter
+        self.guarantee    = guarantee
+        self.core         = core
+        self.gpu          = gpu
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -314,6 +325,40 @@ class ReChannelizerOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+        # Setup the PFB inverter
+        if self.gpu is not None:
+            BFSetGPU(self.gpu)
+        ## Metadata
+        nbeam, npol = self.nbeam_max, 2
+        ## PFB data arrays
+        self.fdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        self.gdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        self.gdata2 = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        ## PFB inversion matrix
+        matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
+        self.imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        
+        pfb = pfb_window(NCHAN)
+        pfb = pfb.reshape(4, -1)
+        pfb.shape += (1,)
+        pfb.shape = (1,)+pfb.shape
+        matrix[:,:4,:,:] = pfb
+        matrix = matrix.copy(space='cuda')
+        
+        pfft = Fft()
+        pfft.init(matrix, self.imatrix, axes=1)
+        pfft.execute(matrix, self.imatrix, inverse=False)
+        
+        wft = 0.3
+        BFMap(f"""
+              a = (a.mag2() / (a.mag2() + {wft}*{wft})) * (1+{wft}*{wft}) / a.conj();
+              """,
+              {'a':self.imatrix})
+        
+        self.imatrix = self.imatrix.reshape(-1, 4, NCHAN*nbeam*npol)
+        del matrix
+        del pfft
         
     def main(self):
         if self.core is not None:
@@ -342,7 +387,7 @@ class ReChannelizerOp(object):
                 
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8        # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
-                self.iring.resize(igulp_size, 10*igulp_size)
+                self.iring.resize(igulp_size, 15*igulp_size)
                 
                 ochan = int(round(CLOCK / 2 / INT_CHAN_BW))
                 otime_gulp = self.ntime_gulp*NCHAN // ochan
@@ -355,7 +400,11 @@ class ReChannelizerOp(object):
                 ohdr['cfreq0'] = 0.0
                 ohdr['nchan'] = ochan
                 ohdr['bw']    = CLOCK / 2
+                ohdr['pfb_inverter'] = int(self.pfb_inverter)
                 ohdr_str = json.dumps(ohdr)
+                
+                # Zero out self.fdata in case chan0 has changed
+                memset_array(self.fdata, 0)
                 
                 with oring.begin_sequence(time_tag=time_tag, header=ohdr_str) as oseq:
                     prev_time = time.time()
@@ -375,45 +424,68 @@ class ReChannelizerOp(object):
                             idata = ispan.data_view(numpy.complex64).reshape(ishape)
                             odata = ospan.data_view(numpy.complex64).reshape(oshape)
                             
-                            # Pad out to the full 98 MHz bandwidth
-                            try:
-                                fdata[:,chan0:chan0+nchan,:,:] = idata
-                            except NameError:
-                                fdata = numpy.zeros((self.ntime_gulp,NCHAN,nbeam,npol), dtype=numpy.complex64)
-                                fdata = BFAsArray(fdata, space='cuda_host')
-                                fdata[:,chan0:chan0+nchan,:,:] = idata
-                                
                             ### From here until going to the output ring we are on the GPU
+                            t0 = time.time() 
                             try:
-                                bdata = bdata.reshape(*fdata.shape)
-                                copy_array(bdata, fdata)
+                                copy_array(bdata, idata)
                             except NameError:
-                                bdata = fdata.copy(space='cuda')
+                                bdata = idata.copy(space='cuda')
                                 
-                            ## IFFT
-                            try:
-                                gdata = gdata.reshape(*bdata.shape)
-                                bfft.execute(bdata, gdata, inverse=True)
-                            except NameError:
-                                gdata = BFArray(shape=bdata.shape, dtype=numpy.complex64, space='cuda')
-                                
-                                bfft = Fft()
-                                bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
-                                bfft.execute(bdata, gdata, inverse=True)
-                            gdata = gdata.reshape(otime_gulp,ochan,nbeam,npol)
+                            # Pad out to the full 98 MHz bandwidth
+                            t1 = time.time()
+                            BFMap(f"""
+                                  a(i,j+{chan0},k) = b(i,j,k);
+                                  a(i,j+{chan0},k) = b(i,j,k);
+                                  """,
+                                  {'a': self.fdata, 'b': bdata},
+                                  axis_names=('i','j','k'),
+                                  shape=(self.ntime_gulp,nchan,nbeam*npol))
                             
-                            ## FFT
+                            ## PFB inversion
+                            ### Initial IFFT
+                            t2 = time.time()
+                            self.gdata = self.gdata.reshape(fdata.shape)
                             try:
-                                ffft.execute(gdata, rdata, inverse=False)
+                                bfft.execute(fdata, self.gdata, inverse=True)
                             except NameError:
-                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam,npol), dtype=numpy.complex64, space='cuda')
+                                bfft = Fft()
+                                bfft.init(fdata, self.gdata, axes=1, apply_fftshift=True)
+                                bfft.execute(fdata, self.gdata, inverse=True)
+                                
+                            if self.pfb_inverter:
+                                ### The actual inversion
+                                t4 = time.time()
+                                self.gdata = self.gdata.reshape(self.imatrix.shape)
+                                try:
+                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
+                                except NameError:
+                                    pfft = Fft()
+                                    pfft.init(self.gdata, self.gdata2, axes=1)
+                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
+                                    
+                                BFMap("a *= b / %f" % numpy.sqrt(NCHAN*4*ochan),
+                                      {'a':self.gdata2, 'b':self.imatrix})
+                                     
+                                pfft.execute(self.gdata2, self.gdata, inverse=True)
+                                
+                            ## FFT to re-channelize
+                            t5 = time.time()
+                            self.gdata = self.gdata.reshape(-1, ochan, nbeam*npol)
+                            try:
+                                ffft.execute(self.gdata, rdata, inverse=False)
+                            except NameError:
+                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam*npol), dtype=numpy.complex64, space='cuda')
                                 
                                 ffft = Fft()
-                                ffft.init(gdata, rdata, axes=1, apply_fftshift=True)
-                                ffft.execute(gdata, rdata, inverse=False)
+                                ffft.init(self.gdata, rdata, axes=1, apply_fftshift=True)
+                                ffft.execute(self.gdata, rdata, inverse=False)
                                 
                             ## Save
+                            t6 = time.time()
                             copy_array(odata, rdata)
+                            
+                            t7 = time.time()
+                            # print(t7-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
                             
                         curr_time = time.time()
                         process_time = curr_time - prev_time
@@ -423,9 +495,9 @@ class ReChannelizerOp(object):
                                                   'process_time': process_time,})
                         
             try:
-                del fdata
-                del gdata
+                del bdata
                 del bfft
+                del pfft
                 del rdata
                 del ffft
             except NameError:
@@ -636,6 +708,7 @@ class TEngineOp(object):
                 chan_bw  = ihdr['bw'] / nchan
                 npol     = ihdr['npol']
                 ntune    = 2
+                pfb_inverter = ihdr['pfb_inverter']
                 
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8                # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
@@ -677,8 +750,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 12
-                    act_gain1 = self.gain[1] + 12
+                    act_gain0 = self.gain[0] + 12 - 6*pfb_inverter
+                    act_gain1 = self.gain[1] + 12 - 6*pfb_inverter
                     rel_gain = numpy.array([1.0, 2**(act_gain0-act_gain1)], dtype=numpy.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
@@ -1101,6 +1174,8 @@ def main(argv):
                         help='comma separated list of GPUs to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1960,
                         help='gulp size for ring buffers')
+    parser.add_argument('-n', '--no-pfb-inverter', dest='pfb_inverter', action='store_false',
+                        help='disable the PFB inverter')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('--debug', action='store_true',
@@ -1189,9 +1264,11 @@ def main(argv):
     ops.append(BeamSelectOp(log, capture_ring, split1_ring, 1,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, split0_ring, tengine0_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
+                               ntime_gulp=args.gulp_size, pfb_inverter=args.pfb_inverter,
+                               core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(ReChannelizerOp(log, split1_ring, tengine1_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0), gpu=gpus.pop(0)))
+                               ntime_gulp=args.gulp_size, pfb_inverter=args.pfb_inverter,
+                               core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine0_ring, write0_ring, beam0=args.beam,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, tengine1_ring, write1_ring, beam0=args.beam+1,
