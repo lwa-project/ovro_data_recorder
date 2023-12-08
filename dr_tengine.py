@@ -37,6 +37,7 @@ from bifrost.proclog import ProcLog
 from bifrost.fft import Fft
 from bifrost.fir import Fir
 from bifrost.quantize import quantize as Quantize
+from bifrost.transpose import transpose as Transpose
 from bifrost.unpack import unpack as Unpack
 from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
@@ -723,6 +724,8 @@ class TEngineOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
+                    npkts = self.ntime_gulp*self.nchan_out // DRX_NSAMPLE_PER_PKT
+                    
                     ohdr['time_tag'] = base_time_tag
                     ohdr['cfreq0']   = self.rFreq[0]
                     ohdr['cfreq1']   = self.rFreq[1]
@@ -730,6 +733,7 @@ class TEngineOp(object):
                     ohdr['gain0']    = self.gain[0]
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
+                    ohdr['npkts']    = npkts
                     ohdr_str = json.dumps(ohdr)
                     
                     # Update the channels to pull in
@@ -819,17 +823,27 @@ class TEngineOp(object):
                                     
                                 ## Quantization
                                 try:
+                                    qdata = qdata.reshape(fdata.shape)
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
                                 except NameError:
                                     qdata = BFArray(shape=fdata.shape, native=False, dtype='ci4', space='cuda')
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
                                     
+                                ## Transpose
+                                
+                                try:
+                                    qdata = qdata.reshape(npkts,DRX_NSAMPLE_PER_PKT,nbeam,ntune,npol)
+                                    Transpose(tdata, qdata, axes=(3,0,2,4,1))
+                                except NameError:
+                                    tdata = BFArray(shape=(ntune,npkts,nbeam,npol,DRX_NSAMPLE_PER_PKT), native=False, dtype='ci4', space='cuda')
+                                    Transpose(tdata, qdata, axes=(3,0,2,4,1))
+                                    
                                 ## Save
                                 try:
-                                    copy_array(tdata, qdata)
+                                    copy_array(wdata, tdata)
                                 except NameError:
-                                    tdata = qdata.copy('cuda_host')
-                                odata[...] = tdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
+                                    wdata = tdata.copy('cuda_host')
+                                odata[...] = wdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
@@ -862,6 +876,7 @@ class TEngineOp(object):
                                     del bfir
                                     del qdata
                                     del tdata
+                                    del wdata
                                 except NameError:
                                     pass
                                     
@@ -884,6 +899,7 @@ class TEngineOp(object):
                             del fdata
                             del qdata
                             del tdata
+                            del wdata
                         except NameError:
                             pass
                             
@@ -891,10 +907,9 @@ class TEngineOp(object):
 
 
 class StatisticsOp(object):
-    def __init__(self, log, id, iring, ntime_gulp=1, guarantee=True, core=None):
+    def __init__(self, log, id, iring, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
-        self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
         
@@ -907,7 +922,7 @@ class StatisticsOp(object):
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
-        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
         
     def main(self):
         if self.core is not None:
@@ -930,6 +945,7 @@ class StatisticsOp(object):
             gain0    = ihdr['gain0']
             gain1    = ihdr['gain1']
             filt     = ihdr['filter']
+            npkts    = ihdr['npkts']
             nbeam    = ihdr['nbeam']
             ntune    = ihdr['ntune']
             npol     = ihdr['npol']
@@ -937,8 +953,8 @@ class StatisticsOp(object):
             time_tag0 = iseq.time_tag
             time_tag  = time_tag0
             
-            igulp_size = self.ntime_gulp*nbeam*ntune*npol*1        # ci4
-            ishape = (self.ntime_gulp,nbeam,ntune*npol)
+            igulp_size = ntune*npkts*nbeam*ntune*npol*DRX_NSAMPLE_PER_PKT*1        # ci4
+            ishape = (ntune,npkts,nbeam,npol,DRX_NSAMPLE_PER_PKT)
             self.iring.resize(igulp_size, 10*igulp_size)
             
             ticksPerSample = int(FS) // int(bw)
@@ -972,16 +988,14 @@ class StatisticsOp(object):
                         Unpack(idata, udata)
                         
                     ## Run the statistics over all times/tunings/polarizations
-                    ##  * only really works for nbeam=1
-                    udata = udata.reshape(self.ntime_gulp,ntune*npol)
-                    pdata = numpy.abs(udata)**2
-                    data_avg = numpy.mean(pdata, axis=0)
+                    pdata = numpy.abs(udata[:,:,0,:,:])**2
+                    data_avg = numpy.mean(numpy.mean(pdata, axis=-1), axis=0)
                     data_sat = numpy.where(pdata >= 49, 1, 0)
-                    data_sat = numpy.mean(data_sat, axis=0)
+                    data_sat = numpy.mean(numpy.mean(data_sat, axis=-1), axis=0)
                     
                     ## Save
                     for data,name in zip((data_avg,data_sat), ('avg','sat')):
-                        value = MultiMonitorPoint(data.tolist(),
+                        value = MultiMonitorPoint(data.ravel().tolist(),
                                                   timestamp=ts, field=data_pols)
                         self.client.write_monitor_point('statistics/%s' % name, value)
                         
@@ -1005,11 +1019,10 @@ class StatisticsOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, iring, beam0=1, npkt_gulp=128, nbeam_max=1, ntune_max=2, guarantee=True, core=None):
+    def __init__(self, log, iring, beam0=1, nbeam_max=1, ntune_max=2, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
         self.beam0      = beam0
-        self.npkt_gulp  = npkt_gulp
         self.nbeam_max  = nbeam_max
         self.ntune_max  = ntune_max
         self.guarantee  = guarantee
@@ -1031,12 +1044,7 @@ class WriterOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        ntime_pkt     = DRX_NSAMPLE_PER_PKT
-        ntime_gulp    = self.npkt_gulp * ntime_pkt
-        ninput_max    = self.nbeam_max * self.ntune_max * 2
-        igulp_size_max = ntime_gulp * ninput_max * 2
-        
-        self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
+        self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
         
         desc0 = HeaderInfo()
         desc1 = HeaderInfo()
@@ -1056,26 +1064,21 @@ class WriterOp(object):
             gain0    = ihdr['gain0']
             gain1    = ihdr['gain1']
             filt     = ihdr['filter']
+            npkts    = ihdr['npkts']
             nbeam    = ihdr['nbeam']
             ntune    = ihdr['ntune']
             npol     = ihdr['npol']
             fdly     = (ihdr['fir_size'] - 1) / 2.0
             time_tag0 = iseq.time_tag
             time_tag  = time_tag0
-            igulp_size = ntime_gulp*nbeam*ntune*npol
+            igulp_size = ntune*npkts*nbeam*npol*DRX_NSAMPLE_PER_PKT
             
-            # Figure out where we need to be in the buffer to be at a frame boundary
-            NPACKET_SET = 4
+            # Figure out how to break up the packets into sets
+            NPACKET_SET = 7 if npkts % 7 == 0 else 5
+            
+            # Correct for FIR filter delay
             ticksPerSample = int(FS) // int(bw)
-            toffset = int(time_tag0) // ticksPerSample
-            soffset = toffset % (NPACKET_SET*int(ntime_pkt))
-            if soffset != 0:
-                soffset = NPACKET_SET*ntime_pkt - soffset
-            boffset = soffset*nbeam*ntune*npol
-            print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
-            
-            time_tag += soffset*ticksPerSample                  # Correct for offset
-            time_tag -= int(round(fdly*ticksPerSample))         # Correct for FIR filter delay
+            time_tag -= int(round(fdly*ticksPerSample))
             
             prev_time = time.time()
             desc0.set_decimation(int(FS)//int(bw))
@@ -1085,7 +1088,7 @@ class WriterOp(object):
             desc_src = ((1&0x7)<<3)
             
             first_gulp = True 
-            for ispan in iseq.read(igulp_size, begin=boffset):
+            for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
                     continue # Ignore final gulp
                 curr_time = time.time()
@@ -1097,11 +1100,11 @@ class WriterOp(object):
                     self.log.info("Current pipeline lag is %s", FILE_QUEUE.lag)
                     first_gulp = False
                     
-                shape = (-1,nbeam,ntune,npol)
+                shape = (ntune,npkts,nbeam*npol,DRX_NSAMPLE_PER_PKT)
                 data = ispan.data_view('ci4').reshape(shape)
                 
-                data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
-                data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
+                data0 = data[0,:,:,:]
+                data1 = data[1,:,:,:]
                 
                 active_op = FILE_QUEUE.active
                 if active_op is not None:
@@ -1112,13 +1115,13 @@ class WriterOp(object):
                         udt = DiskWriter("drx", fh, core=self.core)
                         was_active = True
                         
-                    for t in range(0, data0.shape[0], NPACKET_SET):
-                        time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
+                    for t in range(0, npkts, NPACKET_SET):
+                        time_tag_cur = time_tag + t*ticksPerSample*DRX_NSAMPLE_PER_PKT
                         
                         try:
-                            udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
+                            udt.send(desc0, time_tag_cur, ticksPerSample*DRX_NSAMPLE_PER_PKT, desc_src+self.beam0, 128, 
                                      data0[t:t+NPACKET_SET,:,:])
-                            udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
+                            udt.send(desc1, time_tag_cur, ticksPerSample*DRX_NSAMPLE_PER_PKT, desc_src+8+self.beam0, 128, 
                                      data1[t:t+NPACKET_SET,:,:])
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
@@ -1133,7 +1136,7 @@ class WriterOp(object):
                     del udt
                     FILE_QUEUE.previous.stop()
                     
-                time_tag += int(ntime_gulp)*ticksPerSample
+                time_tag += npkts*DRX_NSAMPLE_PER_PKT*ticksPerSample
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -1247,9 +1250,9 @@ def main(argv):
     ops.append(TEngineOp(log, tengine_ring, write_ring,
                          ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0), gpu=gpus.pop(0)))
     #ops.append(StatisticsOp(log, mcs_id, write_ring,
-    #                     ntime_gulp=args.gulp_size*4096//1960, core=cores.pop(0)))
+    #                     core=cores.pop(0)))
     ops.append(WriterOp(log, write_ring, beam0=args.beam,
-                        npkt_gulp=32, core=cores.pop(0)))
+                        core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
