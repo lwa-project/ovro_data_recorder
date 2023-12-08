@@ -665,12 +665,22 @@ class StatusLogger(object):
             # Active operation
             ts = t0 = time.time()
             is_active = False if self.queue.active is None else True
+            is_waiting = False
             active_filename = None
             time_left = None
             if is_active:
                 active_filename = self.queue.active.filename
                 time_left = self.queue.active.stop_time - self.queue.active.utcnow()
-            self.client.write_monitor_point('op-type', 'recording' if is_active else 'idle', timestamp=ts)
+                if active_filename[-3:] != '.ms' and active_filename[-7:] != '.ms.tar':
+                    ## Only care about non-vis. data here
+                    if not os.path.exists(active_filename):
+                        is_waiting = True
+            optype = 'idle'
+            if is_waiting:
+                optype = 'waiting'
+            elif is_active:
+                optype = 'recording'
+            self.client.write_monitor_point('op-type', optype, timestamp=ts)
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
             # Get the current metrics that matter
