@@ -112,7 +112,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
                 # Install the systemd services
                 cd ${ROOTDIR}/services
                 ## T-engine
-                conda run -n casa python generate_services.py -e deployment -t >> ${LOG} 2>>${LOG}
+                conda run -n casa python generate_services.py -p /home/${TENG_SERVICE_USER}/anaconda3 -e casa -t >> ${LOG} 2>>${LOG}
                 cp dr-tengine.service /home/${TENG_SERVICE_USER}/.config/systemd/user/
                 systemctl --user daemon-reload
             fi
