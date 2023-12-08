@@ -1,11 +1,13 @@
 #!/bin/bash
 # Distinct deployment servers
 # - cal-im
+# - lwateng
 # Distinct environments
 # - deployment -- reliable, tested
 # - development -- testing
+# - casa -- lwateng default
 
-# Install etcd services in this user's /home/$SERVICE_USER/.config/systemd/user
+# Install etcd services in these user's /home/$SERVICE_USER/.config/systemd/user
 SERVICE_USER=pipeline
 TENG_SERVICE_USER=ubuntu
 
@@ -87,28 +89,28 @@ if [[ ${PWD} =~ ${NAME} ]]; then
         if [[ ${HOSTNAME} =~ lwateng ]]; then
             ROOTDIR=${PWD}
           	echo "${DATE}" >> ${LOG} 2>>${LOG}
-          	conda run -n deployment which python >> ${LOG} 2>>${LOG}
+          	conda run -n casa which python >> ${LOG} 2>>${LOG}
           	if [[ $? == 0 ]]; then
-          	    conda run -n deployment git describe --always >> ${LOG} 2>>${LOG}
+          	    conda run -n casa git describe --always >> ${LOG} 2>>${LOG}
           	fi
             if [[ $? == 0 ]]; then
                 # Build bifrost
-                PREFIX=$(conda run -n deployment python -c "import os,sys; print(os.path.dirname(os.path.dirname(sys.executable)))")
+                PREFIX=$(conda run -n casa python -c "import os,sys; print(os.path.dirname(os.path.dirname(sys.executable)))")
                 git submodule update  >> ${LOG} 2>>${LOG}
                 cd ${ROOTDIR}/bifrost
-                conda run -n deployment ./configure --prefix=${PREFIX} --with-python=python3 >> ${LOG} 2>>${LOG}
-                conda run -n deployment make -j all >> ${LOG} 2>>${LOG}
-                conda run -n deployment make install >> ${LOG} 2>>${LOG}
+                conda run -n casa ./configure --prefix=${PREFIX} --with-python=python >> ${LOG} 2>>${LOG}
+                conda run -n casa make -j all >> ${LOG} 2>>${LOG}
+                conda run -n casa make install >> ${LOG} 2>>${LOG}
             fi
             if [[ $? == 0 ]]; then
                 # Build the gridder extension for dr_visibilities.py
-                conda run -n deployment python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
+                conda run -n casa python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
             fi
             if [[ $? == 0 ]]; then
                 # Install the systemd services
                 cd ${ROOTDIR}/services
                 ## T-engine
-                conda run -n deployment python generate_services.py -e deployment -t >> ${LOG} 2>>${LOG}
+                conda run -n casa python generate_services.py -e deployment -t >> ${LOG} 2>>${LOG}
                 cp dr-tengine.service /home/${TENG_SERVICE_USER}/.config/systemd/user/
                 systemctl --user daemon-reload
             fi
