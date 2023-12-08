@@ -830,7 +830,6 @@ class TEngineOp(object):
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
                                     
                                 ## Transpose
-                                
                                 try:
                                     qdata = qdata.reshape(npkts,DRX_NSAMPLE_PER_PKT,nbeam,ntune,npol)
                                     Transpose(tdata, qdata, axes=(3,0,2,4,1))
