@@ -36,7 +36,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
     else
         if [[ ${HOSTNAME} =~ lwateng ]]; then
             INSTALL_ENV=${TENG_INSTALL_ENV}
-            SERVICE_USED=${TENG_SERVICE_USER}
+            SERVICE_USER=${TENG_SERVICE_USER}
             SERVICE_TYPE="teng"
             BIFROST_FLAGS=""
         else
@@ -69,8 +69,10 @@ fi
 if [[ $? == 0 ]]; then
     # Install bifrost
     conda run -n ${INSTALL_ENV} make install >> ${LOG} 2>>${LOG}
-    cd ${ROOTDIR}/bifrost/python
-    python -m pip install -e .
+    if [[ $? == 0 ]]; then
+        cd ${ROOTDIR}/bifrost/python
+        python -m pip install -e .
+    fi
 fi
 if [[ $? == 0 ]]; then
     # Build the gridder extension for dr_visibilities.py
