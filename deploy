@@ -8,8 +8,12 @@
 # - casa -- lwateng default
 
 # Install etcd services in these user's /home/$SERVICE_USER/.config/systemd/user
-SERVICE_USER=pipeline
+CALIM_SERVICE_USER=pipeline
 TENG_SERVICE_USER=ubuntu
+
+# Use this miniconda/anaconda environment
+CALIM_INSTALL_ENV=deployment
+TENG_INSTALL_ENV=casa
 
 # setup
 NAME="ovro_data_recorder"
@@ -25,106 +29,109 @@ whoami >> ${LOG} 2>>${LOG}  # should be user pipeline (or ubuntu)
 
 if [[ ${PWD} =~ ${NAME} ]]; then
     if [[ ${HOSTNAME} =~ calim0[1-8] ]]; then
-        ROOTDIR=${PWD}
-      	echo "${DATE}" >> ${LOG} 2>>${LOG}
-      	conda run -n deployment which python >> ${LOG} 2>>${LOG}
-      	if [[ $? == 0 ]]; then
-      	    conda run -n deployment git describe --always >> ${LOG} 2>>${LOG}
-      	fi
-        if [[ $? == 0 ]]; then
-            # Build bifrost
-            PREFIX=$(conda run -n deployment python -c "import os,sys; print(os.path.dirname(os.path.dirname(sys.executable)))")
-            git submodule update  >> ${LOG} 2>>${LOG}
-            cd ${ROOTDIR}/bifrost
-            conda run -n deployment ./configure --disable-cuda --prefix=${PREFIX} --with-python=python3 >> ${LOG} 2>>${LOG}
-            conda run -n deployment make -j all >> ${LOG} 2>>${LOG}
-            conda run -n deployment make install >> ${LOG} 2>>${LOG}
-        fi
-        if [[ $? == 0 ]]; then
-            # Build the gridder extension for dr_visibilities.py
-            cd ${ROOTDIR}
-            conda run -n deployment python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
-        fi
-        if [[ $? == 0 ]]; then
-            # Install the systemd services
-            cd ${ROOTDIR}/services
-            ## Power beams
-            conda run -n deployment python generate_services.py -e deployment -b >> ${LOG} 2>>${LOG}
-            cp dr-beam-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
-            ## Slow visibilities
-            conda run -n deployment python generate_services.py -e deployment -s >> ${LOG} 2>>${LOG}
-            cp dr-vslow-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
-            cp dr-manager-vslow.service /home/${SERVICE_USER}/.config/systemd/user/
-            ## Fast visibilities
-            conda run -n deployment python generate_services.py -e deployment -f >> ${LOG} 2>>${LOG}
-            cp dr-vfast-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
-            cp dr-manager-vfast.service /home/${SERVICE_USER}/.config/systemd/user/
-            systemctl --user daemon-reload
-        fi
-        if [[ $? == 0 ]]; then
-            # Enable the correct services for the current host
-            ## Determine the correct subbands/power beams for this host
-            HOSTNUM=`echo ${HOSTNAME} | sed -e 's/lwacalim//g;'`
-            HOSTNUM=`echo "10#${HOSTNUM}"`
-            SUB0=$(((${HOSTNUM}-1)*2+1))
-            SUB1=$(((${HOSTNUM}-1)*2+2))
-            for SUB in ${SUB0} ${SUB1}; do
-                ## Slow and fast visibilities
-                for type in "slow" "fast"; do
-                    systemctl --user enable dr-v${type}-${SUB}
-                done
-                ## Power beams one through 12
-                if (( ${SUB} <= 12 )); then
-                    systemctl --user enable dr-beam-${SUB}
-                fi
-            done
-            ## Slow and fast vis. managers
-            if (( ${HOSTNUM} == 1 )); then
-                for type in "slow" "fast"; do
-                    systemctl --user enable dr-manager-v${type}
-                done
-            fi
-            systemctl --user daemon-reload
-        fi
+        INSTALL_ENV=${CALIM_INSTALL_ENV}
+        SERVICE_USER=${CALIM_SERVICE_USER}
+        SERVICE_TYPE="calim"
+        BIFROST_FLAGS="--disable-cuda"
     else
         if [[ ${HOSTNAME} =~ lwateng ]]; then
-            ROOTDIR=${PWD}
-          	echo "${DATE}" >> ${LOG} 2>>${LOG}
-          	conda run -n casa which python >> ${LOG} 2>>${LOG}
-          	if [[ $? == 0 ]]; then
-          	    conda run -n casa git describe --always >> ${LOG} 2>>${LOG}
-          	fi
-            if [[ $? == 0 ]]; then
-                # Build bifrost
-                PREFIX=$(conda run -n casa python -c "import os,sys; print(os.path.dirname(os.path.dirname(sys.executable)))")
-                git submodule update  >> ${LOG} 2>>${LOG}
-                cd ${ROOTDIR}/bifrost
-                conda run -n casa ./configure --prefix=${PREFIX} --with-python=python >> ${LOG} 2>>${LOG}
-                conda run -n casa make -j all >> ${LOG} 2>>${LOG}
-                conda run -n casa make install >> ${LOG} 2>>${LOG}
-            fi
-            if [[ $? == 0 ]]; then
-                # Build the gridder extension for dr_visibilities.py
-                cd ${ROOTDIR}
-                conda run -n casa python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
-            fi
-            if [[ $? == 0 ]]; then
-                # Install the systemd services
-                cd ${ROOTDIR}/services
-                ## T-engine
-                conda run -n casa python generate_services.py -p /home/${TENG_SERVICE_USER}/anaconda3 -e casa -t >> ${LOG} 2>>${LOG}
-                cp dr-tengine.service /home/${TENG_SERVICE_USER}/.config/systemd/user/
-                systemctl --user daemon-reload
-            fi
-            if [[ $? == 0 ]]; then
-                # Enable the service
-                systemctl --user enable dr-tengine
-                systemctl --user daemon-reload
-            fi
+            INSTALL_ENV=${TENG_INSTALL_ENV}
+            SERVICE_USED=${TENG_SERVICE_USER}
+            SERVICE_TYPE="teng"
+            BIFROST_FLAGS=""
         else
             echo "Not installing on this host" >> ${LOG} 2>>${LOG}
+            exit
         fi
     fi
 else
     echo "Not installing in this location" >> ${LOG} 2>>${LOG}
+    exit
+fi
+    
+ROOTDIR=${PWD}
+echo "${DATE}" >> ${LOG} 2>>${LOG}
+conda run -n ${INSTALL_ENV} which python >> ${LOG} 2>>${LOG}
+if [[ $? == 0 ]]; then
+    conda run -n ${INSTALL_ENV} git describe --always >> ${LOG} 2>>${LOG}
+fi
+if [[ $? == 0 ]]; then
+    # Configure bifrost
+    PREFIX=$(conda run -n ${INSTALL_ENV} python -c "import os,sys; print(os.path.dirname(os.path.dirname(sys.executable)))")
+    git submodule update  >> ${LOG} 2>>${LOG}
+    cd ${ROOTDIR}/bifrost
+    conda run -n ${INSTALL_ENV} ./configure ${BIFROST_FLAGS} --prefix=${PREFIX} --with-python=python3 >> ${LOG} 2>>${LOG}
+fi
+if [[ $? == 0 ]]; then
+    # Build bifrost
+    conda run -n ${INSTALL_ENV} make -j all >> ${LOG} 2>>${LOG}
+fi
+if [[ $? == 0 ]]; then
+    # Install bifrost
+    conda run -n ${INSTALL_ENV} make install >> ${LOG} 2>>${LOG}
+    cd ${ROOTDIR}/bifrost/python
+    python -m pip install -e .
+fi
+if [[ $? == 0 ]]; then
+    # Build the gridder extension for dr_visibilities.py
+    cd ${ROOTDIR}
+    conda run -n ${INSTALL_ENV} python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
+fi
+if [[ $? == 0 ]]; then
+    # Install the systemd services
+    cd ${ROOTDIR}/services
+    if [[ ${SERVICE_TYPE} == "calim" ]]; then
+        ## Power beams
+        conda run -n ${INSTALL_ENV} python generate_services.py -e ${INSTALL_ENV} -b >> ${LOG} 2>>${LOG}
+        cp dr-beam-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
+        ## Slow visibilities
+        conda run -n ${INSTALL_ENV} python generate_services.py -e ${INSTALL_ENV} -s >> ${LOG} 2>>${LOG}
+        cp dr-vslow-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
+        cp dr-manager-vslow.service /home/${SERVICE_USER}/.config/systemd/user/
+        ## Fast visibilities
+        conda run -n ${INSTALL_ENV} python generate_services.py -e ${INSTALL_ENV} -f >> ${LOG} 2>>${LOG}
+        cp dr-vfast-[0-9]*.service /home/${SERVICE_USER}/.config/systemd/user/
+        cp dr-manager-vfast.service /home/${SERVICE_USER}/.config/systemd/user/
+    fi
+    
+    if [[ ${SERVICE_TYPE} == "teng" ]]; then
+        ## T-engine
+        conda run -n ${INSTALL_ENV} python generate_services.py -p /home/${SERVICE_USER}/anaconda3 -e ${INSTALL_ENV} -t >> ${LOG} 2>>${LOG}
+        cp dr-tengine.service /home/${SERVICE_USER}/.config/systemd/user/
+    fi
+    
+    systemctl --user daemon-reload
+fi
+if [[ $? == 0 ]]; then
+    if [[ ${SERVICE_TYPE} == "calim" ]]; then
+        # Enable the correct services for the current host
+        ## Determine the correct subbands/power beams for this host
+        HOSTNUM=`echo ${HOSTNAME} | sed -e 's/lwacalim//g;'`
+        HOSTNUM=`echo "10#${HOSTNUM}"`
+        SUB0=$(((${HOSTNUM}-1)*2+1))
+        SUB1=$(((${HOSTNUM}-1)*2+2))
+        for SUB in ${SUB0} ${SUB1}; do
+            ## Slow and fast visibilities
+            for type in "slow" "fast"; do
+                systemctl --user enable dr-v${type}-${SUB}
+            done
+            ## Power beams one through 12
+            if (( ${SUB} <= 12 )); then
+                systemctl --user enable dr-beam-${SUB}
+            fi
+        done
+        ## Slow and fast vis. managers
+        if (( ${HOSTNUM} == 1 )); then
+            for type in "slow" "fast"; do
+                systemctl --user enable dr-manager-v${type}
+            done
+        fi
+    fi
+    
+    if [[ ${SERVICE_TYPE} == "teng" ]]; then
+        # Enable the service
+        systemctl --user enable dr-tengine
+    fi
+    
+    systemctl --user daemon-reload
 fi
