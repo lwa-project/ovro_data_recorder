@@ -932,7 +932,7 @@ class GlobalLogger(object):
         
         self.storage = {'quota_mode': quota_mode, 'log': log, 'id':  id,
                         'directory': args.record_directory, 'quota': quota,
-                        'update_interval': update_interval}
+                        'update_interval': update_interval_storage}
         
     @property
     def shutdown_event(self):
