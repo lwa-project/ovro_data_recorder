@@ -976,7 +976,7 @@ class GlobalLogger(object):
             proc.start()
             
         # Update the status logger to know to look for these sub-processes
-        self.staus.update_process_ids([p.pid for p in processes])
+        self.status.update_process_ids([p.pid for p in processes])
         
         # Create the per-logger threads using the pre-determined thread names
         threads = []
