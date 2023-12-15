@@ -71,7 +71,7 @@ if [[ $? == 0 ]]; then
     conda run -n ${INSTALL_ENV} make install >> ${LOG} 2>>${LOG}
     if [[ $? == 0 ]]; then
         cd ${ROOTDIR}/bifrost/python
-        python -m pip install -e .
+        conda run -n ${INSTALL_ENV} python -m pip install -e .
     fi
 fi
 if [[ $? == 0 ]]; then
