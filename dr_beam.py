@@ -582,8 +582,8 @@ def main(argv):
         isock.timeout = 1
         
     # Setup the rings
-    capture_ring = Ring(name="capture")
-    write_ring   = Ring(name="write")
+    capture_ring = Ring(name="capture", core=cores[0])
+    write_ring   = Ring(name="write", core=cores[0])
     
     # Setup the recording directory, if needed
     if not os.path.exists(args.record_directory):
