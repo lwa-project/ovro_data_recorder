@@ -969,7 +969,7 @@ class GlobalLogger(object):
                                      name='StorageLogger-'+self.storage['quota_mode'],
                                      args=(self.storage['quota_mode'], logname, self.storage['id'], self.storage['directory']),
                                      kwargs={'quota': self.storage['quota'],
-                                             'update_interval': self.storage['update_interval']})
+                                             'update_interval': self.storage['update_interval']}))
         # Start the sub-processes
         for proc in processes:
             self.log.info(f"GlobalLogger - Starting '{proc.name}' in a separate process")
