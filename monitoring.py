@@ -981,7 +981,7 @@ class GlobalLogger(object):
         # Create the per-logger threads using the pre-determined thread names
         threads = []
         threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
-        threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
+        threads.append(threading.Thread(target=self.status.main, name=self._thread_names[2]))
         
         # Start the threads
         for thread in threads:
