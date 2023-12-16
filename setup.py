@@ -1,3 +1,4 @@
+import os
 import glob
 from subprocess import check_call, check_output, CalledProcessError
 from setuptools import setup, Extension, find_namespace_packages
@@ -16,21 +17,21 @@ def get_version():
     version = 'unknown'
     try:
         git_branch = check_output(['git', 'branch', '--show-current'],
-                                  cwd=REPO_PATH)
+                                  cwd=os.path.dirname(__file__))
         git_branch = git_branch.decode().strip().rstrip()
         git_hash = check_output(['git', 'log', '-n', '1', '--pretty=format:%H'],
-                                cwd=REPO_PATH)
+                                cwd=os.path.dirname(__file__))
         git_hash = git_hash.decode().strip().rstrip()
         
         git_dirty = 0
         try:
             check_call(['git', 'diff-index', '--quiet', '--cached', 'HEAD', '--'],
-                       cwd=REPO_PATH)
+                       cwd=os.path.dirname(__file__))
         except CalledProcessError:
             git_dirty += 1
         try:
             check_call(['git', 'diff-files', '--quiet'],
-                       cwd=REPO_PATH)
+                       cwd=os.path.dirname(__file__))
         except CalledProcessError:
             git_dirty += 1
             
@@ -75,8 +76,9 @@ setup(
     packages=find_namespace_packages(),
     scripts=glob.glob('scripts/*.py')
     setup_requires = ['numpy>=1.7'],
-    install_requires = ['astropy', 'casacore', 'numpy', 'scipy', 'h5py', 'PIL', 'etcd3',
-                        'bifrost', 'mnc', 'lwa_antpos', 'lwa352_pipeline_control'],
+    install_requires = ['astropy', 'casacore', 'numpy', 'scipy', 'h5py', 'PIL',
+                        'etcd3', 'jinja2', 'bifrost', 'mnc', 'lwa_antpos',
+                        'lwa352_pipeline_control'],
     include_package_data = True,  
     ext_package = 'ovro_data_recorder', 
     ext_modules = ExtensionModules,
