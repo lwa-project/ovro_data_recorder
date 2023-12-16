@@ -436,7 +436,7 @@ class BaselineOp(object):
         # Image setup
         im = PIL.Image.new('RGB', (601, 421), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'data', 'fonts', 'helvB10.pil'))
         
         # Axes boxes
         for i in range(2):
@@ -712,7 +712,7 @@ class ImageOp(object):
         # Image setup
         im = PIL.Image.new('RGB', (860, 420))
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'data', 'fonts', 'helvB10.pil'))
         
         ## I
         im.paste(imI, ( 20, 20))
