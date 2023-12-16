@@ -11,9 +11,13 @@ except Exception as e:
 
 def get_version():
     """Determine a version based on the git repo info."""
-
-    # Query the git repo info.  If this fails make a note of it and yield an
-    # unknown version
+    
+    # Part 1 - the "official" version
+    with open('VERSION', 'r') as fh:
+        version = fh.read().strip())
+    
+    # Part 2 - query the git repo info.  If this fails make a note of it and
+    # return an un-altered "official" version
     version = 'unknown'
     try:
         git_branch = check_output(['git', 'branch', '--show-current'],
@@ -35,9 +39,9 @@ def get_version():
         except CalledProcessError:
             git_dirty += 1
             
-        version = git_branch+'@'+git_hash[:7]
+        version = version+'+'git_branch+'.'+git_hash[:7]
         if git_dirty > 0:
-            version += ' (dirty)'
+            version += '.dirty'
             
     except CalledProcessError as e:
         print(f"Failed to determine git repo versioning - {str(e)}")
