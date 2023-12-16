@@ -284,7 +284,7 @@ class SpectraOp(object):
         height = 18
         im = PIL.Image.new('RGB', (width * 65 + 1, height * 65 + 21), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'data', 'fonts', 'helvB10.pil'))
        
         # Axes boxes
         for i in range(width + 1):
