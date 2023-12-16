@@ -17,11 +17,11 @@ from datetime import datetime, timedelta
 from mnc.common import *
 from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
-from reductions import *
-from operations import FileOperationsQueue
-from monitoring import GlobalLogger
-from control import PowerBeamCommandProcessor
-from version import version as repo_version
+from ovro_data_recorder.reductions import *
+from ovro_data_recorder.operations import FileOperationsQueue
+from ovro_data_recorder.monitoring import GlobalLogger
+from ovro_data_recorder.control import PowerBeamCommandProcessor
+from ovro_data_recorder.version import version as repo_version
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket

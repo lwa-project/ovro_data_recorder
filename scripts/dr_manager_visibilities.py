@@ -15,7 +15,7 @@ import threading
 from mnc.common import *
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
-from version import version as repo_version
+from ovro_data_recorder.version import version as repo_version
 
 
 def send_command(subsystem, command, **kwargs):

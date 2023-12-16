@@ -9,8 +9,8 @@ from astropy.time import TimeDelta
 from mnc.common import CLOCK, LWATime, synchronize_time
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
-from reductions import *
-from filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
+from ovro_data_recorder.reductions import *
+from ovro_data_recorder.filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
            'VoltageBeamCommandProcessor']

@@ -10,7 +10,7 @@ from bifrost.proclog import load_by_pid
 
 from mnc.mcs import MonitorPoint, Client
 
-from version import version as repo_version
+from ovro_data_recorder.version import version as repo_version
 
 __all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
 
