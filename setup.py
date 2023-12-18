@@ -64,7 +64,7 @@ full_version = '{odrVersion}'
 """)
 
 
-ExtensionModules = [Extension('gridder', ['gridder.cpp',],
+ExtensionModules = [Extension('gridder', ['ovro_data_recorder/gridder.cpp',],
                               include_dirs=[np.get_include()],
                               libraries=['m', 'fftw3f'],
                               extra_compile_args=['-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION',]),]
@@ -82,8 +82,8 @@ setup(
     packages=find_namespace_packages(),
     scripts=glob.glob('scripts/*.py'),
     setup_requires = ['numpy>=1.7'],
-    install_requires = ['astropy', 'casacore', 'numpy', 'scipy', 'h5py', 'PIL',
-                        'etcd3', 'jinja2', 'bifrost', 'mnc', 'lwa_antpos',
+    install_requires = ['astropy', 'python-casacore', 'numpy', 'scipy', 'h5py', 'pillow',
+                        'etcd3', 'jinja2', 'bifrost', 'mnc_python', 'lwa_antpos',
                         'lwa352_pipeline_control'],
     include_package_data = True,  
     ext_package = 'ovro_data_recorder', 
