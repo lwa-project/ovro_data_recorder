@@ -11,7 +11,7 @@ from datetime import datetime
 
 # Setup
 ## Path information
-path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+path = os.path.dirname(sys.executable)
 
 
 def main(args):

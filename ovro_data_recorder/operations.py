@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
 from collections import deque
 
-from filewriter import FileWriterBase
+from ovro_data_recorder.filewriter import FileWriterBase
 
 __all__ = ['OperationsQueueBase', 'FileOperationsQueue', 'DrxOperationsQueue']
 

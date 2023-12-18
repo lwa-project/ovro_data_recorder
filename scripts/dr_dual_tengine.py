@@ -19,10 +19,10 @@ from scipy.signal import get_window as scipy_window, firwin as scipy_firwin
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
-from operations import FileOperationsQueue, DrxOperationsQueue
-from monitoring import GlobalLogger
-from control import VoltageBeamCommandProcessor
-from version import version as repo_version
+from ovro_data_recorder.operations import FileOperationsQueue, DrxOperationsQueue
+from ovro_data_recorder.monitoring import GlobalLogger
+from ovro_data_recorder.control import VoltageBeamCommandProcessor
+from ovro_data_recorder.version import version as odr_version
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -1207,7 +1207,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
-    log.info("Version: %s", repo_version)
+    log.info("Version: %s", odr_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
