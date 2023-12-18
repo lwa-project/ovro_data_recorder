@@ -18,7 +18,7 @@ def get_version():
     
     # Part 2 - query the git repo info.  If this fails make a note of it and
     # return an un-altered "official" version
-    version = 'unknown'
+    repo_version = 'unknown'
     try:
         git_branch = check_output(['git', 'branch', '--show-current'],
                                   cwd=os.path.dirname(__file__))
@@ -39,13 +39,15 @@ def get_version():
         except CalledProcessError:
             git_dirty += 1
             
-        version = version+'+'git_branch+'.'+git_hash[:7]
+        repo_version = git_branch+'.'+git_hash[:7]
         if git_dirty > 0:
-            version += '.dirty'
+            repo_version += '.dirty'
             
     except CalledProcessError as e:
         print(f"Failed to determine git repo versioning - {str(e)}")
         
+    version = version+'+'+repo_version
+    
     return version
 
 
