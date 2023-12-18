@@ -32,7 +32,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
         INSTALL_ENV=${CALIM_INSTALL_ENV}
         SERVICE_USER=${CALIM_SERVICE_USER}
         SERVICE_TYPE="calim"
-        BIFROST_FLAGS="--disable-cuda"
+        BIFROST_FLAGS=""
     else
         if [[ ${HOSTNAME} =~ lwateng ]]; then
             INSTALL_ENV=${TENG_INSTALL_ENV}
@@ -71,7 +71,7 @@ if [[ $? == 0 ]]; then
     conda run -n ${INSTALL_ENV} make install >> ${LOG} 2>>${LOG}
     if [[ $? == 0 ]]; then
         cd ${ROOTDIR}/bifrost/python
-        python -m pip install -e .
+        conda run -n ${INSTALL_ENV} python -m pip install -e .
     fi
 fi
 if [[ $? == 0 ]]; then

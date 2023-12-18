@@ -1179,7 +1179,7 @@ def main(argv):
         isock.timeout = 11
         
     # Setup the rings
-    capture_ring = Ring(name="capture")
+    capture_ring = Ring(name="capture", core=cores[0])
     
     # Setup antennas
     nant = len(station.antennas)
