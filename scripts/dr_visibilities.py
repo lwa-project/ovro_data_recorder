@@ -28,7 +28,7 @@ from ovro_data_recorder.operations import FileOperationsQueue
 from ovro_data_recorder.monitoring import GlobalLogger
 from ovro_data_recorder.control import VisibilityCommandProcessor
 from ovro_data_recorder.lwams import get_zenith_uvw
-from ovro_data_recorder.version import version as repo_version
+from ovro_data_recorder.version import version as odr_version
 
 from ovro_data_recorder.xengine_fast_control import FastStation
 
@@ -1151,7 +1151,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
-    log.info("Version: %s", repo_version)
+    log.info("Version: %s", odr_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))

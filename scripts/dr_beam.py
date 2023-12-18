@@ -21,7 +21,7 @@ from ovro_data_recorder.reductions import *
 from ovro_data_recorder.operations import FileOperationsQueue
 from ovro_data_recorder.monitoring import GlobalLogger
 from ovro_data_recorder.control import PowerBeamCommandProcessor
-from ovro_data_recorder.version import version as repo_version
+from ovro_data_recorder.version import version as odr_version
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
