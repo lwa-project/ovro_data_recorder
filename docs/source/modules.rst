@@ -4,39 +4,39 @@ Individual Modules
 Operations Queue
 ----------------
 
-.. automodule:: operations
+.. automodule:: ovro_data_recorder.operations
    :members:
 
 File Writers
 ------------
 
-.. automodule:: filewriter
+.. automodule:: ovro_data_recorder.filewriter
    :members:
    
 Low-Level File Writers
 ++++++++++++++++++++++
 
-.. automodule:: lwahdf
+.. automodule:: ovro_data_recorder.lwahdf
    :members:
 
-.. automodule:: lwams
+.. automodule:: ovro_data_recorder.lwams
    :members:
 
 
 Power Beam On-the-Fly Reductions
 --------------------------------
 
-.. automodule:: reductions
+.. automodule:: ovro_data_recorder.reductions
    :members:
 
 Monitoring Threads
 ------------------
 
-.. automodule:: monitoring
+.. automodule:: ovro_data_recorder.monitoring
    :members:
 
 Control Interface
 -----------------
 
-.. automodule:: control
+.. automodule:: ovro_data_recorder.control
    :members:

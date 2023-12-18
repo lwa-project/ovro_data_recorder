@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+sys.path.insert(0, os.path.abspath('../../ovro_data_recorder'))
 
 
 # -- Project information -----------------------------------------------------
@@ -61,7 +61,7 @@ html_static_path = ['_static']
 import sys
 import glob
 import subprocess
-for script in glob.glob('../../dr_*.py'):
+for script in glob.glob('../../scripts/dr_*.py'):
     outname = os.path.basename(script)
     outname = os.path.splitext(outname)[0]
     outname += '.help'

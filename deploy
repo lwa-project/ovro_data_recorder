@@ -75,9 +75,9 @@ if [[ $? == 0 ]]; then
     fi
 fi
 if [[ $? == 0 ]]; then
-    # Build the gridder extension for dr_visibilities.py
+    # Install ovro_data_recorder
     cd ${ROOTDIR}
-    conda run -n ${INSTALL_ENV} python setup.py build_ext --inplace >> ${LOG} 2>>${LOG}
+    conda run -n ${INSTALL_ENV} python -m pip install -e . >> ${LOG} 2>>${LOG}
 fi
 if [[ $? == 0 ]]; then
     # Install the systemd services

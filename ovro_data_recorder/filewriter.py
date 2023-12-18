@@ -13,8 +13,8 @@ from textwrap import fill as tw_fill
 
 from mnc.common import *
 
-from lwahdf import *
-from lwams import *
+from ovro_data_recorder.lwahdf import *
+from ovro_data_recorder.lwams import *
 
 
 __all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']

@@ -26,5 +26,6 @@ REQUIREMENTS
 
 INSTALLING
 ----------
-No installation is necessary, just install the dependencies and launch the
-pipelines.
+Install ovro_data_recorder by running:
+
+	pip install .

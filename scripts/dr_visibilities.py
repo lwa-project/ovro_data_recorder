@@ -15,7 +15,7 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
-from gridder import WProjection
+from ovro_data_recorder.gridder import WProjection
 from scipy.stats import scoreatpercentile as percentile
 
 from lwa_antpos.station import ovro
@@ -23,14 +23,14 @@ from lwa_antpos.station import ovro
 from mnc.common import *
 from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
-from reductions import *
-from operations import FileOperationsQueue
-from monitoring import GlobalLogger
-from control import VisibilityCommandProcessor
-from lwams import get_zenith_uvw
-from version import version as repo_version
+from ovro_data_recorder.reductions import *
+from ovro_data_recorder.operations import FileOperationsQueue
+from ovro_data_recorder.monitoring import GlobalLogger
+from ovro_data_recorder.control import VisibilityCommandProcessor
+from ovro_data_recorder.lwams import get_zenith_uvw
+from ovro_data_recorder.version import version as odr_version
 
-from xengine_fast_control import FastStation
+from ovro_data_recorder.xengine_fast_control import FastStation
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
@@ -284,7 +284,7 @@ class SpectraOp(object):
         height = 18
         im = PIL.Image.new('RGB', (width * 65 + 1, height * 65 + 21), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'data', 'fonts', 'helvB10.pil'))
        
         # Axes boxes
         for i in range(width + 1):
@@ -436,7 +436,7 @@ class BaselineOp(object):
         # Image setup
         im = PIL.Image.new('RGB', (601, 421), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'data', 'fonts', 'helvB10.pil'))
         
         # Axes boxes
         for i in range(2):
@@ -712,7 +712,7 @@ class ImageOp(object):
         # Image setup
         im = PIL.Image.new('RGB', (860, 420))
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'fonts', 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(BASE_PATH, 'data', 'fonts', 'helvB10.pil'))
         
         ## I
         im.paste(imI, ( 20, 20))
@@ -742,7 +742,7 @@ class ImageOp(object):
         draw.text((835, 30), '|V|', font = font, fill = '#FFFFFF')
         
         ## Logo-ize
-        logo = PIL.Image.open(os.path.join(BASE_PATH, 'logo.png'))
+        logo = PIL.Image.open(os.path.join(BASE_PATH, 'data', 'logo.png'))
         logo_img = logo.getchannel('A')
         im.paste(logo_img, (5, 385))
         logo.close()
@@ -1000,7 +1000,7 @@ class WriterOp(object):
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
             
-            norm_factor = navg // (2*NCHAN)
+            norm_factor = navg // (2*NCHAN) // (4 if self.fast else 1)
             
             self.client.write_monitor_point('latest_frequency', chan_to_freq(chan0), unit='Hz')
             
@@ -1151,7 +1151,7 @@ def main(argv):
     log.setLevel(logging.DEBUG if args.debug else logging.INFO)
     
     log.info("Starting %s with PID %i", os.path.basename(__file__), os.getpid())
-    log.info("Version: %s", repo_version)
+    log.info("Version: %s", odr_version)
     log.info("Cmdline args:")
     for arg in vars(args):
         log.info("  %s: %s", arg, getattr(args, arg))
