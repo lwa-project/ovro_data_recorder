@@ -18,7 +18,8 @@ utils/_data.py
 # Help files
 docs/source/*.help
 
-# Generated service files
+# Generated files
+ovro_data_recorder/version.py
 services/dr-beam-[0-9]*.service
 services/dr-tengine.service
 services/dr-vslow-[0-9]*.service
