@@ -80,7 +80,7 @@ setup(
     description = 'Data recorder software for the Owens Valley Long Wavelength Array station',
     license='BSD3',
     packages=find_namespace_packages(),
-    scripts=glob.glob('scripts/*.py')
+    scripts=glob.glob('scripts/*.py'),
     setup_requires = ['numpy>=1.7'],
     install_requires = ['astropy', 'casacore', 'numpy', 'scipy', 'h5py', 'PIL',
                         'etcd3', 'jinja2', 'bifrost', 'mnc', 'lwa_antpos',
