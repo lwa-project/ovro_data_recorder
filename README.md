@@ -11,16 +11,18 @@ and voltage beams (`dr_tengine.py`) data modes at the OVRO-LWA station.
 REQUIREMENTS
 ------------
  * python >= 3.6
- * bifrost >= 0.9.0 + [OVRO-LWA data format support](https://github.com/realtimeradio/caltech-bifrost-dsp)
+ * bifrost >= 0.9.0 + OVRO-LWA data format support (included with the `bifrost` submodule)
  * h5py
  * numpy
+ * scipy
  * casacore
  * astropy
  * etcd3
  * pillow
- * dsa110-pyutils from https://github.com/dsa110/dsa110-pyutils
+ * jinja2
  * mnc_python from https://github.com/ovro-lwa/mnc_python
  * lwa_antpos from https://github.com/ovro-lwa/lwa-antpos
+ * lwa352_pipeline_control from https://github.com/realtimeradio/caltech-bifrost-dsp
  * FFTW3 - single precision version
  * tar
 
@@ -28,4 +30,6 @@ INSTALLING
 ----------
 Install ovro_data_recorder by running:
 
-	pip install .
+	pip install -e .
+
+or by using the included `deploy` script.
