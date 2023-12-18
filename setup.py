@@ -14,7 +14,7 @@ def get_version():
     
     # Part 1 - the "official" version
     with open('VERSION', 'r') as fh:
-        version = fh.read().strip())
+        version = fh.read().strip()
     
     # Part 2 - query the git repo info.  If this fails make a note of it and
     # return an un-altered "official" version
