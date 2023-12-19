@@ -12,6 +12,7 @@ build:
     - libtool
     - make
     - rsyslog
+    - sudo
   tools:
     python: "mambaforge-22.9"
   jobs:
