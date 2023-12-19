@@ -9,12 +9,9 @@ from mnc.xengine_beamformer_control import NSERVER, NSTAND
 
 from lwa_antpos.station import ovro, Antenna
 
+__all__ = ['FastVisibilityControl', 'FastStation']
 
 NSTAND_FAST = 48
-
-
-__all__ = ['NSTAND_FAST', 'FastVisibilityControl', 'FastStation']
-
 
 class FastVisibilityControl(object):
     def __init__(self, servers=None, nserver=8, npipeline_per_server=4, station=ovro, etcdhost=ETCD_HOST):

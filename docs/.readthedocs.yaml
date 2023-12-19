@@ -11,6 +11,7 @@ build:
     - g++
     - libtool
     - make
+    - rsyslog
   tools:
     python: "mambaforge-22.9"
   jobs:
