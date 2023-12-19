@@ -13,12 +13,17 @@ build:
     - make
   tools:
     python: "mambaforge-22.9"
+  jobs:
+    post_checkout:
+      - git submodule init
+      - get submodule update
+    post_create_environment
+      - bash ./docs/bifrost_helper.sh
   
 conda:
   environment: docs/.rtd_environment.yaml
 
 python:
-  version: 3.8
   install:
     - method: pip
       path: .
