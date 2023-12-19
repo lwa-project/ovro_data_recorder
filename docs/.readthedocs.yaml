@@ -17,5 +17,11 @@ build:
 conda:
   environment: docs/.rtd_environment.yaml
 
+python:
+  version: 3.8
+  install:
+    - method: pip
+      path: .
+
 sphinx:
   configuration: docs/source/conf.py
