@@ -11,13 +11,9 @@ build:
     - g++
     - libtool
     - make
-    - rsyslog
-    - sudo
   tools:
     python: "mambaforge-22.9"
   jobs:
-    post_system_dependencies:
-      - bash ./docs/.rtd_rsyslog_helper.sh
     post_checkout:
       - git submodule init
       - git submodule update
