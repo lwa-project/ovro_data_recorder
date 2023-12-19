@@ -18,7 +18,7 @@ build:
       - git submodule init
       - git submodule update
     post_create_environment:
-      - bash ./docs/bifrost_helper.sh
+      - bash ./docs/.rtd_bifrost_helper.sh
   
 conda:
   environment: docs/.rtd_environment.yaml
