@@ -23,6 +23,11 @@ Low-Level File Writers
    :members:
 
 
+Fast Visiblitiy Antenna Mapping Information
+-------------------------------------------
+.. automodule:: ovro_data_recorder.xengine_fast_control
+   :members:
+
 Power Beam On-the-Fly Reductions
 --------------------------------
 
