@@ -32,7 +32,7 @@ if [[ ${PWD} =~ ${NAME} ]]; then
         INSTALL_ENV=${CALIM_INSTALL_ENV}
         SERVICE_USER=${CALIM_SERVICE_USER}
         SERVICE_TYPE="calim"
-        BIFROST_FLAGS=""
+        BIFROST_FLAGS="--disable-cuda"
     else
         if [[ ${HOSTNAME} =~ lwateng ]]; then
             INSTALL_ENV=${TENG_INSTALL_ENV}
