@@ -29,7 +29,7 @@ from ovro_data_recorder.monitoring import GlobalLogger
 from ovro_data_recorder.control import VisibilityCommandProcessor
 from ovro_data_recorder.lwams import get_zenith_uvw
 from ovro_data_recorder.version import version as odr_version
-from ovro_data_recorder.paths import DATA as DATA_PATH, FONT as FONT_PATH
+from ovro_data_recorder.paths import DATA as ODR_DATA_PATH, FONT as ODR_FONT_PATH
 
 from ovro_data_recorder.xengine_fast_control import FastStation
 
@@ -282,7 +282,7 @@ class SpectraOp(object):
         height = 18
         im = PIL.Image.new('RGB', (width * 65 + 1, height * 65 + 21), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(FONT_PATH, 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(ODR_FONT_PATH, 'helvB10.pil'))
        
         # Axes boxes
         for i in range(width + 1):
@@ -434,7 +434,7 @@ class BaselineOp(object):
         # Image setup
         im = PIL.Image.new('RGB', (601, 421), '#FFFFFF')
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(FONT_PATH, 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(ODR_FONT_PATH, 'helvB10.pil'))
         
         # Axes boxes
         for i in range(2):
@@ -710,7 +710,7 @@ class ImageOp(object):
         # Image setup
         im = PIL.Image.new('RGB', (860, 420))
         draw = PIL.ImageDraw.Draw(im)
-        font = PIL.ImageFont.load(os.path.join(FONT_PATH, 'helvB10.pil'))
+        font = PIL.ImageFont.load(os.path.join(ODR_FONT_PATH, 'helvB10.pil'))
         
         ## I
         im.paste(imI, ( 20, 20))
@@ -740,7 +740,7 @@ class ImageOp(object):
         draw.text((835, 30), '|V|', font = font, fill = '#FFFFFF')
         
         ## Logo-ize
-        logo = PIL.Image.open(os.path.join(DATA_PATH, 'logo.png'))
+        logo = PIL.Image.open(os.path.join(ODR_DATA_PATH, 'logo.png'))
         logo_img = logo.getchannel('A')
         im.paste(logo_img, (5, 385))
         logo.close()
