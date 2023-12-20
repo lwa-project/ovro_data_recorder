@@ -77,7 +77,7 @@ fi
 if [[ $? == 0 ]]; then
     # Install ovro_data_recorder
     cd ${ROOTDIR}
-    conda run -n ${INSTALL_ENV} python -m pip install -e . >> ${LOG} 2>>${LOG}
+    conda run -n ${INSTALL_ENV} python -m pip install . >> ${LOG} 2>>${LOG}
 fi
 if [[ $? == 0 ]]; then
     # Install the systemd services
