@@ -317,9 +317,13 @@ class DiskStorageLogger(object):
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
-            st = os.statvfs(self.directory)
-            disk_free = st.f_bavail * st.f_frsize
-            disk_total = st.f_blocks * st.f_frsize
+            try:
+                st = os.statvfs(self.directory)
+                disk_free = st.f_bavail * st.f_frsize
+                disk_total = st.f_blocks * st.f_frsize
+            except OSError as e:
+                self.log.warning(f"Failed to statvfs '{self.directory}': {str(e)}")
+                disk_free = disk_total = 0
             self.client.write_monitor_point('storage/active_disk_size',
                                             disk_total, timestamp=ts, unit='B')
             self.client.write_monitor_point('storage/active_disk_free',
@@ -528,9 +532,13 @@ class TimeStorageLogger(object):
             # Find the disk size and free space for the disk hosting the
             # directory - this should be quota-aware
             ts = time.time()
-            st = os.statvfs(self.directory)
-            disk_free = st.f_bavail * st.f_frsize
-            disk_total = st.f_blocks * st.f_frsize
+            try:
+                st = os.statvfs(self.directory)
+                disk_free = st.f_bavail * st.f_frsize
+                disk_total = st.f_blocks * st.f_frsize
+            except OSError as e:
+                self.log.warning(f"Failed to statvfs '{self.directory}': {str(e)}")
+                disk_free = disk_total = 0
             self.client.write_monitor_point('storage/active_disk_size',
                                             disk_total, timestamp=ts, unit='B')
             self.client.write_monitor_point('storage/active_disk_free',
