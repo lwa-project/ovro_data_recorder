@@ -189,8 +189,10 @@ class HDF5Record(CommandBase):
                                                                       sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
-            assert(time_avg in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024))
-            assert(chan_avg in (1, 2, 4, 8, 16, 32, 64))
+            if time_avg not in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024):
+                raise AssertionError(f"invalid value for 'time_avg': {time_avg}")
+            if chan_avg not in (1, 2, 4, 8, 16, 32, 64):
+                raise AssertionError(f"invalid value for 'chan_avg': {chan_avg}")
         except (TypeError, ValueError, AssertionError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
@@ -436,13 +438,19 @@ class DRX(CommandBase):
     
     def action(self, sequence_id, beam, tuning, central_freq, filter, gain, subslot=0):
         try:
-            assert(beam in (1,2))
-            assert(tuning in (1,2))
-            assert(filter in self._bandwidths.keys())
-            assert((central_freq > self._bandwidths[filter]/2) \
-                   and (central_freq < (CLOCK/2 - self._bandwidths[filter]/2)))
-            assert(gain >= 0 and gain <= 15)
-            assert(subslot >=0 and subslot <= 99)
+            if beam not in (1,2):
+                raise AssertionError(f"invalid value for 'beam': {beam}")
+            if tuning not in (1,2):
+                raise AssertionError(f"invalid value for 'tuning': {tuning}")
+            if filter not in self._bandwidths.keys():
+                raise AssertionError(f"invalid value for 'filter': {filter}")
+            if (central_freq <= self._bandwidths[filter]/2) \
+                   or (central_freq >= (CLOCK/2 - self._bandwidths[filter]/2)):
+                raise AssertionError(f"invalid value for 'central_freq': {central_freq}")
+            if gain < 0 or gain > 15:
+                raise AssertionError(f"invalid value for 'gain': {gain}")
+            if subslot < 0 or subslot > 99:
+                raise AssertionError(f"invalid value for 'subslot': {subslot}")
         except (TypeError, AssertionError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
