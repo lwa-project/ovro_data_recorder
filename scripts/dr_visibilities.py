@@ -998,7 +998,7 @@ class WriterOp(object):
             ishape = (self.ntime_gulp,nbl,nchan,npol)
             self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
             
-            norm_factor = navg // (2*NCHAN) // (4 if self.fast else 1)
+            norm_factor = navg // (2*NCHAN) * (4 if self.fast else 1)
             
             self.client.write_monitor_point('latest_frequency', chan_to_freq(chan0), unit='Hz')
             
