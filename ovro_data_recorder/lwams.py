@@ -144,6 +144,18 @@ class _MSConfig(object):
         """
         
         return len(self.pols)
+    
+    @property
+    def settings(self):
+        """
+        ARX and F-engine settings used when recording the measurement set.
+        """
+        try:
+            from observing import obsstate
+            ss = obsstate.read_latest_setting()
+            return ss['filename']
+        except:
+            return None
 
 
 def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
@@ -883,6 +895,7 @@ def _write_misc_required_tables(filename, config):
     pols = config.pols
     npol = config.npol
     nint = config.nint
+    settings = config.settings
     
     # Flag command
     
@@ -998,8 +1011,10 @@ def _write_misc_required_tables(filename, config):
                                     comment='Processor mode id')
     col5 = tableutil.makescacoldesc('FLAG_ROW', False, 
                                     comment='flag')
+    col6 = tableutil.makescacoldesc('SETTINGS', settings, 
+                                    comment='ARX and F-engine settings')
     
-    desc = tableutil.maketabdesc([col1, col2, col3, col4, col5])
+    desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6])
     tb = table("%s/PROCESSOR" % filename, desc, nrow=0, ack=False)
     
     if FORCE_TABLE_FLUSH:
