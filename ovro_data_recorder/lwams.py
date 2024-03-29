@@ -3,6 +3,7 @@ import sys
 import glob
 import numpy
 import shutil
+import logging
 
 from casacore.measures import measures
 from casacore.tables import table, tableutil
@@ -27,6 +28,10 @@ NUMERIC_STOKES = { 1:'I',   2:'Q',   3:'U',   4:'V',
 
 # Whether or not to flush the tables to disk before closing
 FORCE_TABLE_FLUSH = False
+
+
+# Logging instance
+lwams_logger = logging.getLogger('__main__')
 
 
 def get_zenith(station, lwatime):
@@ -154,7 +159,8 @@ class _MSConfig(object):
             from observing import obsstate
             ss = obsstate.read_latest_setting()
             return ss['filename']
-        except:
+        except Exception as e:
+            lwams_logger.warn(f"Failed to read the current ARX/F-engine settings: {str(e)}")
             return None
 
 
