@@ -689,6 +689,7 @@ class ImageOp(object):
         # Form I and V visibilities
         baselinesI = baselines[...,0] + baselines[...,3]
         baselinesV = baselines[...,1] - baselines[...,2]
+        baselinesV[baselinesV.shape[0]//2:,:] *= -1
         temp = baselinesV.imag
         baselinesV.imag = baselinesV.real
         baselinesV.real = -temp
