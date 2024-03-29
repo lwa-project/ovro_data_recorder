@@ -22,6 +22,7 @@ REQUIREMENTS
  * jinja2
  * mnc_python from https://github.com/ovro-lwa/mnc_python
  * lwa_antpos from https://github.com/ovro-lwa/lwa-antpos
+ * lwa_observing from https://github.com/ovro-lwa/lwa-observing
  * lwa352_pipeline_control from https://github.com/realtimeradio/caltech-bifrost-dsp
  * FFTW3 - single precision version
  * tar

@@ -9,6 +9,7 @@ from casacore.measures import measures
 from casacore.tables import table, tableutil
 
 from mnc.common import LWATime
+from observing import obsstate
 
 __all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'get_zenith_uvw',
            'create_ms', 'update_time', 'update_pointing', 'update_data']
@@ -156,7 +157,6 @@ class _MSConfig(object):
         ARX and F-engine settings used when recording the measurement set.
         """
         try:
-            from observing import obsstate
             ss = obsstate.read_latest_setting()
             return ss['filename']
         except Exception as e:
