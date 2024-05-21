@@ -5,11 +5,13 @@ import numpy
 from datetime import datetime
 
 from mnc.common import FS, CLOCK, NCHAN, CHAN_BW
+from dsautils import dsa_store
 
 __all__ = ['create_hdf5', 'set_frequencies', 'set_time',
            'set_polarization_products']
 
 
+ls = dsa_store.DsaStore()
 HDF5_CHUNK_SIZE_MB = 32
 
 
@@ -28,7 +30,13 @@ def create_hdf5(filename, beam, overwrite=False):
             
     # Open the file
     f = h5py.File(filename, mode='w', libver='latest')
-    
+
+    # get keys with SDF contents. keys like "66_VOLT1"
+    dd = ls.get_dict('/mon/observing/sdfdict')
+    sessionname = '66_VOLT1'  # e.g.
+    config_file = dd[sessionname]['SESSION']['CONFIG_FILE']
+    cal_dir = dd[sessionname]['SESSION']['CAL_DIR']
+
     # Top level attributes
     ## Observer and Project Info.
     f.attrs['ObserverID'] = 0
