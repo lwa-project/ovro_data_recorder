@@ -1021,7 +1021,13 @@ def _write_misc_required_tables(filename, config):
                                     comment='ARX and F-engine settings')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6])
-    tb = table("%s/PROCESSOR" % filename, desc, nrow=0, ack=False)
+    tb = table("%s/PROCESSOR" % filename, desc, nrow=1, ack=False)
+
+    tb.putcell('TYPE', 0 'type')
+    tb.putcell('TYPE_ID', 0, 0)
+    tb.putcell('MODE_ID', 0, 0)
+    tb.putcell('FLAG_ROW', 0, False)
+    tb.putcell('SETTINGS', 0, settings)
     
     if FORCE_TABLE_FLUSH:
         tb.flush()
