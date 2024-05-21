@@ -3,6 +3,7 @@ import sys
 import h5py
 import numpy
 from datetime import datetime
+import logging
 
 from mnc.common import FS, CLOCK, NCHAN, CHAN_BW
 from dsautils import dsa_store
@@ -10,7 +11,7 @@ from dsautils import dsa_store
 __all__ = ['create_hdf5', 'set_frequencies', 'set_time',
            'set_polarization_products']
 
-
+lwahdf_logger = logging.getLogger('__main__')
 ls = dsa_store.DsaStore()
 HDF5_CHUNK_SIZE_MB = 32
 
@@ -32,17 +33,33 @@ def create_hdf5(filename, beam, overwrite=False):
     f = h5py.File(filename, mode='w', libver='latest')
 
     # get keys with SDF contents. keys like "66_VOLT1"
-    dd = ls.get_dict('/mon/observing/sdfdict')
-    sessionname = '66_VOLT1'  # e.g.
-    config_file = dd[sessionname]['SESSION']['CONFIG_FILE']
-    cal_dir = dd[sessionname]['SESSION']['CAL_DIR']
+    try:
+        dd = ls.get_dict('/mon/observing/sdfdict')
+    except:
+        lwahdf_logger.warn('Could not access etcd values for /mon/observing/sdfdict')
+
+    sessionname = None
+    session = {}
+    observation = {}
+    for kk, vv in dd.items():
+        if dd[kk]['SESSION']['SESSION_DRX_BEAM'] == str(beam):
+            mjd_start = int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_START_MPM'])/(1e3*24*3600)
+            mjd_stop = mjd_start + int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_DUR'])/(1e3*24*3600)
+            mjd_now = time.Time.now().mjd
+            if mjd_now > mjd_start and mjd_now < mjd_stop:
+                sessionname = kk
+                session = dd[sessionname]['SESSION']
+                observation = dd[sessionname]['OBSERVATIONS']['OBSERVATION_1']  # TODO: verify only one gets submitted
+
+    config_file = session.get('CONFIG_FILE', '')
+    cal_dir = session.get('CAL_DIR', '')
 
     # Top level attributes
     ## Observer and Project Info.
-    f.attrs['ObserverID'] = 0
-    f.attrs['ObserverName'] = ''
-    f.attrs['ProjectID'] = ''
-    f.attrs['SessionID'] = 0
+    f.attrs['ObserverID'] = int(session.get('PI_ID', 0))
+    f.attrs['ObserverName'] = session.get('PI_NAME', '')
+    f.attrs['ProjectID'] = session.get('PROJECT_ID', '')
+    f.attrs['SessionID'] = int(session.get('SESSION_ID', 0))
     
     ## Station information
     f.attrs['StationName'] = 'ovro-lwa'
@@ -53,6 +70,8 @@ def create_hdf5(filename, beam, overwrite=False):
     
     ## Input file info.
     f.attrs['InputMetadata'] = ''
+    f.attrs['ConfigFile'] = config_file  # TODO: or put them above?
+    f.attrs['CalDir'] = cal_dir
     
     # Observation group
     ## Create it if it doesn't exist
@@ -60,9 +79,9 @@ def create_hdf5(filename, beam, overwrite=False):
     
     ## Target info.
     obs.attrs['TargetName'] = ''
-    obs.attrs['RA'] = -99.0
-    obs.attrs['RA_Units'] = 'hours'
-    obs.attrs['Dec'] = -99.0
+    obs.attrs['RA'] = float(observation.get('OBS_RA', -99.0))
+    obs.attrs['RA_Units'] = 'degrees'
+    obs.attrs['Dec'] = float(observation.get('OBS_DEC', -99.0))
     obs.attrs['Dec_Units'] = 'degrees'
     obs.attrs['Epoch'] = 2000.0
     obs.attrs['Epoch'] = 2000.0
@@ -74,11 +93,11 @@ def create_hdf5(filename, beam, overwrite=False):
     obs.attrs['ARX_Gain2'] = -1.0
     obs.attrs['ARX_GainS'] = -1.0
     obs.attrs['Beam'] = beam
-    obs.attrs['DRX_Gain'] = -1.0
+    obs.attrs['DRX_Gain'] = int(observation.get('OBS_DRX_GAIN', -1.0))
     obs.attrs['sampleRate'] = CLOCK
     obs.attrs['sampleRate_Units'] = 'Hz'
-    obs.attrs['tInt'] = -1.0
-    obs.attrs['tInt_Units'] = 's'
+    obs.attrs['tInt'] = int(observation.get('OBS_INT_TIME', -1.0))
+    obs.attrs['tInt_Units'] = 'ms'
     obs.attrs['LFFT'] = NCHAN
     obs.attrs['nChan'] = 0
     obs.attrs['RBW'] = -1.0
