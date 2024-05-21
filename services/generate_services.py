@@ -58,7 +58,7 @@ def main(args):
                 except KeyError:
                     logdir = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
-                    cores = [72,73,74,75]
+                    cores = [32,33,34,35]
                     last_address = address
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
@@ -67,7 +67,7 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 96
+                    cores[c] %= 48
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -92,7 +92,7 @@ def main(args):
                 except KeyError:
                     logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
-                    cores = [50,51,52,53,54,55]
+                    cores = [40,41,42,43,44,45]
                     last_address = address
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
@@ -101,7 +101,7 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 96
+                    cores[c] %= 48
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
@@ -144,7 +144,7 @@ def main(args):
                 except KeyError:
                     logdir    = os.path.join(os.path.dirname(directory), 'log')
                 if address != last_address:
-                    cores = [62,63,64,65,66,67]
+                    cores = [42,43,44,45,46,47]
                     last_address = address
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
@@ -153,7 +153,7 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 96
+                    cores[c] %= 48
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
