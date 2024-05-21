@@ -343,7 +343,7 @@ def _write_main_table(filename, config):
                                      keywords={'QuantumUnits':['s',]})
     col16 = tableutil.makescacoldesc('OBSERVATION_ID', 0, 
                                      comment='ID for this observation, index in OBSERVATION table')
-    col17 = tableutil.makescacoldesc('PROCESSOR_ID', -1, 
+    col17 = tableutil.makescacoldesc('PROCESSOR_ID', 0, 
                                      comment='Id for backend processor, index in PROCESSOR table')
     col18 = tableutil.makescacoldesc('SCAN_NUMBER', 1, 
                                      comment='Sequential scan number from on-line system')
@@ -404,7 +404,7 @@ def _write_main_table(filename, config):
     tb.putcol('FLAG_ROW', [False,]*nint*nbl, 0, nint*nbl)
     tb.putcol('INTERVAL', [tint,]*nint*nbl, 0, nint*nbl)
     tb.putcol('OBSERVATION_ID', [i for i in range(nint) for j in range(nbl)], 0, nint*nbl)
-    tb.putcol('PROCESSOR_ID', [-1,]*nint*nbl, 0, nint*nbl)
+    tb.putcol('PROCESSOR_ID', [0,]*nint*nbl, 0, nint*nbl)
     tb.putcol('SCAN_NUMBER', [i+1 for i in range(nint) for j in range(nbl)], 0, nint*nbl)
     tb.putcol('STATE_ID', [-1,]*nint*nbl, 0, nint*nbl)
     tb.putcol('TIME', [0.0,]*nint*nbl, 0, nint*nbl)
@@ -1021,7 +1021,14 @@ def _write_misc_required_tables(filename, config):
                                     comment='ARX and F-engine settings')
     
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6])
-    tb = table("%s/PROCESSOR" % filename, desc, nrow=0, ack=False)
+    tb = table("%s/PROCESSOR" % filename, desc, nrow=1, ack=False)
+
+    tb.putcell('TYPE', 0 'type')
+    tb.putcell('SUB_TYPE', 0, 'subtype')
+    tb.putcell('TYPE_ID', 0, 0)
+    tb.putcell('MODE_ID', 0, 0)
+    tb.putcell('FLAG_ROW', 0, False)
+    tb.putcell('SETTINGS', 0, settings)
     
     if FORCE_TABLE_FLUSH:
         tb.flush()
