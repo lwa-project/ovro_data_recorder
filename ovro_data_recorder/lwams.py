@@ -1023,7 +1023,7 @@ def _write_misc_required_tables(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6])
     tb = table("%s/PROCESSOR" % filename, desc, nrow=1, ack=False)
 
-    tb.putcell('TYPE', 0 'type')
+    tb.putcell('TYPE', 0, 'type')
     tb.putcell('SUB_TYPE', 0, 'subtype')
     tb.putcell('TYPE_ID', 0, 0)
     tb.putcell('MODE_ID', 0, 0)
