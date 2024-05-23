@@ -5,6 +5,7 @@ import numpy
 from datetime import datetime
 import logging
 
+from astropy import time
 from mnc.common import FS, CLOCK, NCHAN, CHAN_BW
 from dsautils import dsa_store
 
