@@ -80,7 +80,7 @@ def create_hdf5(filename, beam, overwrite=False):
     ## Target info.
     obs.attrs['TargetName'] = ''
     obs.attrs['RA'] = float(observation.get('OBS_RA', -99.0))
-    obs.attrs['RA_Units'] = 'degrees'
+    obs.attrs['RA_Units'] = 'hours'
     obs.attrs['Dec'] = float(observation.get('OBS_DEC', -99.0))
     obs.attrs['Dec_Units'] = 'degrees'
     obs.attrs['Epoch'] = 2000.0
