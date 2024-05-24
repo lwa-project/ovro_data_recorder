@@ -12,9 +12,16 @@ from dsautils import dsa_store
 __all__ = ['create_hdf5', 'set_frequencies', 'set_time',
            'set_polarization_products']
 
-lwahdf_logger = logging.getLogger('__main__')
-ls = dsa_store.DsaStore()
+
 HDF5_CHUNK_SIZE_MB = 32
+
+
+# Logging instance
+lwahdf_logger = logging.getLogger('__main__')
+
+
+# DsaStore instance
+ls = dsa_store.DsaStore()
 
 
 def create_hdf5(filename, beam, overwrite=False):
