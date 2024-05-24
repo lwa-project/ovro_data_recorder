@@ -36,8 +36,9 @@ def create_hdf5(filename, beam, overwrite=False):
     # get keys with SDF contents. keys like "66_VOLT1"
     try:
         dd = ls.get_dict('/mon/observing/sdfdict')
-    except:
-        lwahdf_logger.warn('Could not access etcd values for /mon/observing/sdfdict')
+    except Exception as e:
+        dd = {}
+        lwahdf_logger.warn(f"Could not access etcd values for /mon/observing/sdfdict: {str(e)}")
 
     sessionname = None
     session = {}
