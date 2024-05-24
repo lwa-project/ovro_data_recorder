@@ -69,7 +69,7 @@ def create_hdf5(filename, beam, overwrite=False):
     
     ## Input file info.
     f.attrs['InputMetadata'] = ''
-    f.attrs['ConfigFile'] = config_file = session.get('CONFIG_FILE', '')  # TODO: or put them above?
+    f.attrs['ConfigFile'] = session.get('CONFIG_FILE', '')  # TODO: or put them above?
     f.attrs['CalDir'] = session.get('CAL_DIR', '')
     
     # Observation group
