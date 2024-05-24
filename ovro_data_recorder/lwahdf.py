@@ -53,9 +53,6 @@ def create_hdf5(filename, beam, overwrite=False):
                 session = dd[sessionname]['SESSION']
                 observation = dd[sessionname]['OBSERVATIONS']['OBSERVATION_1']  # TODO: verify only one gets submitted
 
-    config_file = session.get('CONFIG_FILE', '')
-    cal_dir = session.get('CAL_DIR', '')
-
     # Top level attributes
     ## Observer and Project Info.
     f.attrs['ObserverID'] = int(session.get('PI_ID', 0))
@@ -72,8 +69,8 @@ def create_hdf5(filename, beam, overwrite=False):
     
     ## Input file info.
     f.attrs['InputMetadata'] = ''
-    f.attrs['ConfigFile'] = config_file  # TODO: or put them above?
-    f.attrs['CalDir'] = cal_dir
+    f.attrs['ConfigFile'] = config_file = session.get('CONFIG_FILE', '')  # TODO: or put them above?
+    f.attrs['CalDir'] = session.get('CAL_DIR', '')
     
     # Observation group
     ## Create it if it doesn't exist
