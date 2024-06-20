@@ -52,13 +52,14 @@ def create_hdf5(filename, beam, overwrite=False):
     observation = {}
     for kk, vv in dd.items():
         if dd[kk]['SESSION']['SESSION_DRX_BEAM'] == str(beam):
-            mjd_start = int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_START_MPM'])/(1e3*24*3600)
-            mjd_stop = mjd_start + int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_DUR'])/(1e3*24*3600)
-            mjd_now = time.Time.now().mjd
-            if mjd_now > mjd_start and mjd_now < mjd_stop:
-                sessionname = kk
-                session = dd[sessionname]['SESSION']
-                observation = dd[sessionname]['OBSERVATIONS']['OBSERVATION_1']  # TODO: verify only one gets submitted
+            for kkobs in dd[kk]['OBSERVATIONS'].keys():
+                mjd_start = int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MPM'])/(1e3*24*3600)
+                mjd_stop = mjd_start + int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_DUR'])/(1e3*24*3600)
+                mjd_now = time.Time.now().mjd
+                if mjd_now > mjd_start and mjd_now < mjd_stop:
+                    sessionname = kk
+                    session = dd[sessionname]['SESSION']
+                    observation = dd[sessionname]['OBSERVATIONS'][kkobs]  # TODO: verify only one gets submitted
 
     # Top level attributes
     ## Observer and Project Info.
