@@ -50,16 +50,20 @@ def create_hdf5(filename, beam, overwrite=False):
     sessionname = None
     session = {}
     observation = {}
-    for kk, vv in dd.items():
+    mjd_now = time.Time.now().mjd
+    for kk, _ in dd.items():
         if dd[kk]['SESSION']['SESSION_DRX_BEAM'] == str(beam):
             for kkobs in dd[kk]['OBSERVATIONS'].keys():
                 mjd_start = int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MPM'])/(1e3*24*3600)
                 mjd_stop = mjd_start + int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_DUR'])/(1e3*24*3600)
-                mjd_now = time.Time.now().mjd
-                if mjd_now > mjd_start and mjd_now < mjd_stop:
+                if mjd_now >= mjd_start and mjd_now < mjd_stop:
                     sessionname = kk
                     session = dd[sessionname]['SESSION']
-                    observation = dd[sessionname]['OBSERVATIONS'][kkobs]  # TODO: verify only one gets submitted
+                    observation = dd[sessionname]['OBSERVATIONS'][kkobs]
+                    break
+            else:
+                continue
+            break
 
     # Top level attributes
     ## Observer and Project Info.
