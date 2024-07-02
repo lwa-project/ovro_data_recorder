@@ -55,8 +55,9 @@ def create_hdf5(filename, beam, overwrite=False):
         if dd[kk]['SESSION']['SESSION_DRX_BEAM'] == str(beam):
             for kkobs in dd[kk]['OBSERVATIONS'].keys():
                 mjd_start = int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MPM'])/(1e3*24*3600)
-                mjd_stop = mjd_start + int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_DUR'])/(1e3*24*3600)
-                if mjd_now >= mjd_start and mjd_now < mjd_stop:
+                mjd_delta = int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_DUR'])/(1e3*24*3600)
+                mjd_stop = mjd_start + mjd_delta
+                if mjd_now + mjd_delta/2 >= mjd_start and mjd_now + mjd_delta/2 < mjd_stop:  # align at midpoint of observation
                     sessionname = kk
                     session = dd[sessionname]['SESSION']
                     observation = dd[sessionname]['OBSERVATIONS'][kkobs]
