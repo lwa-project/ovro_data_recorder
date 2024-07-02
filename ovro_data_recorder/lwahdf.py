@@ -90,14 +90,14 @@ def create_hdf5(filename, beam, overwrite=False):
     obs = f.create_group('/Observation1')
     
     ## Target info.
-    obs.attrs['TargetName'] = ''
+    obs.attrs['TargetName'] = observation.get('OBS_TARGET', '')
     obs.attrs['RA'] = float(observation.get('OBS_RA', -99.0))
     obs.attrs['RA_Units'] = 'hours'
     obs.attrs['Dec'] = float(observation.get('OBS_DEC', -99.0))
     obs.attrs['Dec_Units'] = 'degrees'
     obs.attrs['Epoch'] = 2000.0
     obs.attrs['Epoch'] = 2000.0
-    obs.attrs['TrackingMode'] = 'Unknown'
+    obs.attrs['TrackingMode'] = observation.get('OBS_MODE', 'Unknown')
     
     ## Observation info
     obs.attrs['ARX_Filter'] = -1.0
@@ -108,8 +108,8 @@ def create_hdf5(filename, beam, overwrite=False):
     obs.attrs['DRX_Gain'] = int(observation.get('OBS_DRX_GAIN', -1.0))
     obs.attrs['sampleRate'] = CLOCK
     obs.attrs['sampleRate_Units'] = 'Hz'
-    obs.attrs['tInt'] = int(observation.get('OBS_INT_TIME', -1.0))
-    obs.attrs['tInt_Units'] = 'ms'
+    obs.attrs['tInt'] = -1.0
+    obs.attrs['tInt_Units'] = 's'
     obs.attrs['LFFT'] = NCHAN
     obs.attrs['nChan'] = 0
     obs.attrs['RBW'] = -1.0
