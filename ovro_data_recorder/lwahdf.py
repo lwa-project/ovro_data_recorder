@@ -96,7 +96,6 @@ def create_hdf5(filename, beam, overwrite=False):
     obs.attrs['Dec'] = float(observation.get('OBS_DEC', -99.0))
     obs.attrs['Dec_Units'] = 'degrees'
     obs.attrs['Epoch'] = 2000.0
-    obs.attrs['Epoch'] = 2000.0
     obs.attrs['TrackingMode'] = observation.get('OBS_MODE', 'Unknown')
     
     ## Observation info
