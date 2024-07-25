@@ -50,15 +50,21 @@ def create_hdf5(filename, beam, overwrite=False):
     sessionname = None
     session = {}
     observation = {}
-    for kk, vv in dd.items():
+    mjd_now = time.Time.now().mjd
+    for kk, _ in dd.items():
         if dd[kk]['SESSION']['SESSION_DRX_BEAM'] == str(beam):
-            mjd_start = int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_START_MPM'])/(1e3*24*3600)
-            mjd_stop = mjd_start + int(dd[kk]['OBSERVATIONS']['OBSERVATION_1']['OBS_DUR'])/(1e3*24*3600)
-            mjd_now = time.Time.now().mjd
-            if mjd_now > mjd_start and mjd_now < mjd_stop:
-                sessionname = kk
-                session = dd[sessionname]['SESSION']
-                observation = dd[sessionname]['OBSERVATIONS']['OBSERVATION_1']  # TODO: verify only one gets submitted
+            for kkobs in dd[kk]['OBSERVATIONS'].keys():
+                mjd_start = int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MJD'])+int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_START_MPM'])/(1e3*24*3600)
+                mjd_delta = int(dd[kk]['OBSERVATIONS'][kkobs]['OBS_DUR'])/(1e3*24*3600)
+                mjd_stop = mjd_start + mjd_delta
+                if mjd_now + mjd_delta/2 >= mjd_start and mjd_now + mjd_delta/2 < mjd_stop:  # align at midpoint of observation
+                    sessionname = kk
+                    session = dd[sessionname]['SESSION']
+                    observation = dd[sessionname]['OBSERVATIONS'][kkobs]
+                    break
+            else:
+                continue
+            break
 
     # Top level attributes
     ## Observer and Project Info.
@@ -84,14 +90,13 @@ def create_hdf5(filename, beam, overwrite=False):
     obs = f.create_group('/Observation1')
     
     ## Target info.
-    obs.attrs['TargetName'] = ''
+    obs.attrs['TargetName'] = observation.get('OBS_TARGET', '')
     obs.attrs['RA'] = float(observation.get('OBS_RA', -99.0))
     obs.attrs['RA_Units'] = 'hours'
     obs.attrs['Dec'] = float(observation.get('OBS_DEC', -99.0))
     obs.attrs['Dec_Units'] = 'degrees'
     obs.attrs['Epoch'] = 2000.0
-    obs.attrs['Epoch'] = 2000.0
-    obs.attrs['TrackingMode'] = 'Unknown'
+    obs.attrs['TrackingMode'] = observation.get('OBS_MODE', 'Unknown')
     
     ## Observation info
     obs.attrs['ARX_Filter'] = -1.0
@@ -102,8 +107,8 @@ def create_hdf5(filename, beam, overwrite=False):
     obs.attrs['DRX_Gain'] = int(observation.get('OBS_DRX_GAIN', -1.0))
     obs.attrs['sampleRate'] = CLOCK
     obs.attrs['sampleRate_Units'] = 'Hz'
-    obs.attrs['tInt'] = int(observation.get('OBS_INT_TIME', -1.0))
-    obs.attrs['tInt_Units'] = 'ms'
+    obs.attrs['tInt'] = -1.0
+    obs.attrs['tInt_Units'] = 's'
     obs.attrs['LFFT'] = NCHAN
     obs.attrs['nChan'] = 0
     obs.attrs['RBW'] = -1.0
