@@ -66,6 +66,9 @@ def create_hdf5(filename, beam, overwrite=False):
                 continue
             break
 
+    logger.info(f"Session: {session}")
+    logger.info(f"Observation: {observation}")
+
     # Top level attributes
     ## Observer and Project Info.
     f.attrs['ObserverID'] = int(session.get('PI_ID', 0))
