@@ -19,6 +19,7 @@ Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
 source {{ anaconda }}/bin/activate {{ condaenv }} && \
+numactl --cpunodebind=1 --membind=1 -- \
 python3 {{ path }}/dr_beam.py \
          --address                {{ address }} \
          --port                   {{ port }} \
