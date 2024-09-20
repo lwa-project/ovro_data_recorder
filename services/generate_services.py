@@ -101,9 +101,8 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 48
-                    if cores[c] < 24:
-                        cores[c] += 24
+                    if cores[c] > 47:
+                        cores[c] -= 24
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
@@ -155,9 +154,8 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 48
-                    if cores[c] < 24:
-                        cores[c] += 24
+                    if cores[c] > 47:
+                        cores[c] -= 24
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
