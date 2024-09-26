@@ -296,7 +296,7 @@ class MeasurementSetWriter(FileWriterBase):
         # Setup
         self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
         if not os.path.exists(self._tempdir):
-            os.mkdir(self._tempdir)
+            os.makedirs(self._tempdir, exist_ok=True)
         self.nint_per_file = nint_per_file
         self.is_tarred = is_tarred
         
