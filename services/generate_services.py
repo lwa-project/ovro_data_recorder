@@ -201,7 +201,7 @@ def main(args):
                     
     if not args.clean:
         print("To enable/update these services:")
-        print(" * copy the relevant .service files to /home/pipeline/.config/systemd/user/")
+        print(" * copy the relevant .service files to /home/ubuntu/.config/systemd/user/")
         print(" * reload systemd with 'systemctl --user daemon-reload'")
 
 
@@ -212,9 +212,9 @@ if __name__ == '__main__':
             )
     parser.add_argument('--config', type=str, default='service_config.json',
                        help='JSON file that specifies the data recorder mappings')
-    parser.add_argument('-p', '--anaconda-path', type=str, default='/opt/miniconda3',
+    parser.add_argument('-p', '--anaconda-path', type=str, default='/home/ubuntu',
                        help='root path to anaconda install to use')
-    parser.add_argument('-e', '--conda-env', type=str, default='datarecorder',
+    parser.add_argument('-e', '--conda-env', type=str, default='drenv',
                        help='anaconda enviroment name to use')
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('-b', '--power-beams', action='store_true',

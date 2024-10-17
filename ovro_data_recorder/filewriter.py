@@ -21,7 +21,7 @@ __all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
-_TEMP_BASEDIR = "/fast/pipeline/temp/"
+_TEMP_BASEDIR = "/home/ubuntu/drtmp"
 
 
 class FileWriterBase(object):
