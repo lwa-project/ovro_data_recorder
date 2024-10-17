@@ -26,11 +26,11 @@ for SUB in `seq 1 1 16`; do
   fi
 done
 for BEAM in `seq 1 1 12`; do
-  if [[ "${SUB0}" == "${SUB} || [[ "${SUB1}" == "${SUB} ]]; then
+  if [[ "${SUB0}" == "${BEAM} || [[ "${SUB1}" == "${BEAM} ]]; then
     cp -v dr-beam-${BEAM}.service /home/ubuntu/.config/systemd/user/
   fi
 done
-if [[ "${SUB0}" == "1" ]]; then
+if (( ${HOST} == 1 )); then
   cp -v dr-manager-vslow.service /home/ubuntu/.config/systemd/user/
   cp -v dr-manager-vfast.service /home/ubuntu/.config/systemd/user/
 fi
