@@ -1,19 +1,19 @@
 #!/bin/bash
 
 if [[ "$1" == "-a" ]]; then
-  for host in "lwacalim01" "lwacalim02" "lwacalim03" "lwacalim04" "lwacalim05" "lwacalim06" "lwacalim07" "lwacalim08"; do
+  for host in "lwastor01" "lwastor02" "lwastor03" "lwastor04" "lwastor05" "lwastor06" "lwastor07" "lwastor08"; do
     cmd=`realpath $0`
     echo "Working on ${host}..."
     ssh ${host} $cmd
   done
 else
   # Hostname to subband/beam conversion
-  HOST=`hostname | grep lwacalim`
+  HOST=`hostname | grep lwastor`
   if [[ ${HOST} == "" ]]; then
-    echo "Must be run on a calim node"
+    echo "Must be run on a lwastor node"
     exit 1
   fi
-  HOST=`echo ${HOST} | sed -e 's/lwacalim//g;'`
+  HOST=`echo ${HOST} | sed -e 's/lwastor//g;'`
   HOST=`echo "10#${HOST}"`
   SUB0=$(((${HOST}-1)*2+1))
   SUB1=$(((${HOST}-1)*2+2))
