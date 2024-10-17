@@ -272,8 +272,8 @@ class HDF5Writer(FileWriterBase):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
             # Update the counter
             self._counter += size
-            # Flush every 10 s
-            if time.time() - self._last_flush > 10:
+            # Flush every 60 s
+            if time.time() - self._last_flush > 60:
                 self._time.flush()
                 for i in range(data.shape[-1]):
                     self._pols[i].flush()
