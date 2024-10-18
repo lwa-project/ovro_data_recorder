@@ -196,7 +196,7 @@ class HDF5Writer(FileWriterBase):
     Sub-class of :py:class:`FileWriterBase` that writes data to a HDF5 file.
     """
     
-    def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, **kwds):
+    def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, swmr=False, **kwds):
         """
         Set the metadata in the HDF5 file and prepare it for writing.
         """
@@ -228,8 +228,10 @@ class HDF5Writer(FileWriterBase):
         self._started = True
 
         # Enable concurrent access to the file
-        self._interface.swmr_mode = True
-        self._freq.flush()
+        self._swmr = swmr
+        if self._swmr:
+            self._interface.swmr_mode = True
+            self._freq.flush()
         self._last_flush = time.time()
         
     def write(self, time_tag, data):
@@ -274,13 +276,14 @@ class HDF5Writer(FileWriterBase):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
             # Update the counter
             self._counter += size
-            # Flush every 60 s
-            if time.time() - self._last_flush > 60:
-                self._time.flush()
-                for i in range(data.shape[-1]):
-                    self._pols[i].flush()
-                self._last_flush = time.time()
-                
+            if self._swmr:
+                # Flush every 60 s
+                if time.time() - self._last_flush > 60:
+                    self._time.flush()
+                    for i in range(data.shape[-1]):
+                        self._pols[i].flush()
+                    self._last_flush = time.time()
+                    
         except ValueError:
             # If we are here that probably means the file has been closed
             pass
