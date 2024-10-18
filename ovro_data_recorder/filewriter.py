@@ -362,10 +362,9 @@ class MeasurementSetWriter(FileWriterBase):
                 self._last_tagpath = self.tagpath
             self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
             self.tempname = os.path.join(self._tempdir, self.tagname)
-            with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(['cp', '-r', self._template, self.tempname],
-                                      stderr=dn)
-                
+            subprocess.check_call(['cp', '-r', self._template, self.tempname],
+                                  stderr=subprocess.DEVNULL)
+            
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
@@ -388,16 +387,15 @@ class MeasurementSetWriter(FileWriterBase):
             else:
                 filename = os.path.join(self.filename, self.tagname)
                 save_cmd = ['cp', '-rf', self.tempname, filename]
-            with open('/dev/null', 'wb') as dn:
-                try:
-                    subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
-                    shutil.rmtree(self.tempname, ignore_errors=True)
-                    self._counter = 0
-                except subprocess.CalledProcessError as e:
-                    shutil.rmtree(self.tempname, ignore_errors=True)
-                    self._counter = 0
-                    raise e
-                    
+            try:
+                subprocess.check_call(save_cmd, stderr=subprocess.DEVNULL, cwd=self._tempdir)
+                shutil.rmtree(self.tempname, ignore_errors=True)
+                self._counter = 0
+            except subprocess.CalledProcessError as e:
+                shutil.rmtree(self.tempname, ignore_errors=True)
+                self._counter = 0
+                raise e
+                
     def stop(self):
         """
         Close out the file and then call the 'post_stop_task' method.
