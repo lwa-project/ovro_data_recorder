@@ -397,7 +397,7 @@ class MeasurementSetWriter(FileWriterBase):
             npending = len(self._threads)
             while (npending > 0) and (not self._threads[0].is_alive()):
                 self._threads.popleft()
-                npending = len(self._threads)
+                npending -= 1
                 
             if npending > 100:
                 raise RuntimeError(f"Background MS move thread queue has {len(self._threads)} entries")
@@ -409,6 +409,12 @@ class MeasurementSetWriter(FileWriterBase):
         Close out the file and then call the 'post_stop_task' method.
         """
         
+        npending = len(self._threads)
+        while npending > 0:
+            thrd = self._threads.popleft()
+            thrd.join()
+            npending -= 1
+            
         try:
             shutil.rmtree(self._template, ignore_errors=True)
         except OSError:
