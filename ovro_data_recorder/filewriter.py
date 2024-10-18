@@ -399,7 +399,7 @@ class MeasurementSetWriter(FileWriterBase):
                 self._threads.popleft()
                 npending -= 1
                 
-            if npending > 100:
+            if npending > 50:
                 raise RuntimeError(f"Background MS move thread queue has {len(self._threads)} entries")
             elif npending > 10:
                 print(f"WARNING: Background MS move thread queue has {len(self._threads)} entries")
