@@ -6,10 +6,12 @@ import time
 import numpy
 import atexit
 import shutil
+import threading
 import subprocess
 from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
+from collections import deque
 
 from mnc.common import *
 
@@ -299,6 +301,7 @@ class MeasurementSetWriter(FileWriterBase):
             os.makedirs(self._tempdir, exist_ok=True)
         self.nint_per_file = nint_per_file
         self.is_tarred = is_tarred
+        self._threads = deque([])
         
         # Cleanup
         atexit.register(shutil.rmtree, self._tempdir, ignore_errors=True)
@@ -381,20 +384,25 @@ class MeasurementSetWriter(FileWriterBase):
         self._counter += 1
         if self._counter == self._nint:
             self.tagname = os.path.join(self.tagpath, self.tagname)
-            if self.is_tarred:
-                filename = os.path.join(self.filename, "%s.tar" % self.tagname)
-                save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
-            else:
-                filename = os.path.join(self.filename, self.tagname)
-                save_cmd = ['cp', '-rf', self.tempname, filename]
-            try:
-                subprocess.check_call(save_cmd, stderr=subprocess.DEVNULL, cwd=self._tempdir)
-                shutil.rmtree(self.tempname, ignore_errors=True)
-                self._counter = 0
-            except subprocess.CalledProcessError as e:
-                shutil.rmtree(self.tempname, ignore_errors=True)
-                self._counter = 0
-                raise e
+            finalname = os.path.join(self.filename, self.tagname)
+            thrd = threading.Thread(target=_background_move,
+                                    name=os.path.basename(finalname),
+                                    args=(self.tempname, self.finalname),
+                                    kwargs={'is_tarred': self.is_tarred, 'cwd': self._tempdir},
+                                    daemon=True)
+            self._threads.append(thrd)
+            self._threads[-1].start()
+            self._counter = 0
+            
+            npending = len(self._threads)
+            while (npending > 0) and (not self._threads[0].is_alive()):
+                self._threads.popleft()
+                npending = len(self._threads)
+                
+            if npending > 100:
+                raise RuntimeError(f"Background MS move thread queue has {len(self._threads)} entries")
+            elif npending > 10:
+                print(f"WARNING: Background MS move thread queue has {len(self._threads)} entries")
                 
     def stop(self):
         """
@@ -414,3 +422,25 @@ class MeasurementSetWriter(FileWriterBase):
             self.post_stop_task()
         except NotImplementedError:
             pass
+
+
+def _background_move(tempname, finalname, is_tarred=False, cwd=None):
+    """
+    Simple function to move a temporary measurement set into its final
+    location.
+    """
+    
+    status = False
+    if is_tarred:
+        finalname += '.tar'
+        save_cmd = ['tar', 'cf', finalname, os.path.basename(tempname)]
+    else:
+        save_cmd = ['cp', '-rf', tempname, finalname]
+    try:
+        subprocess.check_call(save_cmd, stderr=subprocess.DEVNULL, cwd=cwd)
+        shutil.rmtree(tempname, ignore_errors=True)
+        status = True
+    except subprocess.CalledProcessError as e:
+        shutil.rmtree(tempname, ignore_errors=True)
+        
+    return status
