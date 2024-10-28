@@ -34,7 +34,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArugumentParser(
+    parser = argparse.ArgumentParser(
         description='Script to help control the voltage beam output so that only data containing the REASON frequency are sent',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
