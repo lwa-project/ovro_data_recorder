@@ -5,6 +5,7 @@ import dpkt
 import numpy as np
 import struct
 import argparse
+from datetime import datetime
 
 
 """
@@ -26,6 +27,7 @@ def main(args):
         outname, _ = os.path.splitext(outname)
         args.outname = outname+'.ibeam'
         
+    prev_timetag = 0
     with open(args.filename, 'rb') as fh:
         with open(args.outname, 'wb') as oh:
             for ts, pkt in dpkt.pcap.Reader(fh):
@@ -33,9 +35,16 @@ def main(args):
                 udp = eth.data.udp
                 payload = udp.data
                 
+                hdr = struct.unpack('>BBBBBHQ', payload[:15])
+                if prev_timetag != 0:
+                    if hdr[-1] - prev_timetag != 1:
+                        timetag = hdr[-1] * 2 * 4096 / 196e6
+                        print(f"WARNING: time tag skipped by {hdr[-1] - prev_timetag} sequencies at {datetime.utcfromtimestamp(timetag)}")
+                        print(f"  {prev_timetag} -> {hdr[-1]}")
+                prev_timetag = hdr[-1]
+                
                 oh.write(payload)
                 
-                #hdr = struct.unpack('>BBBBBHQ', payload[:15])
                 #data = np.frombuffer(payload[15:], dtype=np.complex64)
                 #data = data.reshape(-1,2)
             
