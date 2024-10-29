@@ -17,7 +17,7 @@ from ovro_data_recorder.lwahdf import *
 from ovro_data_recorder.lwams import *
 
 
-__all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
+__all__ = ['FileWriterBase', 'DRXWriter', 'VoltageBeamWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
@@ -172,6 +172,26 @@ class FileWriterBase(object):
 class DRXWriter(FileWriterBase):
     """
     Sub-class of :py:class:`FileWriterBase` that writes data to a raw DRX file.
+    """
+    
+    def __init__(self, filename, beam, start_time, stop_time):
+        FileWriterBase.__init__(self, filename, start_time, stop_time)
+        self.beam = beam
+        
+    def start(self):
+        """
+        Start the file writer and return the open file handle.
+        """
+        
+        self._interface = open(self.filename, 'wb')
+        self._started = True
+        
+        return self._interface
+
+
+class VoltageBeamWriter(FileWriterBase):
+    """
+    Sub-class of :py:class:`FileWriterBase` that writes data to a raw voltage beam data to a file.
     """
     
     def __init__(self, filename, beam, start_time, stop_time):

@@ -10,10 +10,10 @@ from mnc.common import CLOCK, LWATime, synchronize_time
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
 from ovro_data_recorder.reductions import *
-from ovro_data_recorder.filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
+from ovro_data_recorder.filewriter import DRXWriter, VoltageBeamWriter, HDF5Writer, MeasurementSetWriter
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
-           'VoltageBeamCommandProcessor']
+           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -38,7 +38,7 @@ class CommandBase(object):
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
                   processor.filewriter_base, processor.filewriter_kwds)
-        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('Raw', '')
+        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('DRX', '').replace('Raw', '')
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
         def wrapper(**kwargs):
@@ -259,9 +259,50 @@ class MSStart(CommandBase):
         return True, {'filename': filename}
 
 
+class DRXRecord(CommandBase):
+    """
+    Command to schedule a recording of a voltage beam to a DRX file.  The
+    input data should have:
+     * id - a MCS command id
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
+     * start_mpm - the MPM for the start of the recording
+     * duration_ms - the duration of the recording in ms
+    """
+    
+    _required = ('sequence_id', 'beam', 'start_mjd', 'start_mpm', 'duration_ms')
+    
+    def action(self, sequence_id, beam, start_mjd, start_mpm, duration_ms):
+        try:
+            if start_mjd == "now":
+                start = LWATime.now() + TimeDelta(15, format='sec')
+                start_mjd = int(start.mjd)
+                start = start.datetime
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
+                                                                      start.strftime('%H%M%S%f'),
+                                                                      sequence_id[:7]))
+            duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
+            stop = start + duration
+        except (TypeError, ValueError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
+        try:
+            self.queue.append(op)
+        except (TypeError, RuntimeError) as e:
+            self.log_error("Failed to schedule recording: %s", str(e))
+            return False, "Failed to schedule recording start: %s" % str(e)
+            
+        self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
+        return True, {'filename': filename}
+
+
 class RawRecord(CommandBase):
     """
-    Command to schedule a recording of a voltage beam to a raw DRX file.  The
+    Command to schedule a recording of a voltage beam to a raw voltage beam file.  The
     input data should have:
      * id - a MCS command id
      * start_mjd - the MJD for the start of the recording or "now" to start the
@@ -531,7 +572,7 @@ class VisibilityCommandProcessor(CommandProcessorBase):
 
 class VoltageBeamCommandProcessor(CommandProcessorBase):
     """
-    Command processor for voltage beam data.  Supports:
+    Command processor for T-engine'd voltage beam data.  Supports:
      * ping
      * sync
      * record
@@ -540,9 +581,27 @@ class VoltageBeamCommandProcessor(CommandProcessorBase):
      * drx
     """
     
-    _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
+    _commands = (Ping, Sync, DRXRecord, Cancel, Delete, DRX)
     
     def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
                                       shutdown_event=shutdown_event)
         self.drx.queue = drx_queue
+
+
+class RawVoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for raw voltage beam data.  Supports:
+     * ping
+     * sync
+     * record
+     * cancel
+     * delete
+     * drx
+    """
+    
+    _commands = (Ping, Sync, RawRecord, Cancel, Delete)
+    
+    def __init__(self, log, id, directory, queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
+                                      shutdown_event=shutdown_event)
