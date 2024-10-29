@@ -18,6 +18,7 @@ from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
 from ovro_data_recorder.operations import FileOperationsQueue
+from ovro_data_recorder.control import RawVoltageBeamCommandProcessor
 from ovro_data_recorder.version import version as odr_version
 
 from bifrost.address import Address
@@ -248,7 +249,7 @@ class WriterOp(object):
                 if first_gulp:
                     first_gulp = False
                     
-                shape = (npkts,nbeam,nchan*npol)
+                shape = (npkt,nbeam,nchan*npol)
                 data = ispan.data_view('cf32').reshape(shape)
                 
                 active_op = FILE_QUEUE.active
@@ -276,7 +277,7 @@ class WriterOp(object):
                     del udt
                     FILE_QUEUE.previous.stop()
                     
-                time_tag += npkts
+                time_tag += npkt
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
@@ -365,6 +366,9 @@ def main(argv):
         if not os.path.isdir(os.path.realpath(args.record_directory)):
             raise RuntimeError("Cannot record to a non-directory: %s" % args.record_directory)
             
+    # Only record from one pipeline
+    NPIPELINE = 1
+    
     # Setup the blocks
     ops = []
     if args.offline:
