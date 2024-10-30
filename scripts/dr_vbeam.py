@@ -471,9 +471,13 @@ class WriterOp(object):
             nbeam    = ihdr['nbeam']
             nchan    = ihdr['nchan']
             npol     = ihdr['npol']
-            time_tag0 = iseq.time_tag // (2*NCHAN)
+            time_tag0 = iseq.time_tag
             time_tag  = time_tag0
             igulp_size = npkts * nbeam*nchan*npol * 8   # complex64
+            
+            ticksPerSample = 2*NCHAN
+            seq0 = time_tag0 // (2*NCHAN)
+            seq = seq0
             
             prev_time = time.time()
             desc.set_tuning(1)
@@ -481,7 +485,7 @@ class WriterOp(object):
             desc.set_nchan(nchan)
             desc.set_nsrc(1)
             
-            first_gulp = True 
+            first_gulp = True
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
                     continue # Ignore final gulp
@@ -506,9 +510,9 @@ class WriterOp(object):
                         udt = DiskWriter(f"ibeam1_{nchan}", fh, core=self.core)
                         was_active = True
                         
-                    time_tag_cur = time_tag
+                    seq_cur = seq
                     try:
-                        udt.send(desc, time_tag_cur, 1, 1, 1, data)
+                        udt.send(desc, seq_cur, 1, 1, 1, data)
                     except Exception as e:
                         print(type(self).__name__, 'Sending Error', str(e))
                         
@@ -522,7 +526,8 @@ class WriterOp(object):
                     del udt
                     FILE_QUEUE.previous.stop()
                     
-                time_tag += npkts
+                time_tag += npkts*ticksPerSample
+                seq += npkts
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
