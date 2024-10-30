@@ -220,7 +220,7 @@ class DownSelectOp(object):
         self.chan0_in = 0
         self.nchan_in = 10
         self.chan0_out = 0
-        self.nchan_out = int(np.ceil(FILTER2BW[self.filt] / CHAN_BW))
+        self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
         
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
         global DRX_QUEUE
@@ -286,7 +286,7 @@ class DownSelectOp(object):
             self.rFreq = freq
             self.filt = filt
             
-            self.nchan_out = int(np.ceil(FILTER2BW[self.filt] / CHAN_BW))
+            self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
