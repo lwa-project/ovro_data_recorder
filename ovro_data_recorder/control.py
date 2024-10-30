@@ -529,7 +529,7 @@ class BND(CommandBase):
             if (central_freq <= bw/2) \
                    or (central_freq >= (CLOCK/2 - bw/2)):
                 raise AssertionError(f"invalid value for 'central_freq': {central_freq}")
-            if bw < _min_bandwidth or bw > _max_bandwidth:
+            if bw < self._min_bandwidth or bw > self._max_bandwidth:
                 raise AssertionError(f"invalid value for 'bw': {bw}")
         except (TypeError, AssertionError) as e:
             self.log_error("Failed to unpack command data: %s", str(e))
