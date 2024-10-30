@@ -368,6 +368,9 @@ class DownSelectOp(object):
                     ohdr['chan0']    = self.chan0_out
                     ohdr['nchan']    = self.nchan_out
                     ohdr['bw']       = self.nchan_out*CHAN_BW
+                    ohdr['cfreq0']   = self.rFreq
+                    ohdr['filter']   = self.filt
+                    ohdr['npkts']    = self.ntime_gulp
                     ohdr_str = json.dumps(ohdr)
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
@@ -463,13 +466,13 @@ class WriterOp(object):
             time_tag = ihdr['time_tag']
             chan0    = ihdr['chan0']
             bw       = ihdr['bw']
-            npkt     = 490
+            npkts    = ihdr['npkts']
             nbeam    = ihdr['nbeam']
             nchan    = ihdr['nchan']
             npol     = ihdr['npol']
             time_tag0 = iseq.time_tag // (2*NCHAN)
             time_tag  = time_tag0
-            igulp_size = npkt * nbeam*nchan*npol * 8   # complex64
+            igulp_size = npkts * nbeam*nchan*npol * 8   # complex64
             
             prev_time = time.time()
             desc.set_tuning(1)
@@ -486,9 +489,11 @@ class WriterOp(object):
                 prev_time = curr_time
                 
                 if first_gulp:
+                    FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
+                    self.log.info("Current pipeline lag is %s", FILE_QUEUE.lag)
                     first_gulp = False
                     
-                shape = (npkt,nbeam,nchan*npol)
+                shape = (npkts,nbeam,nchan*npol)
                 data = ispan.data_view(numpy.complex64).reshape(shape)
                 
                 active_op = FILE_QUEUE.active
@@ -516,7 +521,7 @@ class WriterOp(object):
                     del udt
                     FILE_QUEUE.previous.stop()
                     
-                time_tag += npkt
+                time_tag += npkts
                 
                 curr_time = time.time()
                 process_time = curr_time - prev_time
