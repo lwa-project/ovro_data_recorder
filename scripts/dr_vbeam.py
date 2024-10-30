@@ -214,6 +214,8 @@ class DownSelectOp(object):
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         
         self._pending = deque()
+        self.rFreq = 60e6
+        self.filt = 7
         self.chan0_in = 0
         self.nchan_in = 10
         self.chan0_out = 0
@@ -271,31 +273,44 @@ class DownSelectOp(object):
                 pass
                 
         if config:
-            self.log.info("VBeam: New configuration received for tuning %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
+            self.log.info("DownSelect: New configuration received for tuning %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
             beam, tuning, freq, filt, gain = config
             if beam != self.beam0:
-                self.log.info("VBeam: Not for this beam, skipping")
+                self.log.info("DownSelect: Not for this beam, skipping")
                 return False
             tuning = tuning - 1
             if tuning != 0:
-                self.log.info("VBeam: Not for this tuning, skipping")
+                self.log.info("DownSelect: Not for this tuning, skipping")
                 return False
                 
-            self.nchan_out = int(round(FILTER2BW[filt] / CHAN_BW))
-            self.chan0_out = int(round(freq / CHAN_BW)) - self.nchan_out//2
+            self.rFreq = freq
+            self.filt = filt
+            
+            self.nchan_out = int(round(FILTER2BW[self.filt] / CHAN_BW))
+            self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
-                self.log.warn("VBeam: Requested first channel is outside of the valid range, adjusting")
+                self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
                 self.chan0_out = self.chan0_in
             elif self.chan0_out + self.nchan_out > self.chan0_in + self.nchan_in:
-                self.log.warn("VBeam: Requested last channel is outside of the valid range, adjusting")
+                self.log.warn("DownSelect: Requested last channel is outside of the valid range, adjusting")
                 self.chan0_out = self.chan0_in + self.nchan_in - self.nchan_out
                 
             return True
             
         elif forceUpdate:
-            self.log.info("VBeam: New sequence configuration received")
+            self.log.info("DownSelect: New sequence configuration received")
             
+            self.nchan_out = int(round(FILTER2BW[self.filt] / CHAN_BW))
+            self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
+            if self.chan0_out < self.chan0_in:
+                self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in
+            elif self.chan0_out + self.nchan_out > self.chan0_in + self.nchan_in:
+                self.log.warn("DownSelect: Requested last channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in + self.nchan_in - self.nchan_out
+                
             return False
+            
         else:
             return False
             
@@ -311,7 +326,7 @@ class DownSelectOp(object):
                 
                 self.sequence_proclog.update(ihdr)
                 
-                self.log.info("VBeam: Start of new sequence: %s", str(ihdr))
+                self.log.info("DownSelect: Start of new sequence: %s", str(ihdr))
                 
                 self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
                 
@@ -613,9 +628,6 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     c = Client()
-    r = c.send_command(mcs_id, 'drx', beam=args.beam, tuning=1,
-                       central_freq=60e6, filter=7, gain=0)
-    print('III', r)
     r = c.send_command(mcs_id, 'record', beam=args.beam,
                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r)
