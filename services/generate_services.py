@@ -204,7 +204,7 @@ def main(args):
             for beam in config['voltage_beams'].keys():
                 address   = config['voltage_beams'][beam]['ip']
                 port      = config['voltage_beams'][beam]['port']
-                directory = config['voltage_beams'][beam]['directory']
+                directory = config['voltage_beams'][beam]['directory'].replace('beam', 'vbeam')
                 quota     = config['voltage_beams'][beam]['quota']
                 try:
                     logdir = config['voltage_beams'][beam]['logdir']
