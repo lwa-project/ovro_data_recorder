@@ -324,7 +324,7 @@ class DownSelectOp(object):
                 ishape = (self.ntime_gulp,nbeam,nchan,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
                 
-                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*nchan*npol*8       # complex64
+                ogulp_size = self.ntime_gulp*nbeam*self.nchan_out*npol*8       # complex64
                 oshape = (self.ntime_gulp,nbeam,self.nchan_out,npol)
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
@@ -332,10 +332,7 @@ class DownSelectOp(object):
                 base_time_tag = iseq.time_tag
                 
                 ohdr = {}
-                ohdr['chan0']   = self.chan0_out
-                ohdr['bw']      = self.nchan_out*CHAN_BW
                 ohdr['nbeam']   = nbeam
-                ohdr['nchan']   = self.nchan_out
                 ohdr['npol']    = npol
                 ohdr['complex'] = True
                 ohdr['nbit']    = 32
@@ -346,6 +343,9 @@ class DownSelectOp(object):
                     reset_sequence = False
                     
                     ohdr['time_tag'] = base_time_tag
+                    ohdr['chan0']    = self.chan0_out
+                    ohdr['nchan']    = self.nchan_out
+                    ohdr['bw']       = self.nchan_out*CHAN_BW
                     ohdr_str = json.dumps(ohdr)
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
@@ -447,7 +447,7 @@ class WriterOp(object):
             npol     = ihdr['npol']
             time_tag0 = iseq.time_tag // (2*NCHAN)
             time_tag  = time_tag0
-            igulp_size = npkts * nbeam*nchan*npol * 8   # complex32
+            igulp_size = npkt * nbeam*nchan*npol * 8   # complex64
             
             prev_time = time.time()
             desc.set_tuning(1)
@@ -467,7 +467,7 @@ class WriterOp(object):
                     first_gulp = False
                     
                 shape = (npkt,nbeam,nchan*npol)
-                data = ispan.data_view(np.complex64).reshape(shape)
+                data = ispan.data_view(numpy.complex64).reshape(shape)
                 
                 active_op = FILE_QUEUE.active
                 if active_op is not None:
@@ -475,7 +475,7 @@ class WriterOp(object):
                     if not active_op.is_started:
                         self.log.info("Started operation - %s", active_op)
                         fh = active_op.start()
-                        udt = DiskWriter("ibeam1", fh, core=self.core)
+                        udt = DiskWriter(f"ibeam1_{nchan}", fh, core=self.core)
                         was_active = True
                         
                     time_tag_cur = time_tag
