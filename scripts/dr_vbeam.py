@@ -214,10 +214,10 @@ class DownSelectOp(object):
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         
         self._pending = deque()
-        self.chan0 = 0
+        self.chan0_in = 0
+        self.nchan_in = 10
         self.chan0_out = 0
         self.nchan_out = int(round(FILTER2BW[1] / CHAN_BW))
-        self.nchan_select = list(range(self.nchan_out))
         
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
         global DRX_QUEUE
@@ -283,10 +283,13 @@ class DownSelectOp(object):
                 
             self.nchan_out = int(round(FILTER2BW[filt] / CHAN_BW))
             self.chan0_out = int(round(freq / CHAN_BW)) - self.nchan_out//2
-            if self.chan0_out < self.chan0:
-                self.chan0_out = self.chan0
-            self.nchan_select = list(range(self.chan0_out-self.chan0, self.chan0_out-self.chan0+self.nchan_out))
-            
+            if self.chan0_out < self.chan0_in:
+                self.log.warn("VBeam: Requested first channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in
+            elif self.chan0_out + self.nchan_out > self.chan0_in + self.nchan_in:
+                self.log.warn("VBeam: Requested last channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in + self.nchan_in - self.nchan_out
+                
             return True
             
         elif forceUpdate:
@@ -312,10 +315,13 @@ class DownSelectOp(object):
                 
                 self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
                 
-                nbeam      = ihdr['nbeam']
-                self.chan0 = ihdr['chan0']
-                nchan      = ihdr['nchan']
-                npol       = ihdr['npol']
+                nbeam = ihdr['nbeam']
+                chan0 = ihdr['chan0']
+                nchan = ihdr['nchan']
+                npol  = ihdr['npol']
+                
+                self.chan0_in = chan0
+                self.nchan_in = nchan
                 
                 assert(nbeam == 1)
                 assert(npol  == 2)
@@ -342,6 +348,8 @@ class DownSelectOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
+                    nchan_select = numpy.s_[self.chan0_out:self.chan0_out+self.nchan_out]
+                    
                     ohdr['time_tag'] = base_time_tag
                     ohdr['chan0']    = self.chan0_out
                     ohdr['nchan']    = self.nchan_out
@@ -366,7 +374,7 @@ class DownSelectOp(object):
                                 odata = ospan.data_view(numpy.complex64).reshape(oshape)
                                 
                                 ## Prune
-                                ddata = idata[:,:,self.nchan_select,:]
+                                ddata = idata[:,:,nchan_select,:]
                                 
                                 ## Save a contiguous copy
                                 odata[...] = ddata.copy()
