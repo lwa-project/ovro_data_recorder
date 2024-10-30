@@ -300,7 +300,7 @@ class DownSelectOp(object):
         elif forceUpdate:
             self.log.info("DownSelect: New sequence configuration received")
             
-            self.nchan_out = int(round(FILTER2BW[self.filt] / CHAN_BW))
+            self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
