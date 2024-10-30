@@ -215,6 +215,7 @@ class DownSelectOp(object):
         
         self._pending = deque()
         self.chan0 = 0
+        self.chan0_out = 0
         self.nchan_out = int(round(FILTER2BW[1] / CHAN_BW))
         self.nchan_select = list(range(self.nchan_out))
         
@@ -281,10 +282,10 @@ class DownSelectOp(object):
                 return False
                 
             self.nchan_out = int(round(FILTER2BW[filt] / CHAN_BW))
-            chan0_out = int(round(freq / CHAN_BW)) - self.nchan_out//2
-            if chan0_out < self.chan0:
-                chan0_out = self.chan0
-            self.nchan_select = list(range(chan0_out-chan0, chan0_out-chan0+self.nchan_out))
+            self.chan0_out = int(round(freq / CHAN_BW)) - self.nchan_out//2
+            if self.chan0_out < self.chan0:
+                self.chan0_out = self.chan0
+            self.nchan_select = list(range(self.chan0_out-self.chan0, self.chan0_out-self.chan0+self.nchan_out))
             
             return True
             
