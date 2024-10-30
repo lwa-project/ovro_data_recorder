@@ -194,11 +194,12 @@ class DummyOp(object):
 
 
 class DownSelectOp(object):
-    def __init__(self, log, iring, oring, beam0=1, guarantee=True, core=None):
+    def __init__(self, log, iring, oring, beam0=1, ntime_gulp=250, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
         self.oring      = oring
         self.beam0      = beam0
+        self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
         
@@ -214,10 +215,10 @@ class DownSelectOp(object):
         
         self._pending = deque()
         self.chan0 = 0
-        self.nchan_out = int(round(FILTER2BW[0] / CHAN_BW))
+        self.nchan_out = int(round(FILTER2BW[1] / CHAN_BW))
         self.nchan_select = list(range(self.nchan_out))
         
-    def def updateConfig(self, hdr, time_tag, forceUpdate=False):
+    def updateConfig(self, hdr, time_tag, forceUpdate=False):
         global DRX_QUEUE
         
         
@@ -308,14 +309,12 @@ class DownSelectOp(object):
                 
                 self.log.info("VBeam: Start of new sequence: %s", str(ihdr))
                 
-                self.rFreq[0] = 30e6
-                self.rFreq[1] = 60e6
                 self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
                 
-                nbeam    = ihdr['nbeam']
-                self.chan0    = ihdr['chan0']
-                nchan    = ihdr['nchan']
-                npol     = ihdr['npol']
+                nbeam      = ihdr['nbeam']
+                self.chan0 = ihdr['chan0']
+                nchan      = ihdr['nchan']
+                npol       = ihdr['npol']
                 
                 assert(nbeam == 1)
                 assert(npol  == 2)
@@ -593,7 +592,7 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
     ops.append(DownSelectOp(log, capture_ring, writer_ring, beam0=args.beam,
-                            core=cores.pop(0)))
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, writer_ring, beam0=args.beam,
                         core=cores.pop(0)))
     ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
