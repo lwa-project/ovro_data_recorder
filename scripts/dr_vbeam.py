@@ -349,7 +349,7 @@ class DownSelectOp(object):
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 ticksPerTime = 2*NCHAN
-                base_time_tag = iseq.time_tag
+                base_time_tag = ihdr['timetag'] # iseq.time_tag - Why?
                 
                 ohdr = {}
                 ohdr['nbeam']   = nbeam
