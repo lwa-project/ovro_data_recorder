@@ -35,9 +35,6 @@ numactl --cpunodebind=1 --membind=1 -- \
          --logfile                {{ logdir }}/dr-vbeam.log \
          --debug'
 
-[Install]
-WantedBy=multi-user.target
-
 # Configuration Logging
 # Generated: {{ generated }}
 # Input File:  {{ input_file }}
