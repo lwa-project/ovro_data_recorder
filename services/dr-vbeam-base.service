@@ -2,6 +2,7 @@
 Description=OVRO-LWA Raw Voltage Beam Recorder
 After=network-online.target
 Wants=network-online.target
+Conflicts=dr-tengine.service
 
 [Service]
 # Allow unlimited locked memory

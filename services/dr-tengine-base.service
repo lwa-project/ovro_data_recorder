@@ -2,6 +2,7 @@
 Description=OVRO-LWA Voltage Beam T-Engine/Recorder
 After=network-online.target
 Wants=network-online.target
+Conflicts=dr-vbeam.service
 
 [Service]
 # Allow unlimited locked memory
