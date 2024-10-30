@@ -221,7 +221,7 @@ class DownSelectOp(object):
         self.chan0_in = 0
         self.nchan_in = 10
         self.chan0_out = 0
-        self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
+        self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
         
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
         global BND_QUEUE
