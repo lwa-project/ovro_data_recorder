@@ -286,7 +286,7 @@ class DownSelectOp(object):
             self.rFreq = freq
             self.filt = filt
             
-            self.nchan_out = int(round(FILTER2BW[self.filt] / CHAN_BW))
+            self.nchan_out = int(np.ceil(FILTER2BW[self.filt] / CHAN_BW))
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
@@ -363,7 +363,7 @@ class DownSelectOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
-                    nchan_select = numpy.s_[self.chan0_out:self.chan0_out+self.nchan_out]
+                    nchan_select = numpy.s_[self.chan0_out-self.chan0_in:self.chan0_out-self.chan0_in+self.nchan_out]
                     
                     ohdr['time_tag'] = base_time_tag
                     ohdr['chan0']    = self.chan0_out
