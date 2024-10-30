@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from astropy.time import TimeDelta
 
-from mnc.common import CLOCK, LWATime, synchronize_time
+from mnc.common import CHAN_BW, CLOCK, LWATime, synchronize_time
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
 from ovro_data_recorder.reductions import *
@@ -507,6 +507,43 @@ class DRX(CommandBase):
         return True, "success"
 
 
+class BND(CommandBase):
+    """
+    Command to the frequency downselection of a raw voltage beam.  The input data should
+    have:
+     * id - a MCS command id
+     * beam - beam number (1 or 2)
+     * central_freq - central frequency in Hz
+     * bw - bandwidth in Hz
+    """
+    
+    _required = ('sequence_id', 'beam', 'central_freq', 'bw')
+    
+    _min_bandwidth = 3 * CHAN_BW
+    _max_bandwidth = 200 * CHAN_BW
+    
+    def action(self, sequence_id, beam, central_freq, bw):
+        try:
+            if beam not in (1,2):
+                raise AssertionError(f"invalid value for 'beam': {beam}")
+            if (central_freq <= bw/2) \
+                   or (central_freq >= (CLOCK/2 - bw/2)):
+                raise AssertionError(f"invalid value for 'central_freq': {central_freq}")
+            if bw < _min_bandwidth or bw > _max_bandwidth:
+                raise AssertionError(f"invalid value for 'bw': {bw}")
+        except (TypeError, AssertionError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        # Put it in the queue
+        self.queue.append(beam, central_freq, bw)
+        
+        self.log_info("Raw Voltage Beam %i, to %.3f MHz with bandwidth %.3f MHz", beam,
+                                                                              central_freq/1e6,
+                                                                              bw/1e6)
+        return True, "success"
+
+
 class CommandProcessorBase(object):
     """
     Base class for a command processor.
@@ -600,9 +637,9 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
      * drx
     """
     
-    _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
+    _commands = (Ping, Sync, RawRecord, Cancel, Delete, BND)
     
-    def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
+    def __init__(self, log, id, directory, queue, bnd_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
                                       shutdown_event=shutdown_event)
-        self.drx.queue = drx_queue
+        self.bnd.queue = bnd_queue

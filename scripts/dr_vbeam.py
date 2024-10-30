@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
-from ovro_data_recorder.operations import FileOperationsQueue, DrxOperationsQueue
+from ovro_data_recorder.operations import FileOperationsQueue, BndOperationsQueue
 from ovro_data_recorder.control import RawVoltageBeamCommandProcessor
 from ovro_data_recorder.version import version as odr_version
 
@@ -45,7 +45,7 @@ FILTER2BW = {1:   250000,
 
 
 FILE_QUEUE = FileOperationsQueue()
-DRX_QUEUE = DrxOperationsQueue()
+BND_QUEUE = BndOperationsQueue()
 
 
 class CaptureOp(object):
@@ -216,20 +216,20 @@ class DownSelectOp(object):
         
         self._pending = deque()
         self.rFreq = 60e6
-        self.filt = 1
+        self.rBW = 11*CHAN_BW
         self.chan0_in = 0
         self.nchan_in = 10
         self.chan0_out = 0
         self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
         
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
-        global DRX_QUEUE
+        global BND_QUEUE
         
         # Get the current pipeline time to figure out if we need to shelve a command or not
         pipeline_time = time_tag / FS
         
-        # Get the current DRX command - but only if we aren't in a forced update
-        config = DRX_QUEUE.active
+        # Get the current BND command - but only if we aren't in a forced update
+        config = BND_QUEUE.active
         if forceUpdate:
             config = None
             
@@ -239,9 +239,9 @@ class DownSelectOp(object):
             beam = config[0]
             if beam != self.beam0:
                 return False
-            DRX_QUEUE.set_active_accepted()
+            BND_QUEUE.set_active_accepted()
             
-            ## Set the configuration time - DRX commands are for the first slot in the next second
+            ## Set the configuration time - BND commands are for the first slot in the next second
             slot = 0 / 100.0
             config_time = int(time.time()) + 1 + slot
             
@@ -274,19 +274,15 @@ class DownSelectOp(object):
                 
         if config:
             self.log.info("DownSelect: New configuration received for tuning %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
-            beam, tuning, freq, filt, gain = config
+            beam, freq, bw = config
             if beam != self.beam0:
                 self.log.info("DownSelect: Not for this beam, skipping")
                 return False
-            tuning = tuning - 1
-            if tuning != 0:
-                self.log.info("DownSelect: Not for this tuning, skipping")
-                return False
                 
             self.rFreq = freq
-            self.filt = filt
+            self.rBW = bw
             
-            self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
+            self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
@@ -300,7 +296,7 @@ class DownSelectOp(object):
         elif forceUpdate:
             self.log.info("DownSelect: New sequence configuration received")
             
-            self.nchan_out = int(numpy.ceil(FILTER2BW[self.filt] / CHAN_BW))
+            self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
@@ -370,7 +366,6 @@ class DownSelectOp(object):
                     ohdr['nchan']    = self.nchan_out
                     ohdr['bw']       = self.nchan_out*CHAN_BW
                     ohdr['cfreq0']   = self.rFreq
-                    ohdr['filter']   = self.filt
                     ohdr['npkts']    = self.ntime_gulp
                     ohdr_str = json.dumps(ohdr)
                     
@@ -629,7 +624,7 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, writer_ring, beam0=args.beam,
                         core=cores.pop(0)))
-    ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
+    ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, BND_QUEUE))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
