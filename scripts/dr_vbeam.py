@@ -18,6 +18,7 @@ from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
 from ovro_data_recorder.operations import FileOperationsQueue, BndOperationsQueue
+from ovro_data_recorder.monitoring import GlobalLogger
 from ovro_data_recorder.control import RawVoltageBeamCommandProcessor
 from ovro_data_recorder.version import version as odr_version
 
@@ -624,6 +625,8 @@ def main(argv):
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, writer_ring, beam0=args.beam,
                         core=cores.pop(0)))
+    ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
+                            threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, BND_QUEUE))
     
     # Setup the threads
@@ -640,6 +643,7 @@ def main(argv):
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
+    ops[-2].shutdown_event = shutdown_event
     ops[-1].shutdown_event = shutdown_event
     
     # Launch!
