@@ -634,7 +634,7 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
      * record
      * cancel
      * delete
-     * drx
+     * bnd
     """
     
     _commands = (Ping, Sync, RawRecord, Cancel, Delete, BND)
