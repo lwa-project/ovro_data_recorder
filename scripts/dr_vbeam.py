@@ -215,11 +215,11 @@ class DownSelectOp(object):
         
         self._pending = deque()
         self.rFreq = 60e6
-        self.filt = 7
+        self.filt = 1
         self.chan0_in = 0
         self.nchan_in = 10
         self.chan0_out = 0
-        self.nchan_out = int(round(FILTER2BW[1] / CHAN_BW))
+        self.nchan_out = int(round(FILTER2BW[self.filt] / CHAN_BW))
         
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
         global DRX_QUEUE
