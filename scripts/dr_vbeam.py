@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
-from ovro_data_recorder.operations import FileOperationsQueue
+from ovro_data_recorder.operations import FileOperationsQueue, DrxOperationsQueue
 from ovro_data_recorder.control import RawVoltageBeamCommandProcessor
 from ovro_data_recorder.version import version as odr_version
 
@@ -35,8 +35,17 @@ from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
 BFNoSpinZone()
 
+FILTER2BW = {1:   250000,
+             2:   500000,
+             3:  1000000,
+             4:  2000000,
+             5:  4900000,
+             6:  9800000,
+             7: 19600000}
+
 
 FILE_QUEUE = FileOperationsQueue()
+DRX_QUEUE = DrxOperationsQueue()
 
 
 class CaptureOp(object):
@@ -184,6 +193,214 @@ class DummyOp(object):
                                               'process_time': process_time,})
 
 
+class DownSelectOp(object):
+    def __init__(self, log, iring, oring, beam0=1, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.oring      = oring
+        self.beam0      = beam0
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        
+        self._pending = deque()
+        self.chan0 = 0
+        self.nchan_out = int(round(FILTER2BW[0] / CHAN_BW))
+        self.nchan_select = list(range(self.nchan_out))
+        
+    def def updateConfig(self, hdr, time_tag, forceUpdate=False):
+        global DRX_QUEUE
+        
+        
+        # Get the current pipeline time to figure out if we need to shelve a command or not
+        pipeline_time = time_tag / FS
+        
+        # Get the current DRX command - but only if we aren't in a forced update
+        config = DRX_QUEUE.active
+        if forceUpdate:
+            config = None
+            
+        # Can we act on this configuration change now?
+        if config:
+            ## Pull out the beam
+            beam = config[0]
+            if beam != self.beam0:
+                return False
+            DRX_QUEUE.set_active_accepted()
+            
+            ## Set the configuration time - DRX commands are for the first slot in the next second
+            slot = 0 / 100.0
+            config_time = int(time.time()) + 1 + slot
+            
+            ## Is this command from the future?
+            if pipeline_time < config_time:
+                ### Looks like it, save it for later
+                self._pending.append( (config_time, config) )
+                config = None
+                
+                ### Is there something pending?
+                try:
+                    stored_time, stored_config = self._pending[0]
+                    if pipeline_time >= stored_time:
+                        config_time, config = self._pending.popleft()
+                except IndexError:
+                    pass
+            else:
+                ### Nope, this is something we can use now
+                pass
+                
+        else:
+            ## Is there something pending?
+            try:
+                stored_time, stored_config = self._pending[0]
+                if pipeline_time >= stored_time:
+                    config_time, config = self._pending.popleft()
+            except IndexError:
+                #print("No pending configuration at %.1f" % pipeline_time)
+                pass
+                
+        if config:
+            self.log.info("VBeam: New configuration received for tuning %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
+            beam, tuning, freq, filt, gain = config
+            if beam != self.beam0:
+                self.log.info("VBeam: Not for this beam, skipping")
+                return False
+            tuning = tuning - 1
+            if tuning != 0:
+                self.log.info("VBeam: Not for this tuning, skipping")
+                return False
+                
+            self.nchan_out = int(round(FILTER2BW[filt] / CHAN_BW))
+            chan0_out = int(round(freq / CHAN_BW)) - self.nchan_out//2
+            if chan0_out < self.chan0:
+                chan0_out = self.chan0
+            self.nchan_select = list(range(chan0_out-chan0, chan0_out-chan0+self.nchan_out))
+            
+            return True
+            
+        elif forceUpdate:
+            self.log.info("VBeam: New sequence configuration received")
+            
+            return False
+        else:
+            return False
+            
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("VBeam: Start of new sequence: %s", str(ihdr))
+                
+                self.rFreq[0] = 30e6
+                self.rFreq[1] = 60e6
+                self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
+                
+                nbeam    = ihdr['nbeam']
+                self.chan0    = ihdr['chan0']
+                nchan    = ihdr['nchan']
+                npol     = ihdr['npol']
+                
+                assert(nbeam == 1)
+                assert(npol  == 2)
+                
+                igulp_size = self.ntime_gulp*nbeam*nchan*npol*8                # complex64
+                ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                self.iring.resize(igulp_size, 10*igulp_size)
+                
+                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*nchan*npol*8       # complex64
+                oshape = (self.ntime_gulp,nbeam,self.nchan_out,npol)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
+                
+                ticksPerTime = 2*NCHAN
+                base_time_tag = iseq.time_tag
+                
+                ohdr = {}
+                ohdr['chan0']   = self.chan0_out
+                ohdr['bw']      = self.nchan_out*CHAN_BW
+                ohdr['nbeam']   = nbeam
+                ohdr['nchan']   = self.nchan_out
+                ohdr['npol']    = npol
+                ohdr['complex'] = True
+                ohdr['nbit']    = 32
+                
+                prev_time = time.time()
+                iseq_spans = iseq.read(igulp_size)
+                while not self.iring.writing_ended():
+                    reset_sequence = False
+                    
+                    ohdr['time_tag'] = base_time_tag
+                    ohdr_str = json.dumps(ohdr)
+                    
+                    with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
+                        for ispan in iseq_spans:
+                            if ispan.size < igulp_size:
+                                continue # Ignore final gulp
+                            curr_time = time.time()
+                            acquire_time = curr_time - prev_time
+                            prev_time = curr_time
+                            
+                            with oseq.reserve(ogulp_size) as ospan:
+                                curr_time = time.time()
+                                reserve_time = curr_time - prev_time
+                                prev_time = curr_time
+                                
+                                ## Setup and load
+                                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                                odata = ospan.data_view(numpy.complex64).reshape(oshape)
+                                
+                                ## Prune
+                                ddata = idata[:,:,self.nchan_select,:]
+                                
+                                ## Save a contiguous copy
+                                odata[...] = ddata.copy()
+                                
+                            ## Update the base time tag
+                            base_time_tag += self.ntime_gulp*ticksPerTime
+                            
+                            ## Check for an update to the configuration
+                            if self.updateConfig( ihdr, base_time_tag, forceUpdate=False ):
+                                reset_sequence = True
+                                
+                                ### New output size/shape
+                                ngulp_size = self.ntime_gulp*nbeam*self.nchan_out*npol*8               # complex64
+                                nshape = (self.ntime_gulp,nbeam,self.nchan_out,npol)
+                                if ngulp_size != ogulp_size:
+                                    ogulp_size = ngulp_size
+                                    oshape = nshape
+                                    
+                                    self.oring.resize(ogulp_size, 10*ogulp_size)
+                                    
+                                break
+                                
+                            curr_time = time.time()
+                            process_time = curr_time - prev_time
+                            prev_time = curr_time
+                            self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                      'reserve_time': reserve_time, 
+                                                      'process_time': process_time,})
+                                                 
+                    # Reset to move on to the next input sequence?
+                    if not reset_sequence:
+                        break
+
+
 class WriterOp(object):
     def __init__(self, log, iring, beam0=1, nbeam_max=1, guarantee=True, core=None):
         self.log        = log
@@ -250,7 +467,7 @@ class WriterOp(object):
                     first_gulp = False
                     
                 shape = (npkt,nbeam,nchan*npol)
-                data = ispan.data_view('cf32').reshape(shape)
+                data = ispan.data_view(np.complex64).reshape(shape)
                 
                 active_op = FILE_QUEUE.active
                 if active_op is not None:
@@ -356,6 +573,7 @@ def main(argv):
         
     # Setup the rings
     capture_ring = Ring(name="capture", space='cuda_host', core=cores[0])
+    writer_ring = Ring(name="writer", space='cuda_host', core=cores[0])
     
     # Setup the recording directory, if needed
     if not os.path.exists(args.record_directory):
@@ -366,9 +584,6 @@ def main(argv):
         if not os.path.isdir(os.path.realpath(args.record_directory)):
             raise RuntimeError("Cannot record to a non-directory: %s" % args.record_directory)
             
-    # Only record from one pipeline
-    NPIPELINE = 1
-    
     # Setup the blocks
     ops = []
     if args.offline:
@@ -377,9 +592,11 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
-    ops.append(WriterOp(log, capture_ring, beam0=args.beam,
+    ops.append(DownSelectOp(log, capture_ring, writer_ring, beam0=args.beam,
+                            core=cores.pop(0)))
+    ops.append(WriterOp(log, writer_ring, beam0=args.beam,
                         core=cores.pop(0)))
-    ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE))
+    ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
@@ -388,6 +605,9 @@ def main(argv):
     mjd_now = int(t_now.mjd)
     mpm_now = int((t_now.mjd - mjd_now)*86400.0*1000.0)
     c = Client()
+    r = c.send_command(mcs_id, 'drx', beam=args.beam, tuning=1,
+                       central_freq=60e6, filter=7, gain=0)
+    print('III', r)
     r = c.send_command(mcs_id, 'record', beam=args.beam,
                        start_mjd=mjd_now, start_mpm=mpm_now, duration_ms=30*1000)
     print('III', r)
