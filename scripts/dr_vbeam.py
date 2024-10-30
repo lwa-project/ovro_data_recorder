@@ -224,7 +224,6 @@ class DownSelectOp(object):
     def updateConfig(self, hdr, time_tag, forceUpdate=False):
         global DRX_QUEUE
         
-        
         # Get the current pipeline time to figure out if we need to shelve a command or not
         pipeline_time = time_tag / FS
         
@@ -328,8 +327,6 @@ class DownSelectOp(object):
                 
                 self.log.info("DownSelect: Start of new sequence: %s", str(ihdr))
                 
-                self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
-                
                 nbeam = ihdr['nbeam']
                 chan0 = ihdr['chan0']
                 nchan = ihdr['nchan']
@@ -340,6 +337,8 @@ class DownSelectOp(object):
                 
                 assert(nbeam == 1)
                 assert(npol  == 2)
+                
+                self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
                 
                 igulp_size = self.ntime_gulp*nbeam*nchan*npol*8                # complex64
                 ishape = (self.ntime_gulp,nbeam,nchan,npol)
