@@ -68,6 +68,7 @@ class CaptureOp(object):
         
     def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
         time_tag = seq0*2*NCHAN     # Seems to be needed now
+        time_tag_ptr[0] = time_tag
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
@@ -349,7 +350,7 @@ class DownSelectOp(object):
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 ticksPerTime = 2*NCHAN
-                base_time_tag = ihdr['time_tag'] # iseq.time_tag - Why?
+                base_time_tag = iseq.time_tag
                 
                 ohdr = {}
                 ohdr['nbeam']   = nbeam
