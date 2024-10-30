@@ -217,8 +217,6 @@ def main(args):
                 with open('dr-vbeam.service', 'w') as fh:
                     fh.write(service)
                     
-                
-                    
     if not args.clean:
         print("To enable/update these services:")
         print(" * copy the relevant .service files to /home/pipeline/.config/systemd/user/")
