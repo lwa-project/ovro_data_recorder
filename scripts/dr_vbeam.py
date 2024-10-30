@@ -363,7 +363,7 @@ class DownSelectOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
-                    nchan_select = numpy.s_[self.chan0_out-self.chan0_in:self.chan0_out-self.chan0_in+self.nchan_out]
+                    nchan_select = numpy.s_[self.chan0_out-self.chan0_in:self.chan0_out-self.chan0_in+self.nchan_out+1]
                     
                     ohdr['time_tag'] = base_time_tag
                     ohdr['chan0']    = self.chan0_out
