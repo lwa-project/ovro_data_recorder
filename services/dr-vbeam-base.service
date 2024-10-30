@@ -1,0 +1,43 @@
+[Unit]
+Description=OVRO-LWA Raw Voltage Beam Recorder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Allow unlimited locked memory
+LimitMEMLOCK=infinity
+
+# Have a safety net to kill off recalcitrant pipelines
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Logging
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dr-vbeam
+
+# Run before process
+ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
+
+# Setup the environment
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/bin/bash -ec '\
+source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
+numactl --cpunodebind=1 --membind=1 -- \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_vbeam.py \
+         --address                {{ address }} \
+         --port                   {{ port }} \
+         --cores                  11,12,13,14,15 \
+         --record-directory       {{ directory }} \
+         --record-directory-quota {{ quota }} \
+         --logfile                {{ logdir }}/dr-vbeam.log \
+         --debug'
+
+[Install]
+WantedBy=multi-user.target
+
+# Configuration Logging
+# Generated: {{ generated }}
+# Input File:  {{ input_file }}
+# Input File MD5: {{ input_file_md5 }}
