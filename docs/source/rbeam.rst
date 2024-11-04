@@ -25,7 +25,7 @@ The pipeline is written in the Bifrost framework and has four blocks:
 Control Commands
 ----------------
 
-The ``dr_vbeam.py`` pipeline supports six commands: ``ping``, ``sync``, ``record``,
+The ``dr_vbeam.py`` pipeline supports six commands: ``ping``, ``sync``, ``raw_record``,
 ``cancel``, ``delete``, and ``bnd``.
 
   * ``ping`` - This command simply replies which is helpful to see if the pipeline
@@ -37,7 +37,7 @@ The ``dr_vbeam.py`` pipeline supports six commands: ``ping``, ``sync``, ``record
      * ``server`` - a NTP server name or IP address to sync against.
    
     There are no optional arguments.  The command returns the sync status.
-  * ``record`` - This schedules a recording to take place.  The required arguments to
+  * ``raw_record`` - This schedules a recording to take place.  The required arguments to
     this command are:
     
      * ``start_mjd`` - an integer MJD value for when the recording will start,

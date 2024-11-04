@@ -38,7 +38,7 @@ class CommandBase(object):
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
                   processor.filewriter_base, processor.filewriter_kwds)
-        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('DRXRe', 'Re').replace('Raw', '')
+        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('DRXRe', 'Re').replace('RawRe', 'raw_re')
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
         def wrapper(**kwargs):
