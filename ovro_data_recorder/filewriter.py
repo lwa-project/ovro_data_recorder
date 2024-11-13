@@ -7,6 +7,7 @@ import numpy
 import atexit
 import shutil
 import subprocess
+import concurrent.futures
 from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
@@ -321,6 +322,10 @@ class MeasurementSetWriter(FileWriterBase):
         except AttributeError:
             pass
             
+        # Create the background move executor and its state variable
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+        self._threads = {}
+        
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
         create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
@@ -381,32 +386,60 @@ class MeasurementSetWriter(FileWriterBase):
         self._counter += 1
         if self._counter == self._nint:
             self.tagname = os.path.join(self.tagpath, self.tagname)
-            if self.is_tarred:
-                filename = os.path.join(self.filename, "%s.tar" % self.tagname)
-                save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
-            else:
-                filename = os.path.join(self.filename, self.tagname)
-                save_cmd = ['cp', '-rf', self.tempname, filename]
-            try:
-                subprocess.check_call(save_cmd, stderr=subprocess.DEVNULL, cwd=self._tempdir)
-                shutil.rmtree(self.tempname, ignore_errors=True)
-                self._counter = 0
-            except subprocess.CalledProcessError as e:
-                shutil.rmtree(self.tempname, ignore_errors=True)
-                self._counter = 0
-                raise e
+            finalname = os.path.join(self.filename, self.tagname)
+            thrd = threading.Thread(target=_background_move,
+                                    name=os.path.basename(finalname),
+                                    args=(self.tempname, self.finalname),
+                                    kwargs={'is_tarred': self.is_tarred, 'cwd': self._tempdir},
+                                    daemon=True)
+            self._threads[self.tagname] = self._executor.submit(_background_move,
+                                                                self.tempname, self.finalname,
+                                                                is_tarred=self.is_tarred,
+                                                                cwd=self._tempdir)
+            
+            npending = len(self._threads)
+            nfailed = 0
+            to_remove = []
+            for tn in self._threads.keys():
+                if self._threads[tn].done():
+                    try:
+                        res = self._threads[tn].result()
+                    except Exception as e:
+                        nfailed += 1
+                    to_remove.append(tn)
+            for tn in to_remove:
+                del self._threads[tn]
+                npending -= 1
+                
+            if nfailed > 0:
+                raise RuntimeError(f"Background MS move thread encountered {nfailed} failures")
+            if npending > 50:
+                raise RuntimeError(f"Background MS move thread queue has {len(self._threads)} entries")
+            elif npending > 10:
+                print(f"WARNING: Background MS move thread queue has {len(self._threads)} entries")
                 
     def stop(self):
         """
         Close out the file and then call the 'post_stop_task' method.
         """
         
+        self._executor.shutdown(wait=True)
+        npending = len(self._threads)
+        nfailed = 0
+        to_remove = []
+        for tn in self._threads.keys():
+            if self._threads[tn].done():
+                try:
+                    res = self._threads[tn].result()
+                except Exception as e:
+                    nfailed += 1
+                to_remove.append(tn)
+        for tn in to_remove:
+            del self._threads[tn]
+            npending -= 1
+            
         try:
-            shutil.rmtree(self._template, ignore_errors=True)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self._tempdir)
+            shutil.rmtree(self._tempdir)
         except OSError:
             pass
             
@@ -414,3 +447,25 @@ class MeasurementSetWriter(FileWriterBase):
             self.post_stop_task()
         except NotImplementedError:
             pass
+
+
+def _background_move(tempname, finalname, is_tarred=False, cwd=None):
+    """
+    Simple function to move a temporary measurement set into its final
+    location.
+    """
+    
+    status = False
+    if is_tarred:
+        finalname += '.tar'
+        save_cmd = ['tar', 'cf', finalname, os.path.basename(tempname)]
+    else:
+        save_cmd = ['cp', '-rf', tempname, finalname]
+    try:
+        subprocess.check_call(save_cmd, stderr=subprocess.DEVNULL, cwd=cwd)
+        shutil.rmtree(tempname, ignore_errors=True)
+        status = True
+    except subprocess.CalledProcessError as e:
+        shutil.rmtree(tempname, ignore_errors=True)
+        
+    return status
