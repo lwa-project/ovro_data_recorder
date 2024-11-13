@@ -24,6 +24,7 @@ python3 {{ path }}/dr_beam.py \
          --port                   {{ port }} \
          --beam                   {{ beam }} \
          --cores                  {{ cores }} \
+         --swmr \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
          --logfile                {{ logdir }}/dr-beam-{{ beam }}.%H.log'
