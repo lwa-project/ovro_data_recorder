@@ -388,15 +388,10 @@ class MeasurementSetWriter(FileWriterBase):
         # Save it to its final location
         self._counter += 1
         if self._counter == self._nint:
-            self.tagname = os.path.join(self.tagpath, self.tagname)
-            finalname = os.path.join(self.filename, self.tagname)
-            thrd = threading.Thread(target=_background_move,
-                                    name=os.path.basename(finalname),
-                                    args=(self.tempname, self.finalname),
-                                    kwargs={'is_tarred': self.is_tarred, 'cwd': self._tempdir},
-                                    daemon=True)
+            tagname = os.path.join(self.tagpath, self.tagname)
+            finalname = os.path.join(self.filename, tagname)
             self._threads[self.tagname] = self._executor.submit(_background_move,
-                                                                self.tempname, self.finalname,
+                                                                self.tempname, finalname,
                                                                 is_tarred=self.is_tarred,
                                                                 cwd=self._tempdir)
             
