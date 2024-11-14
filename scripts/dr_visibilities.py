@@ -999,7 +999,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size*(20 if self.fast else 1))
+            self.iring.resize(igulp_size, 10*igulp_size*(8 if self.fast else 1))
             
             norm_factor = navg // (2*NCHAN) * (4 if self.fast else 1)
             
@@ -1060,7 +1060,7 @@ class WriterOp(object):
                             self.err_proclog.update({'nerror':1, 'last': str(e).replace(':','--')})
                         write_error_counter += 1
                         
-                        if write_error_counter % 500 == 0:
+                        if write_error_counter % 50 == 0:
                             self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
                             self.err_proclog.update( {'nerror':write_error_counter, 'last': str(e).replace(':','--')})
                             
