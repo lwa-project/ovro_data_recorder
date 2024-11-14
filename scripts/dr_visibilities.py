@@ -999,7 +999,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size*(8 if self.fast else 1))
+            self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
             
             norm_factor = navg // (2*NCHAN) * (4 if self.fast else 1)
             
