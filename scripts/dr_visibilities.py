@@ -1060,7 +1060,7 @@ class WriterOp(object):
                             self.err_proclog.update({'nerror':1, 'last': str(e).replace(':','--')})
                         write_error_counter += 1
                         
-                        if write_error_counter % 500 == 0:
+                        if write_error_counter % 50 == 0:
                             self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
                             self.err_proclog.update( {'nerror':write_error_counter, 'last': str(e).replace(':','--')})
                             
