@@ -965,9 +965,11 @@ class WriterOp(object):
         self.size_proclog = ProcLog(type(self).__name__+"/size")
         self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        self.err_proclog = ProcLog(type(self).__name__+"/error")
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        self.err_proclog.update( {'nerror':0, 'last': ''})
         
     def main(self):
         global QUEUE
@@ -997,7 +999,7 @@ class WriterOp(object):
             
             igulp_size = self.ntime_gulp*nbl*nchan*npol*8        # ci32
             ishape = (self.ntime_gulp,nbl,nchan,npol)
-            self.iring.resize(igulp_size, 10*igulp_size*(4 if self.fast else 1))
+            self.iring.resize(igulp_size, 10*igulp_size*(20 if self.fast else 1))
             
             norm_factor = navg // (2*NCHAN) * (4 if self.fast else 1)
             
@@ -1048,16 +1050,19 @@ class WriterOp(object):
                         if write_error_asserted:
                             write_error_asserted = False
                             self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            self.err_proclog.update('nerror':0, 'last': '')
                             write_error_counter = 0
                             
                     except Exception as e:
                         if not write_error_asserted:
                             write_error_asserted = True
                             self.log.error("Write error asserted - initial error: %s", str(e))
+                            self.err_proclog.update({'nerror':1, 'last': str(e).replace(':','--')})
                         write_error_counter += 1
                         
                         if write_error_counter % 500 == 0:
                             self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            self.err_proclog.update( {'nerror':write_error_counter, 'last': str(e).replace(':','--')})
                             
                 elif was_active:
                     ### Recording just finished
