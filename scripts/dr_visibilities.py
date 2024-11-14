@@ -1050,7 +1050,7 @@ class WriterOp(object):
                         if write_error_asserted:
                             write_error_asserted = False
                             self.log.info("Write error de-asserted - count was %i", write_error_counter)
-                            self.err_proclog.update('nerror':0, 'last': '')
+                            self.err_proclog.update({'nerror':0, 'last': ''})
                             write_error_counter = 0
                             
                     except Exception as e:
