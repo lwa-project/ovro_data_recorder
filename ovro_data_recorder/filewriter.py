@@ -394,6 +394,7 @@ class MeasurementSetWriter(FileWriterBase):
                                                                 self.tempname, finalname,
                                                                 is_tarred=self.is_tarred,
                                                                 cwd=self._tempdir)
+            self._counter = 0
             
             npending = len(self._threads)
             nfailed = 0
@@ -416,8 +417,6 @@ class MeasurementSetWriter(FileWriterBase):
             elif npending > 10:
                 print(f"WARNING: Background MS move thread queue has {len(self._threads)} entries")
                 
-            self._counter = 0
-            
     def stop(self):
         """
         Close out the file and then call the 'post_stop_task' method.
