@@ -471,7 +471,7 @@ class WriterOp(object):
                     ### Recording active - write
                     if not active_op.is_started:
                         self.log.info("Started operation - %s", active_op)
-                        active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols
+                        active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols,
                                         swmr=self.swmr)
                         was_active = True
                     try:
