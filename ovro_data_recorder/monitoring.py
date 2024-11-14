@@ -126,7 +126,7 @@ class PerformanceLogger(object):
                     acquire = max([acquire, perf['acquire_time']])
                     process = max([process, perf['process_time']])
                     reserve = max([reserve, perf['reserve_time']])
-                 except KeyError:
+                except KeyError:
                     pass
                     
                 try:
