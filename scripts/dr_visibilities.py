@@ -1202,11 +1202,11 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,
-                           ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                           ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                            fast=args.quick, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
-                             ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                             ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
