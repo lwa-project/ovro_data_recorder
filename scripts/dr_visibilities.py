@@ -1249,6 +1249,8 @@ def main(argv):
     for thread in threads:
         thread.join()
     log.info("All done")
+    
+    os.system(f"kill -9 {os.getpid()}")
     return 0
 
 
