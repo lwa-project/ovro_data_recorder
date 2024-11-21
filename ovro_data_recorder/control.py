@@ -142,14 +142,14 @@ class RestartService(CommandBase):
      * id - a MCS command id
     """
     
-     _required = ('sequence_id',)
-     
-     def action(self, sequence_id):
-         pid = os.getpid()
-         os.system(f"kill {pid}")
-         time.sleep(30)
-         os.system(f"kill -9 {pid}")
-         return True, 'restarting'
+    _required = ('sequence_id',)
+    
+    def action(self, sequence_id):
+        pid = os.getpid()
+        os.system(f"kill {pid}")
+        time.sleep(30)
+        os.system(f"kill -9 {pid}")
+        return True, 'restarting'
 
 
 class Ping(CommandBase):
