@@ -149,9 +149,10 @@ class RestartService(CommandBase):
     def action(self, sequence_id):
         if self.pid is not None:
             self.log_info("Triggering a restart by killing off pid %d", self.pid)
-            os.system(f"kill {pid}")
+            os.system(f"kill {self.pid}")
             time.sleep(30)
-            os.system(f"kill -9 {pid}")
+            self.log_info("Trying harder to trigger a restart by killing off pid %d", self.pid)
+            os.system(f"kill -9 {self.pid}")
             return True, 'restarting'
         else:
             self.log_error("Failed to trigger a restart: pid is None")
