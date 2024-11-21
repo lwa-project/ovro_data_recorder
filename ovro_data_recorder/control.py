@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import shutil
 import threading
 from datetime import datetime, timedelta
@@ -131,6 +132,24 @@ class CommandBase(object):
             
         # Action and return
         return self.action(*args, **kwds)
+
+
+class RestartService(CommandBase):
+    """
+    Command to use systemd's "Restart=on-failure" to restart a data recorder
+    service.  No reply should be expected from this command.  The input data
+    should have:
+     * id - a MCS command id
+    """
+    
+     _required = ('sequence_id',)
+     
+     def action(self, sequence_id):
+         pid = os.getpid()
+         os.system(f"kill {pid}")
+         time.sleep(30)
+         os.system(f"kill -9 {pid}")
+         return True, 'restarting'
 
 
 class Ping(CommandBase):
@@ -504,7 +523,7 @@ class PowerBeamCommandProcessor(CommandProcessorBase):
      * delete
     """
     
-    _commands = (Ping, Sync, HDF5Record, Cancel, Delete)
+    _commands = (RestartService, Ping, Sync, HDF5Record, Cancel, Delete)
     
     def __init__(self, log, id, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, HDF5Writer,
@@ -520,7 +539,7 @@ class VisibilityCommandProcessor(CommandProcessorBase):
      * stop
     """
     
-    _commands = (Ping, Sync, MSStart, MSStop)
+    _commands = (RestartService, Ping, Sync, MSStart, MSStop)
     
     def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,
@@ -540,7 +559,7 @@ class VoltageBeamCommandProcessor(CommandProcessorBase):
      * drx
     """
     
-    _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
+    _commands = (RestartService, Ping, Sync, RawRecord, Cancel, Delete, DRX)
     
     def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
