@@ -26,7 +26,7 @@ class CommandBase(object):
     _required = ('sequence_id',)
     _optional = ()
     
-    def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None):
+    def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None, pid=None):
         self.log = log
         self.queue = queue
         self.directory = directory
@@ -34,11 +34,13 @@ class CommandBase(object):
         if filewriter_kwds is None:
             filewriter_kwds = {}
         self.filewriter_kwds = filewriter_kwds
+        self.pid = pid
         
     @classmethod
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
-                  processor.filewriter_base, processor.filewriter_kwds)
+                  processor.filewriter_base, processor.filewriter_kwds,
+                  processor.pid)
         name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('Raw', '')
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
@@ -145,11 +147,15 @@ class RestartService(CommandBase):
     _required = ('sequence_id',)
     
     def action(self, sequence_id):
-        pid = os.getpid()
-        os.system(f"kill {pid}")
-        time.sleep(30)
-        os.system(f"kill -9 {pid}")
-        return True, 'restarting'
+        if self.pid it not None:
+            self.log_info("Triggering a restart by killing off pid %d", self.pid)
+            os.system(f"kill {pid}")
+            time.sleep(30)
+            os.system(f"kill -9 {pid}")
+            return True, 'restarting'
+        else:
+            self.log_error("Failed to trigger a restart: pid is None")
+            return False, 'cannot restart - cannot find service process ID'
 
 
 class Ping(CommandBase):
@@ -503,6 +509,8 @@ class CommandProcessorBase(object):
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
+        
+        self.pid = os.getpid()
         
         self.client = Client(id)
         
