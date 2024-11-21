@@ -167,7 +167,7 @@ def main(argv):
     last_summary = summary
     
     # Setup the commands
-    for cmd in ('ping', 'sync', 'start', 'stop'):
+    for cmd in ('restartservice', 'ping', 'sync', 'start', 'stop'):
         cb = CommandCallbackBase(c.client)
         def wrapper(cmd=cmd, manage_id=MANAGE_ID, **value):
             status = True
