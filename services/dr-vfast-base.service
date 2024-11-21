@@ -2,6 +2,8 @@
 Description=OVRO-LWA Fast Visibilties Recorder - Band {{ band }}
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=30
+StartLimitBurst=2
 
 [Service]
 # Allow unlimited locked memory
@@ -10,6 +12,9 @@ LimitMEMLOCK=infinity
 # Have a safety net to kill off recalcitrant pipelines
 KillSignal=SIGTERM
 TimeoutStopSec=20
+
+# Try restarting if the pipeline gets killed
+Restart=on-failure
 
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
