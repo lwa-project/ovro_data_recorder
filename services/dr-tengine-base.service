@@ -3,6 +3,8 @@ Description=OVRO-LWA Voltage Beam T-Engine/Recorder
 After=network-online.target
 Wants=network-online.target
 Conflicts=dr-vbeam.service
+StartLimitIntervalSec=30
+StartLimitBurst=2
 
 [Service]
 # Allow unlimited locked memory
@@ -11,6 +13,9 @@ LimitMEMLOCK=infinity
 # Have a safety net to kill off recalcitrant pipelines
 KillSignal=SIGTERM
 TimeoutStopSec=20
+
+# Try restarting if the pipeline gets killed
+Restart=on-failure
 
 # Logging
 StandardOutput=syslog

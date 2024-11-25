@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import shutil
 import threading
 from datetime import datetime, timedelta
@@ -25,7 +26,7 @@ class CommandBase(object):
     _required = ('sequence_id',)
     _optional = ()
     
-    def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None):
+    def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None, pid=None):
         self.log = log
         self.queue = queue
         self.directory = directory
@@ -33,11 +34,13 @@ class CommandBase(object):
         if filewriter_kwds is None:
             filewriter_kwds = {}
         self.filewriter_kwds = filewriter_kwds
+        self.pid = pid
         
     @classmethod
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
-                  processor.filewriter_base, processor.filewriter_kwds)
+                  processor.filewriter_base, processor.filewriter_kwds,
+                  processor.pid)
         name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('DRXRe', 'Re').replace('RawRe', 'raw_re')
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
@@ -131,6 +134,29 @@ class CommandBase(object):
             
         # Action and return
         return self.action(*args, **kwds)
+
+
+class RestartService(CommandBase):
+    """
+    Command to use systemd's "Restart=on-failure" to restart a data recorder
+    service.  No reply should be expected from this command.  The input data
+    should have:
+     * id - a MCS command id
+    """
+    
+    _required = ('sequence_id',)
+    
+    def action(self, sequence_id):
+        if self.pid is not None:
+            self.log_info("Triggering a restart by killing off pid %d", self.pid)
+            os.system(f"kill {self.pid}")
+            time.sleep(30)
+            self.log_info("Trying harder to trigger a restart by killing off pid %d", self.pid)
+            os.system(f"kill -9 {self.pid}")
+            return True, 'restarting'
+        else:
+            self.log_error("Failed to trigger a restart: pid is None")
+            return False, 'cannot restart - cannot find service process ID'
 
 
 class Ping(CommandBase):
@@ -563,6 +589,8 @@ class CommandProcessorBase(object):
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
         
+        self.pid = os.getpid()
+        
         self.client = Client(id)
         
         for cls in self._commands:
@@ -582,7 +610,7 @@ class PowerBeamCommandProcessor(CommandProcessorBase):
      * delete
     """
     
-    _commands = (Ping, Sync, HDF5Record, Cancel, Delete)
+    _commands = (RestartService, Ping, Sync, HDF5Record, Cancel, Delete)
     
     def __init__(self, log, id, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, HDF5Writer,
@@ -598,7 +626,7 @@ class VisibilityCommandProcessor(CommandProcessorBase):
      * stop
     """
     
-    _commands = (Ping, Sync, MSStart, MSStop)
+    _commands = (RestartService, Ping, Sync, MSStart, MSStop)
     
     def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,
@@ -618,7 +646,7 @@ class VoltageBeamCommandProcessor(CommandProcessorBase):
      * drx
     """
     
-    _commands = (Ping, Sync, DRXRecord, Cancel, Delete, DRX)
+    _commands = (RestartService, Ping, Sync, DRXRecord, Cancel, Delete, DRX)
     
     def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
@@ -637,7 +665,7 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
      * bnd
     """
     
-    _commands = (Ping, Sync, RawRecord, Cancel, Delete, BND)
+    _commands = (RestartService, Ping, Sync, RawRecord, Cancel, Delete, BND)
     
     def __init__(self, log, id, directory, queue, bnd_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,

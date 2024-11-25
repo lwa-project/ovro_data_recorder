@@ -965,9 +965,11 @@ class WriterOp(object):
         self.size_proclog = ProcLog(type(self).__name__+"/size")
         self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        self.err_proclog = ProcLog(type(self).__name__+"/error")
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        self.err_proclog.update( {'nerror':0, 'last': ''})
         
     def main(self):
         global QUEUE
@@ -1048,16 +1050,19 @@ class WriterOp(object):
                         if write_error_asserted:
                             write_error_asserted = False
                             self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            self.err_proclog.update({'nerror':0, 'last': ''})
                             write_error_counter = 0
                             
                     except Exception as e:
                         if not write_error_asserted:
                             write_error_asserted = True
                             self.log.error("Write error asserted - initial error: %s", str(e))
+                            self.err_proclog.update({'nerror':1, 'last': str(e).replace(':','--')})
                         write_error_counter += 1
                         
-                        if write_error_counter % 500 == 0:
+                        if write_error_counter % 50 == 0:
                             self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            self.err_proclog.update( {'nerror':write_error_counter, 'last': str(e).replace(':','--')})
                             
                 elif was_active:
                     ### Recording just finished
@@ -1197,11 +1202,11 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,
-                           ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                           ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                            fast=args.quick, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
-                             ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                             ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
@@ -1244,6 +1249,8 @@ def main(argv):
     for thread in threads:
         thread.join()
     log.info("All done")
+    
+    os.system(f"kill -9 {os.getpid()}")
     return 0
 
 

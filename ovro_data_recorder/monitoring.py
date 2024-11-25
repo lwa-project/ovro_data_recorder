@@ -16,6 +16,7 @@ __all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'Statu
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 
+
 def interruptable_sleep(seconds, sub_interval=0.1, shutdown_event=None):
     """
     Version of sleep that breaks the `seconds` sleep period into sub-intervals
@@ -82,6 +83,7 @@ class PerformanceLogger(object):
                                         0.0, timestamp=ts, unit='B/s')
         self.client.write_monitor_point('bifrost/rx_missing',
                                         0.0, timestamp=ts)
+        self.client.write_monitor_point('bifrost/error_count', 0)
         for entry in ('one_minute', 'five_minute', 'fifteen_minute'):
             self.client.write_monitor_point(f"system/load_average/{entry}",
                                             0.0, timestamp=ts)
@@ -117,6 +119,7 @@ class PerformanceLogger(object):
             # Find the maximum acquire/process/reserve times
             ts = time.time()
             acquire, process, reserve = 0.0, 0.0, 0.0
+            error_count = 0
             for block,contents in self._state[1][1].items():
                 try:
                     perf = contents['perf']
@@ -124,13 +127,22 @@ class PerformanceLogger(object):
                     process = max([process, perf['process_time']])
                     reserve = max([reserve, perf['reserve_time']])
                 except KeyError:
-                    continue
+                    pass
+                    
+                try:
+                    err = contents['error']
+                    error_count += err['nerror']
+                except KeyError:
+                    pass
+                    
             self.client.write_monitor_point('bifrost/max_acquire',
                                             acquire, timestamp=ts, unit='s')
             self.client.write_monitor_point('bifrost/max_process',
                                             process, timestamp=ts, unit='s')
             self.client.write_monitor_point('bifrost/max_reserve',
                                             reserve, timestamp=ts, unit='s')
+            self.client.write_monitor_point('bifrost/error_count',
+                                            error_count, timestamp=ts)
             
             # Estimate the data rate and current missing data fracation
             ts = time.time()
@@ -710,6 +722,11 @@ class StatusLogger(object):
                 nfound += 1
             else:
                 processing = MonitorPoint(0.0)
+            err_count = self.client.read_monitor_point('bifrost/error_count')
+            if err_count is not None:
+                nfound += 1
+            else:
+                err_count = MonitorPoint(0)
             total = self.client.read_monitor_point('storage/active_disk_size')
             if total is not None:
                 nfound += 1
@@ -769,6 +786,12 @@ class StatusLogger(object):
                 ## Nonsensical packet loss check
                 new_summary = 'error'
                 new_info = "Packet loss during receive is invalid (%.1f%% missing)" % (missing.value*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            elif err_count.value > 0:
+                ## Non-zero block error count
+                new_summary = 'error'
+                new_info = "Non-zero block error count (%i errors)" % (err_count.value,)
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
                 
