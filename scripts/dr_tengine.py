@@ -1585,9 +1585,9 @@ def main(argv):
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
     ## Pre T-engine voltage beam recording
-    ops.append(DownSelectOp(log, capture_ring, raw_writer_ring, beam0=args.beam,
+    ops.append(DownSelectOp(log, capture_ring, raw_write_ring, beam0=args.beam,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(RawWriterOp(log, raw_writer_ring, beam0=args.beam,
+    ops.append(RawWriterOp(log, raw_write_ring, beam0=args.beam,
                            core=cores.pop(0)))
     ## T-engine voltage beam recording
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=args.gulp_size,
