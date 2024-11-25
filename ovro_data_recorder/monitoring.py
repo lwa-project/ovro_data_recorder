@@ -61,6 +61,9 @@ class PerformanceLogger(object):
     def __init__(self, log, id, queue=None, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
+        if queue is not None:
+            if not isinstance(queue, list):
+                queue = [queue,]
         self.queue = queue
         if shutdown_event is None:
             shutdown_event = threading.Event()
@@ -112,9 +115,13 @@ class PerformanceLogger(object):
             ts = time.time()
             lag = None
             if self.queue is not None:
-                lag = self.queue.lag.total_seconds()
+                max_lag = -1
+                for q in self.queue:
+                    lag = q.lag.total_seconds()
+                    if lag > max_lag:
+                        max_lag = lag
                 self.client.write_monitor_point('bifrost/pipeline_lag',
-                                                lag, timestamp=ts, unit='s')
+                                                max_lag, timestamp=ts, unit='s')
                 
             # Find the maximum acquire/process/reserve times
             ts = time.time()
@@ -852,7 +859,7 @@ class StatusLogger(object):
             self.log.debug("=== Status Report ===")
             self.log.debug(" summary: %s", summary)
             self.log.debug(" info: %s", info)
-            self.log.debug(" queue size: %i", len(self.queue))
+            self.log.debug(" queue size: %s", ', '.join([len(q) for q in self.queue]))
             self.log.debug(" active operation: %s", is_active)
             if is_active:
                 self.log.debug(" active filename: %s", ', '.join([os.path.basename(a) for a in active_filename]))
