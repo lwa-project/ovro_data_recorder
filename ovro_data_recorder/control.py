@@ -692,6 +692,8 @@ class CombinedVoltageBeamCommandProcessor(CommandProcessorBase):
         CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
                                       shutdown_event=shutdown_event)
         self.raw_record.queue = raw_queue
+        self.raw_record.filewriter_base = VoltageBeamWriter
+        self.raw_record.filewriter_kwds = {}
         self.drx.queue = drx_queue
         self.bnd.queue = bnd_queue
     
