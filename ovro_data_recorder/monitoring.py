@@ -863,7 +863,7 @@ class StatusLogger(object):
             self.log.debug("=== Status Report ===")
             self.log.debug(" summary: %s", summary)
             self.log.debug(" info: %s", info)
-            self.log.debug(" queue size: %s", ', '.join([len(q) for q in self.queue]))
+            self.log.debug(" queue size: %s", ', '.join([str(len(q)) for q in self.queue]))
             self.log.debug(" active operation: %s", is_active)
             if is_active:
                 self.log.debug(" active filename: %s", active_filename)
