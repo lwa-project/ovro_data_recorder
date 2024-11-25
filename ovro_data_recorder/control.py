@@ -347,9 +347,9 @@ class RawRecord(CommandBase):
                 start = start.datetime
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
-                                                                      start.strftime('%H%M%S%f'),
-                                                                      sequence_id[:7]))
+            filename = os.path.join(self.directory, '%06i_%12s%7s.raw' % (start_mjd,
+                                                                          start.strftime('%H%M%S%f'),
+                                                                          sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
