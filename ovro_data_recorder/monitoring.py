@@ -712,10 +712,10 @@ class StatusLogger(object):
                                 is_waiting = True
                         try:
                             active_filename.append(q_active_filename)
-                            time_left.append(q_lime_left)
+                            time_left.append(q_time_left)
                         except AttributeError:
                             active_filename = [q_active_filename,]
-                            time_left = [q_lime_left,]
+                            time_left = [q_time_left,]
             optype = 'idle'
             if is_waiting:
                 optype = 'waiting'
