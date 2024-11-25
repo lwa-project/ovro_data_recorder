@@ -14,7 +14,8 @@ from ovro_data_recorder.reductions import *
 from ovro_data_recorder.filewriter import DRXWriter, VoltageBeamWriter, HDF5Writer, MeasurementSetWriter
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
-           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor']
+           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor',
+           'CombinedVoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -665,9 +666,32 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
      * bnd
     """
     
-    _commands = (RawRecord, BND)
+    _commands = (RestartService, Ping, Sync, RawRecord, Cancel, Delete, BND)
     
     def __init__(self, log, id, directory, queue, bnd_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
                                       shutdown_event=shutdown_event)
         self.bnd.queue = bnd_queue
+
+
+class CombinedVoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for combined pre and post T-engine voltage beam data.  Supports:
+     * ping
+     * sync
+     * record
+     * raw_record
+     * cancel (post T-engine only)
+     * delete (post T-engine only)
+     * bnd
+    """
+    
+    _commands = (RestartService, Ping, Sync, DRXRecord, RawRecord, Cancel, Delete, DRX, BND)
+    
+    def __init__(self, log, id, directory, queue, raw_queue, drx_queue, bnd_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
+                                      shutdown_event=shutdown_event)
+        self.raw_record.queue = raw_queue
+        self.drx.queue = drx_queue
+        self.bnd.queue = bnd_queue
+    

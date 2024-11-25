@@ -21,7 +21,7 @@ from mnc.mcs import MultiMonitorPoint, Client
 
 from ovro_data_recorder.operations import FileOperationsQueue, DrxOperationsQueue, BndOperationsQueue
 from ovro_data_recorder.monitoring import GlobalLogger
-from ovro_data_recorder.control import VoltageBeamCommandProcessor, RawVoltageBeamCommandProcessor
+from ovro_data_recorder.control import CombinedVoltageBeamCommandProcessor
 from ovro_data_recorder.version import version as odr_version
 
 from bifrost.address import Address
@@ -520,7 +520,7 @@ class RawWriterOp(object):
                 
                 if first_gulp:
                     RAW_FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
-                    self.log.info("Current pipeline lag is %s", FILE_QUEUE.lag)
+                    self.log.info("Current pipeline lag is %s", RAW_FILE_QUEUE.lag)
                     first_gulp = False
                     
                 shape = (npkts,nbeam,nchan*npol)
@@ -547,7 +547,7 @@ class RawWriterOp(object):
                     RAW_FILE_QUEUE.clean()
                     
                     # Close it out
-                    self.log.info("Ended raw operation - %s", FILE_QUEUE.previous)
+                    self.log.info("Ended raw operation - %s", RAW_FILE_QUEUE.previous)
                     del udt
                     RAW_FILE_QUEUE.previous.stop()
                     
@@ -1604,8 +1604,7 @@ def main(argv):
     ops.append(GlobalLogger(log, mcs_id, args, [FILE_QUEUE, RAW_FILE_QUEUE],
                             quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
-    ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
-    ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, RAW_FILE_QUEUE, BND_QUEUE))
+    ops.append(CombinedVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, RAW_FILE_QUEUE, DRX_QUEUE, BND_QUEUE))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
@@ -1623,7 +1622,6 @@ def main(argv):
     # Setup signal handling
     shutdown_event = setup_signal_handling(ops)
     ops[0].shutdown_event = shutdown_event
-    ops[-3].shutdown_event = shutdown_event
     ops[-2].shutdown_event = shutdown_event
     ops[-1].shutdown_event = shutdown_event
     
