@@ -604,6 +604,8 @@ class StatusLogger(object):
                  shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
+        if not isinstance(queue, list):
+            queue = [queue,]
         self.queue = queue
         self.thread_names = thread_names
         self.gulp_time = gulp_time
@@ -684,24 +686,36 @@ class StatusLogger(object):
         while not self.shutdown_event.is_set():
             # Active operation
             ts = t0 = time.time()
-            is_active = False if self.queue.active is None else True
+            is_active = False
+            for q in self.queue:
+                if q.active is not None:
+                    is_active = True
+                    break
             is_waiting = False
             active_filename = None
             time_left = None
             if is_active:
-                active_filename = self.queue.active.filename
-                time_left = self.queue.active.stop_time - self.queue.active.utcnow()
-                if active_filename[-3:] != '.ms' and active_filename[-7:] != '.ms.tar':
-                    ## Only care about non-vis. data here
-                    if not os.path.exists(active_filename):
-                        is_waiting = True
+                for q in self.queue:
+                    if q.active is not None:
+                        q_active_filename = q.active.filename
+                        q_time_left = q.active.stop_time - q.active.utcnow()
+                        if q_active_filename[-3:] != '.ms' and q_active_filename[-7:] != '.ms.tar':
+                            ## Only care about non-vis. data here
+                            if not os.path.exists(active_filename):
+                                is_waiting = True
+                        try:
+                            active_filename.append(q_active_filename)
+                            time_left.append(q_lime_left)
+                        except AttributeError:
+                            active_filename = [q_active_filename,]
+                            time_left = [q_lime_left,]
             optype = 'idle'
             if is_waiting:
                 optype = 'waiting'
             elif is_active:
                 optype = 'recording'
             self.client.write_monitor_point('op-type', optype, timestamp=ts)
-            self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
+            self.client.write_monitor_point('op-tag', ', '.join(active_filename), timestamp=ts)
             
             # Get the current metrics that matter
             missing_threads = []
@@ -841,8 +855,8 @@ class StatusLogger(object):
             self.log.debug(" queue size: %i", len(self.queue))
             self.log.debug(" active operation: %s", is_active)
             if is_active:
-                self.log.debug(" active filename: %s", os.path.basename(active_filename))
-                self.log.debug(" active time remaining: %s", time_left)
+                self.log.debug(" active filename: %s", ', '.join([os.path.basename(a) for a in active_filename]))
+                self.log.debug(" active time remaining: %s", ', '.join(time_left))
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
