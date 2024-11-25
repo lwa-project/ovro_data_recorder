@@ -722,9 +722,9 @@ class StatusLogger(object):
             elif is_active:
                 optype = 'recording'
             if active_filename is not None:
-                active_filename = ', '.join([os.path.basename(a) for a in active_filename])
+                active_filename = ', '.join([os.path.basename(afn) for afn in active_filename])
             if time_left is not None:
-                time_left = ', '.join(time_left)
+                time_left = ', '.join([str(tl) for tl in time_left])
             self.client.write_monitor_point('op-type', optype, timestamp=ts)
             self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
