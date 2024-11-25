@@ -857,7 +857,7 @@ class StatusLogger(object):
             
             # Combine multipe queues into one line
             if active_filename is not None:
-                active_filename = ', '.join([os.path.basename(a) for a in active_filename]))
+                active_filename = ', '.join([os.path.basename(a) for a in active_filename])
             if time_left is not None:
                 time_left = ', '.join(time_left)
                 
