@@ -665,7 +665,7 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
      * bnd
     """
     
-    _commands = (RestartService, Ping, Sync, RawRecord, Cancel, Delete, BND)
+    _commands = (RawRecord, BND)
     
     def __init__(self, log, id, directory, queue, bnd_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
