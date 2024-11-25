@@ -855,6 +855,12 @@ class StatusLogger(object):
             self.client.write_monitor_point('info', info, timestamp=ts)
             self.last_summary = summary
             
+            # Combine multipe queues into one line
+            if active_filename is not None:
+                active_filename = ', '.join([os.path.basename(a) for a in active_filename]))
+            if time_left is not None:
+                time_left = ', '.join(time_left)
+                
             # Report
             self.log.debug("=== Status Report ===")
             self.log.debug(" summary: %s", summary)
@@ -862,8 +868,8 @@ class StatusLogger(object):
             self.log.debug(" queue size: %s", ', '.join([len(q) for q in self.queue]))
             self.log.debug(" active operation: %s", is_active)
             if is_active:
-                self.log.debug(" active filename: %s", ', '.join([os.path.basename(a) for a in active_filename]))
-                self.log.debug(" active time remaining: %s", ', '.join(time_left))
+                self.log.debug(" active filename: %s", active_filename)
+                self.log.debug(" active time remaining: %s", time_left)
             self.log.debug(" elapsed time: %.3f s", time.time()-t0)
             self.log.debug("===   ===")
             
