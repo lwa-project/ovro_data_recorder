@@ -721,8 +721,12 @@ class StatusLogger(object):
                 optype = 'waiting'
             elif is_active:
                 optype = 'recording'
+            if active_filename is not None:
+                active_filename = ', '.join([os.path.basename(a) for a in active_filename])
+            if time_left is not None:
+                time_left = ', '.join(time_left)
             self.client.write_monitor_point('op-type', optype, timestamp=ts)
-            self.client.write_monitor_point('op-tag', ', '.join(active_filename), timestamp=ts)
+            self.client.write_monitor_point('op-tag', active_filename, timestamp=ts)
             
             # Get the current metrics that matter
             missing_threads = []
@@ -855,12 +859,6 @@ class StatusLogger(object):
             self.client.write_monitor_point('info', info, timestamp=ts)
             self.last_summary = summary
             
-            # Combine multipe queues into one line
-            if active_filename is not None:
-                active_filename = ', '.join([os.path.basename(a) for a in active_filename])
-            if time_left is not None:
-                time_left = ', '.join(time_left)
-                
             # Report
             self.log.debug("=== Status Report ===")
             self.log.debug(" summary: %s", summary)
