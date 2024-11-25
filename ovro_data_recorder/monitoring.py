@@ -708,7 +708,7 @@ class StatusLogger(object):
                         q_time_left = q.active.stop_time - q.active.utcnow()
                         if q_active_filename[-3:] != '.ms' and q_active_filename[-7:] != '.ms.tar':
                             ## Only care about non-vis. data here
-                            if not os.path.exists(active_filename):
+                            if not os.path.exists(q_active_filename):
                                 is_waiting = True
                         try:
                             active_filename.append(q_active_filename)
