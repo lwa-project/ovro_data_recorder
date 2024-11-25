@@ -99,6 +99,7 @@ class CaptureOp(object):
         
     def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
         time_tag = seq0*2*NCHAN     # Seems to be needed now
+        time_tag_ptr[0] = time_tag
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
@@ -520,7 +521,7 @@ class RawWriterOp(object):
                 
                 if first_gulp:
                     RAW_FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
-                    self.log.info("Current pipeline lag is %s", RAW_FILE_QUEUE.lag)
+                    self.log.info("Current pipeline lag (pre T-engine) is %s", RAW_FILE_QUEUE.lag)
                     first_gulp = False
                     
                 shape = (npkts,nbeam,nchan*npol)
@@ -1438,7 +1439,7 @@ class WriterOp(object):
                 
                 if first_gulp:
                     FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
-                    self.log.info("Current pipeline lag is %s", FILE_QUEUE.lag)
+                    self.log.info("Current pipeline lag (post T-engine) is %s", FILE_QUEUE.lag)
                     first_gulp = False
                     
                 shape = (ntune,npkts,nbeam*npol,DRX_NSAMPLE_PER_PKT)
