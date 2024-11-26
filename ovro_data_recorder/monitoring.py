@@ -870,7 +870,7 @@ class WatchdogLogger(object):
         self.shutdown_event = shutdown_event
         self.update_interval = update_interval
         
-    def main(args):
+    def main(self, once=False):
         while not self.shutdown_event.is_set():
             t0 = time.time()
             
