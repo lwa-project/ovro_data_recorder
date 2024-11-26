@@ -396,9 +396,6 @@ class MeasurementSetWriter(FileWriterBase):
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
-        # Update the fill level
-        update_fill_level(self.tempname, self._counter, fill_level)
-        
         # Update the time
         update_time(self.tempname, self._counter, tstart, tcent, tstop)
         
@@ -407,6 +404,9 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Fill in the main table
         update_data(self.tempname, self._counter, data[0,...])
+        
+        # Update the fill level
+        update_fill_level(self.tempname, self._counter, fill_level)
         
         # Save it to its final location
         self._counter += 1
