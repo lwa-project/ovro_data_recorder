@@ -884,7 +884,9 @@ class WatchdogLogger(object):
                         self.log.error("Watchdog report: FAILED - summary last updated %.1f hr ago", (age/3600))
                     else:
                         self.log.info("Watchdog report: OK - summary last updated %.1f min ago", (age/60))
-                        
+                else:
+                    self.log.error("Watchdog report: FAILED - summary poll returned None")
+                    
                 del client
                 
             except Exception as e:

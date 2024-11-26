@@ -206,7 +206,7 @@ def update_fill_level(filename, scan, fill_level, flush=False):
     """
     
     tb = table(filename, readonly=False, ack=False)
-    tb.putkeyword('FILL_LEVEL_%d' % scan, np.float32(fill_level))
+    tb.putkeyword('FILL_LEVEL_%d' % scan, numpy.float32(fill_level))
     if flush:
         tb.flush()
     tb.close()
