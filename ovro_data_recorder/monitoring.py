@@ -877,7 +877,7 @@ class WatchdogLogger(object):
             try:
                 client = Client()
                 
-                status = self.client.read_monitor_point('summary', self.id)
+                status = client.read_monitor_point('summary', self.id)
                 if status is not None:
                     age = t0 - status.timestamp
                     if age > self.timeout:
