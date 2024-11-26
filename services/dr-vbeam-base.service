@@ -1,10 +1,8 @@
 [Unit]
-Description=OVRO-LWA Voltage Beam T-Engine/Recorder
+Description=OVRO-LWA Raw Voltage Beam Recorder
 After=network-online.target
 Wants=network-online.target
-Conflicts=dr-vbeam.service
-StartLimitIntervalSec=30
-StartLimitBurst=2
+Conflicts=dr-tengine.service
 
 [Service]
 # Allow unlimited locked memory
@@ -14,13 +12,10 @@ LimitMEMLOCK=infinity
 KillSignal=SIGTERM
 TimeoutStopSec=20
 
-# Try restarting if the pipeline gets killed
-Restart=on-failure
-
 # Logging
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=dr-tengine
+SyslogIdentifier=dr-vbeam
 
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d {{ logdir }} ] || mkdir -p {{ logdir }}'
@@ -31,18 +26,14 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/bin/bash -ec '\
 source {{ anaconda }}/bin/activate {{ anaconda }}/envs/{{ condaenv }} && \
 numactl --cpunodebind=1 --membind=1 -- \
-{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_tengine.py \
+{{ anaconda }}/envs/{{ condaenv }}/bin/python3 {{ path }}/dr_vbeam.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --cores                  11,12,13,14,15 \
-         --gpu                    1 \
          --record-directory       {{ directory }} \
          --record-directory-quota {{ quota }} \
-         --logfile                {{ logdir }}/dr-tengine.log \
+         --logfile                {{ logdir }}/dr-vbeam.log \
          --debug'
-
-[Install]
-WantedBy=multi-user.target
 
 # Configuration Logging
 # Generated: {{ generated }}

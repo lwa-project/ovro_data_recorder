@@ -7,6 +7,7 @@ import h5py
 import json
 import time
 import numpy
+import queue
 import ctypes
 import signal
 import logging
@@ -96,6 +97,25 @@ def quota_size(value):
     return int(value*3600)
 
 
+FILL_QUEUE = queue.Queue(maxsize=4)
+
+
+def get_good_and_missing_rx():
+    pid = os.getpid()
+    statsname = os.path.join('/dev/shm/bifrost', str(pid), 'udp_capture', 'stats')
+    
+    good = 'ngood_bytes    : 0'
+    missing = 'nmissing_bytes : 0'
+    if os.path.exists(statsname):
+        with open(os.path.join('/dev/shm/bifrost', str(pid), 'udp_capture', 'stats'), 'r'
+) as fh:        
+            good = fh.readline()
+            missing = fh.readline()
+    good = int(good.split(':', 1)[1], 10)
+    missing = int(missing.split(':', 1)[1], 10)
+    return good, missing
+
+
 class CaptureOp(object):
     def __init__(self, log, sock, oring, nbl, ntime_gulp=1,
                  slot_ntime=6, fast=False, shutdown_event=None, core=None):
@@ -143,11 +163,26 @@ class CaptureOp(object):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
         
+        good, missing = get_good_and_missing_rx()
         with UDPCapture("cor", self.sock, self.oring, self.nbl, 1, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
             while not self.shutdown_event.is_set():
                 status = capture.recv()
+                
+                # Determine the fill level of the last gulp
+                new_good, new_missing = get_good_and_missing_rx()
+                try:
+                    fill_level = float(new_good-good) / (new_good-good + new_missing-missing)
+                except ZeroDivisionError:
+                    fill_level = 0.0
+                good, missing = new_good, new_missing
+                
+                try:
+                    FILL_QUEUE.put_nowait(fill_level)
+                except queue.Full:
+                    pass
+                    
         del capture
 
 
@@ -973,6 +1008,7 @@ class WriterOp(object):
         
     def main(self):
         global QUEUE
+        global FILL_QUEUE
         
         if self.core is not None:
             cpu_affinity.set_core(self.core)
@@ -1034,6 +1070,14 @@ class WriterOp(object):
                     cdata = cdata.astype(numpy.complex64)
                 cdata /= norm_factor
                 
+                ## Poll the fill level
+                try:
+                    fill = FILL_QUEUE.get_nowait()
+                    FILL_QUEUE.task_done()
+                except queue.Empty:
+                    self.log.warn("Failed to get integration fill level")
+                    fill = -1.0
+                    
                 ## Determine what to do
                 active_op = QUEUE.active
                 if active_op is not None:
@@ -1043,7 +1087,7 @@ class WriterOp(object):
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     try:
-                        active_op.write(time_tag, cdata)
+                        active_op.write(time_tag, cdata, fill_level=fill_level)
                         if not self.fast:
                             self.client.write_monitor_point('latest_time_tag', time_tag)
                             
