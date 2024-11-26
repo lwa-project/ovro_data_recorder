@@ -892,6 +892,10 @@ class WatchdogLogger(object):
             except Exception as e:
                 self.log.error("Watchdog report: FAILED - %s", str(e))
                 
+            # Sleep
+            if once:
+                break
+                
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
             interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
