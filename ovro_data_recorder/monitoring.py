@@ -861,7 +861,7 @@ class StatusLogger(object):
 
 
 class WatchdogLogger(object):
-    def __init__(self, log, id, timeout=3600, shutdown_event=None, update_interval=600):
+    def __init__(self, log, id, timeout=3600, shutdown_event=None, update_interval=60):
         self.log = log
         self.id = id
         self.timeout = timeout
@@ -870,7 +870,7 @@ class WatchdogLogger(object):
         self.shutdown_event = shutdown_event
         self.update_interval = update_interval
         
-    def main(args):
+    def main(self, once=False):
         while not self.shutdown_event.is_set():
             t0 = time.time()
             
