@@ -97,7 +97,7 @@ def quota_size(value):
     return int(value*3600)
 
 
-FILL_QUEUE = queue.Queue(maxsize=4)
+FILL_QUEUE = queue.Queue(maxsize=1000)
 
 
 def get_good_and_missing_rx():
@@ -1072,11 +1072,11 @@ class WriterOp(object):
                 
                 ## Poll the fill level
                 try:
-                    fill = FILL_QUEUE.get_nowait()
+                    fill_level = FILL_QUEUE.get_nowait()
                     FILL_QUEUE.task_done()
                 except queue.Empty:
                     self.log.warn("Failed to get integration fill level")
-                    fill = -1.0
+                    fill_level = -1.0
                     
                 ## Determine what to do
                 active_op = QUEUE.active
