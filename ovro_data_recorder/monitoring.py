@@ -861,9 +861,10 @@ class StatusLogger(object):
 
 
 class WatchdogLogger(object):
-    def __init__(self, log, id, timeout=3600, shutdown_event=None, update_interval=60):
+    def __init__(self, log, id, pid, timeout=3600, shutdown_event=None, update_interval=600):
         self.log = log
         self.id = id
+        self.pid = pid
         self.timeout = timeout
         if shutdown_event is None:
             shutdown_event = threading.Event()
@@ -882,6 +883,8 @@ class WatchdogLogger(object):
                     age = t0 - status.timestamp
                     if age > self.timeout:
                         self.log.error("Watchdog report: FAILED - summary last updated %.1f hr ago", (age/3600))
+                        self.log.info("Watchdog: Triggering a restart by killing off pid %d", self.pid)
+                        #os.system(f"kill {self.pid}")
                     else:
                         self.log.info("Watchdog report: OK - summary last updated %.1f min ago", (age/60))
                 else:
@@ -891,6 +894,10 @@ class WatchdogLogger(object):
                 
             except Exception as e:
                 self.log.error("Watchdog report: FAILED - %s", str(e))
+                
+            # Sleep
+            if once:
+                break
                 
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
@@ -915,6 +922,8 @@ class GlobalLogger(object):
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
+        
+        self.pid = os.getpid()
         
         SLC = {'disk': DiskStorageLogger,
                'time': TimeStorageLogger}
@@ -958,7 +967,7 @@ class GlobalLogger(object):
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=update_interval_status)
-        self.watchdog = WatchdogLogger(log, id, timeout=3600,
+        self.watchdog = WatchdogLogger(log, id, self.pid, timeout=3600,
                                        shutdown_event=shutdown_event,
                                        update_interval=600)
         
