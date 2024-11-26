@@ -860,6 +860,40 @@ class StatusLogger(object):
             self.log.info("StatusLogger - Done")
 
 
+class WatchdogLogger(object):
+    def __init__(self, log, id, timeout=3600, shutdown_event=None, update_interval=600):
+        self.log = log
+        self.id = id
+        self.timeout = timeout
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        self.update_interval = update_interval
+        
+    def main(args):
+        while not self.shutdown_event.is_set():
+            t0 = time.time()
+            
+            client = Client()
+            
+            status = self.client.read_monitor_point('summary', self.id)
+            if status is not None:
+                age = t0 - status.timestamp
+                if age > self.timeout:
+                    self.log.error("Watchdog report: FAILED - summary last updated %.1f hr ago", (age/3600))
+                else:
+                    self.log.info("Watchdog report: OK - summary last updated %.1f min ago", (age/60))
+                    
+            del client
+            
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
+            
+        if not once:
+            self.log.info("WatchdogLogger - Done")
+
+
 class GlobalLogger(object):
     """
     Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`DiskStorageLogger`/
@@ -895,7 +929,7 @@ class GlobalLogger(object):
                     thread_names.append(type(t).__name__)
                 
         # Threads associated with this logger...
-        for new_thread in (type(self).__name__, 'PerformanceLogger', SLC_thread_name, 'StatusLogger'):
+        for new_thread in (type(self).__name__, 'PerformanceLogger', SLC_thread_name, 'StatusLogger', 'WatchdogLogger'):
             # ... with a catch to deal with potentially other instances
             name = new_thread
             name_count = 0
@@ -918,6 +952,9 @@ class GlobalLogger(object):
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=update_interval_status)
+        self.watchdog = WatchdogLogger(log, id, timeout=3600,
+                                       shutdown_event=shutdown_event,
+                                       update_interval=600)
         
     @property
     def shutdown_event(self):
@@ -942,6 +979,7 @@ class GlobalLogger(object):
         threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
         threads.append(threading.Thread(target=self.storage.main, name=self._thread_names[2]))
         threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
+        threads.append(threading.Thread(target=self.watchdog.main, name=self._thread_names[4]))
         
         # Start the threads
         for thread in threads:
