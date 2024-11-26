@@ -874,18 +874,22 @@ class WatchdogLogger(object):
         while not self.shutdown_event.is_set():
             t0 = time.time()
             
-            client = Client()
-            
-            status = self.client.read_monitor_point('summary', self.id)
-            if status is not None:
-                age = t0 - status.timestamp
-                if age > self.timeout:
-                    self.log.error("Watchdog report: FAILED - summary last updated %.1f hr ago", (age/3600))
-                else:
-                    self.log.info("Watchdog report: OK - summary last updated %.1f min ago", (age/60))
-                    
-            del client
-            
+            try:
+                client = Client()
+                
+                status = self.client.read_monitor_point('summary', self.id)
+                if status is not None:
+                    age = t0 - status.timestamp
+                    if age > self.timeout:
+                        self.log.error("Watchdog report: FAILED - summary last updated %.1f hr ago", (age/3600))
+                    else:
+                        self.log.info("Watchdog report: OK - summary last updated %.1f min ago", (age/60))
+                        
+                del client
+                
+            except Exception as e:
+                self.log.error("Watchdog report: FAILED - %s", str(e))
+                
             t1 = time.time()
             t_sleep = max([1.0, self.update_interval - (t1 - t0)])
             interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
