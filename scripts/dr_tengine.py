@@ -480,9 +480,7 @@ class RawWriterOp(object):
         global RAW_FILE_QUEUE
         
         nburst = 20
-        if self.ntime_gulp % nburst != 0:
-            raise RuntimeError("Mismatch between nburst (%i) and ntime_gulp (%i)" % (nburst, self.ntime_gulp))
-            
+        
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
@@ -513,6 +511,9 @@ class RawWriterOp(object):
             seq0 = time_tag0 // (2*NCHAN)
             seq = seq0
             
+            if npkts % nburst != 0:
+                raise RuntimeError("Mismatch between nburst (%i) and npkts (%i)" % (nburst, npkts))
+                
             prev_time = time.time()
             
             # NOTE: This assumes that nchan is already set to divide up evenly
