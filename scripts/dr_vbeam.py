@@ -493,7 +493,7 @@ class WriterOp(object):
                 nchan_pkt /= nsrc
                 
             desc = []
-            for i in nsrc:
+            for i in range(nsrc):
                 desc.append(HeaderInfo())
                 desc[-1].set_tuning(1)
                 desc[-1].set_chan0(chan0 + i*nchan_pkt)
