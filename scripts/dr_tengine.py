@@ -559,9 +559,9 @@ class RawWriterOp(object):
                     for i in range(0, npkts, nburst):
                         bdata = data[i:i+nburst,0,:,:]  # Only one beam for now
                         for j in range(nsrc):
-                            sdata = bdata[:,[j,],:].copy()
+                            sdata = bdata[:,j:j+1,:].copy()
                             try:
-                                udt.send(desc[j], seq_cur, 1, j, 1, bdata)
+                                udt.send(desc[j], seq_cur, 1, j, 1, sdata)
                             except Exception as e:
                                 print(type(self).__name__, 'Raw Sending Error', 'burst', i//nburst, 'server', j, str(e))
                         seq_cur += nburst
