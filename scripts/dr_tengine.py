@@ -520,7 +520,7 @@ class RawWriterOp(object):
             nsrc, nchan_pkt = 1, nchan
             while nchan_pkt > 255:
                 nsrc += 1
-                nchan_pkt //= nsrc
+                nchan_pkt = nchan // nsrc
                 
             desc = []
             for i in range(nsrc):
