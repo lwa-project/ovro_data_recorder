@@ -314,6 +314,12 @@ class DownSelectOp(object):
             self.rBW = bw
             
             self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
+            if self.nchan_out >= 256*3:
+                self.nchan_out = ((self.nchan_out + 3)//4) * 4
+            elif self.nchan_out >= 256*2:
+                self.nchan_out = ((self.nchan_out + 2)//3) * 3
+            elif self.nchan_out >= 256:
+                self.nchan_out = ((self.nchan_out + 1)//2) * 2
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
@@ -473,14 +479,16 @@ class RawWriterOp(object):
     def main(self):
         global RAW_FILE_QUEUE
         
+        nburst = 20
+        if self.ntime_gulp % nburst != 0:
+            raise RuntimeError("Mismatch between nburst (%i) and ntime_gulp (%i)" % (nburst, self.ntime_gulp))
+            
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
         self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
-        
-        desc = HeaderInfo()
         
         was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
@@ -506,11 +514,21 @@ class RawWriterOp(object):
             seq = seq0
             
             prev_time = time.time()
-            desc.set_tuning(1)
-            desc.set_chan0(chan0)
-            desc.set_nchan(nchan)
-            desc.set_nsrc(1)
             
+            # NOTE: This assumes that nchan is already set to divide up evenly
+            nsrc, nchan_pkt = 1, nchan
+            while nchan_pkt > 255:
+                nsrc += 1
+                nchan_pkt /= nsrc
+                
+            desc = []
+            for i in nsrc:
+                desc.append(HeaderInfo())
+                desc[-1].set_tuning(1)
+                desc[-1].set_chan0(chan0 + i*nchan_pkt)
+                desc[-1].set_nchan(nchan_pkt)
+                desc[-1].set_nsrc(nsrc)
+                
             first_gulp = True
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -524,7 +542,7 @@ class RawWriterOp(object):
                     self.log.info("Current pipeline lag (pre T-engine) is %s", RAW_FILE_QUEUE.lag)
                     first_gulp = False
                     
-                shape = (npkts,nbeam,nchan*npol)
+                shape = (npkts,nbeam,nsrc,nchan_pkt*npol)
                 data = ispan.data_view(numpy.complex64).reshape(shape)
                 
                 active_op = RAW_FILE_QUEUE.active
@@ -533,14 +551,19 @@ class RawWriterOp(object):
                     if not active_op.is_started:
                         self.log.info("Started raw operation - %s", active_op)
                         fh = active_op.start()
-                        udt = DiskWriter(f"ibeam1_{nchan}", fh, core=self.core)
+                        udt = DiskWriter(f"ibeam1_{nchan_pkt}", fh, core=self.core)
                         was_active = True
                         
                     seq_cur = seq
-                    try:
-                        udt.send(desc, seq_cur, 1, 0, 1, data)
-                    except Exception as e:
-                        print(type(self).__name__, 'Raw Sending Error', str(e))
+                    for i in range(0, npkts, nburst):
+                        bdata = data[i:i+nburst,0,:,:]  # Only one beam for now
+                        for j in range(nsrc):
+                            sdata = bdata[:,[j,],:].copy()
+                            try:
+                                udt.send(desc[j], seq_cur, 1, j, 1, bdata)
+                            except Exception as e:
+                                print(type(self).__name__, 'Raw Sending Error', 'burst', i//nburst, 'server', j, str(e))
+                        seq_cur += nburst
                         
                 elif was_active:
                     # Clean the queue
