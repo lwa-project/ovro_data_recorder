@@ -314,7 +314,7 @@ class DownSelectOp(object):
             self.rBW = bw
             
             self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
-            self.nchan_out = ((self.nchan_out - 6 + 7)//8) * 8 + 6  # Need 6+i*8 channels to match a set of 512 B blocks
+            self.nchan_out = ((self.nchan_out - 3 + 3)//4) * 4 + 3  # Need 3+i*4 channels to match a set of 512 B blocks
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
