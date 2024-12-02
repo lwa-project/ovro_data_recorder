@@ -134,3 +134,8 @@ Sequence numbers can be converted to UNIX time stamps, `t` via:
 
 .. math::
   t = seq \times \frac{8192}{196e6}.
+
+Channel numbers (and counts) can be converted to Hz via:
+
+.. math::
+  f = chan0 \times \frac{196 MHz}{8192}
