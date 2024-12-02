@@ -503,7 +503,7 @@ class RawWriterOp(object):
                     if not active_op.is_started:
                         self.log.info("Started raw operation - %s", active_op)
                         fh = active_op.start()
-                        udt = DiskWriter(f"rbeam1_{nchan_pkt}", fh, core=self.core)
+                        udt = DiskWriter(f"rbeam1_{nchan}", fh, core=self.core)
                         was_active = True
                         
                     seq_cur = seq
