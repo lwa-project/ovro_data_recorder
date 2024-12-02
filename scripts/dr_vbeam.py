@@ -508,7 +508,7 @@ class RawWriterOp(object):
                         
                     seq_cur = seq
                     try:
-                        udt.send(desc, seq_cur, 1, 1, 1, data)
+                        udt.send(desc, seq_cur, 1, 0, 1, data)
                     except Exception as e:
                         print(type(self).__name__, 'Raw Sending Error', str(e))
                         
