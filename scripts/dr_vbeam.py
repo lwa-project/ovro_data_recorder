@@ -284,12 +284,6 @@ class DownSelectOp(object):
             self.rBW = bw
             
             self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
-            if self.nchan_out >= 256*3:
-                self.nchan_out = (self.(nchan_out + 3)//4) * 4
-            elif self.nchan_out >= 256*2:
-                self.nchan_out = ((self.nchan_out + 2)//3) * 3
-            elif self.nchan_out >= 256:
-                self.nchan_out = ((self.nchan_out + 1)//2) * 2
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
@@ -429,7 +423,7 @@ class DownSelectOp(object):
                         break
 
 
-class WriterOp(object):
+class RawWriterOp(object):
     def __init__(self, log, iring, beam0=1, nbeam_max=1, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
@@ -449,8 +443,6 @@ class WriterOp(object):
     def main(self):
         global FILE_QUEUE
         
-        nburst = 20
-        
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
@@ -458,13 +450,15 @@ class WriterOp(object):
         
         self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
         
+        desc = HeaderInfo()
+        
         was_active = False
         for iseq in self.iring.read(guarantee=self.guarantee):
             ihdr = json.loads(iseq.header.tostring())
             
             self.sequence_proclog.update(ihdr)
             
-            self.log.info("Writer: Start of new sequence: %s", str(ihdr))
+            self.log.info("RawWriter: Start of new sequence: %s", str(ihdr))
             
             time_tag = ihdr['time_tag']
             chan0    = ihdr['chan0']
@@ -481,25 +475,12 @@ class WriterOp(object):
             seq0 = time_tag0 // (2*NCHAN)
             seq = seq0
             
-            if npkts % nburst != 0:
-                raise RuntimeError("Mismatch between nburst (%i) and npkts (%i)" % (nburst, npkts))
-                
             prev_time = time.time()
+            desc.set_tuning(1)
+            desc.set_chan0(chan0)
+            desc.set_nchan(nchan)
+            desc.set_nsrc(1)
             
-            # NOTE: This assumes that nchan is already set to divide up evenly
-            nsrc, nchan_pkt = 1, nchan
-            while nchan_pkt > 255:
-                nsrc += 1
-                nchan_pkt = nchan // nsrc
-                
-            desc = []
-            for i in range(nsrc):
-                desc.append(HeaderInfo())
-                desc[-1].set_tuning(1)
-                desc[-1].set_chan0(chan0 + i*nchan_pkt)
-                desc[-1].set_nchan(nchan_pkt)
-                desc[-1].set_nsrc(nsrc)
-                
             first_gulp = True
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -520,21 +501,16 @@ class WriterOp(object):
                 if active_op is not None:
                     # Write the data
                     if not active_op.is_started:
-                        self.log.info("Started operation - %s", active_op)
+                        self.log.info("Started raw operation - %s", active_op)
                         fh = active_op.start()
-                        udt = DiskWriter(f"ibeam1_{nchan_pkt}", fh, core=self.core)
+                        udt = DiskWriter(f"rbeam1_{nchan_pkt}", fh, core=self.core)
                         was_active = True
                         
                     seq_cur = seq
-                    for i in range(0, npkts, nburst):
-                        bdata = data[i:i+nburst,0,:,:]  # Only one beam for now
-                        for j in range(nsrc):
-                            sdata = bdata[:,j:j+1,:].copy()
-                            try:
-                                udt.send(desc[j], seq_cur, 1, j, 1, sdata)
-                            except Exception as e:
-                                print(type(self).__name__, 'Raw Sending Error', 'burst', i//nburst, 'server', j, str(e))
-                        seq_cur += nburst
+                    try:
+                        udt.send(desc, seq_cur, 1, 1, 1, data)
+                    except Exception as e:
+                        print(type(self).__name__, 'Raw Sending Error', str(e))
                         
                 elif was_active:
                     # Clean the queue
@@ -542,7 +518,7 @@ class WriterOp(object):
                     FILE_QUEUE.clean()
                     
                     # Close it out
-                    self.log.info("Ended operation - %s", FILE_QUEUE.previous)
+                    self.log.info("Ended raw operation - %s", FILE_QUEUE.previous)
                     del udt
                     FILE_QUEUE.previous.stop()
                     
@@ -647,8 +623,8 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
     ops.append(DownSelectOp(log, capture_ring, writer_ring, beam0=args.beam,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(WriterOp(log, writer_ring, beam0=args.beam,
-                        core=cores.pop(0)))
+    ops.append(RawWriterOp(log, writer_ring, beam0=args.beam,
+                           core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(RawVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, BND_QUEUE))
