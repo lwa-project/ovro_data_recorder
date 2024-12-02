@@ -547,7 +547,7 @@ class BND(CommandBase):
     _required = ('sequence_id', 'beam', 'central_freq', 'bw')
     
     _min_bandwidth = 3 * CHAN_BW
-    _max_bandwidth = 1020 * CHAN_BW
+    _max_bandwidth = 1672 * CHAN_BW
     
     def action(self, sequence_id, beam, central_freq, bw):
         try:
@@ -566,8 +566,8 @@ class BND(CommandBase):
         self.queue.append(beam, central_freq, bw)
         
         self.log_info("Raw Voltage Beam %i, to %.3f MHz with bandwidth %.3f MHz", beam,
-                                                                              central_freq/1e6,
-                                                                              bw/1e6)
+                                                                                  central_freq/1e6,
+                                                                                  bw/1e6)
         return True, "success"
 
 

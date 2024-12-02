@@ -314,6 +314,7 @@ class DownSelectOp(object):
             self.rBW = bw
             
             self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
+            self.nchan_out = ((self.nchan_out - 6 + 7)//8) * 8 + 6  # Need 6+i*8 channels to match a set of 512 B blocks
             self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
             if self.chan0_out < self.chan0_in:
                 self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
@@ -501,6 +502,10 @@ class RawWriterOp(object):
             time_tag  = time_tag0
             igulp_size = npkts * nbeam*nchan*npol * 8   # complex64
             
+            write_width = 16*npkts + igulp_size
+            if write_width % 512 != 0:
+                raise RuntimeError("Invalid packet output write width: %i B %% 512 B != 0" % write_width)
+                
             ticksPerSample = 2*NCHAN
             seq0 = time_tag0 // (2*NCHAN)
             seq = seq0
