@@ -547,7 +547,7 @@ class BND(CommandBase):
     _required = ('sequence_id', 'beam', 'central_freq', 'bw')
     
     _min_bandwidth = 3 * CHAN_BW
-    _max_bandwidth = 1672 * CHAN_BW
+    _max_bandwidth = 1171 * CHAN_BW
     
     def action(self, sequence_id, beam, central_freq, bw):
         try:
