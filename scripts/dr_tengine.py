@@ -524,7 +524,7 @@ class RawWriterOp(object):
                     self.log.info("Current pipeline lag (pre T-engine) is %s", RAW_FILE_QUEUE.lag)
                     first_gulp = False
                     
-                shape = (npkts,nbeam,nsrc,nchan_pkt*npol)
+                shape = (npkts,nbeam,nchan*npol)
                 data = ispan.data_view(numpy.complex64).reshape(shape)
                 
                 active_op = RAW_FILE_QUEUE.active
