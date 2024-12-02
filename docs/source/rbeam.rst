@@ -3,20 +3,21 @@ dr_vbeam.py
 
 ``dr_vbeam.py`` is an alternative to ``dr_tengine.py`` that captures packetized
 beam data from the digital system, down selects the frequency coverage to match
-what is requested by the observer, and write it directly to disk in IBeam files.
+what is requested by the observer, and write it directly to disk in RBeam files.
 
 Structure
 ---------
 
 The pipeline is written in the Bifrost framework and has four blocks:  
-``CaptureOp``, ``DownSelectOp``, and ``WriterOp``.
+``CaptureOp``, ``DownSelectOp``, and ``RawWriterOp``.
 
  * ``CaptureOp`` - This is the data capture block which is responsible for capturing
    the beam packets from the digital system, ordering them in time and frequency,
    and writing the organized data to a Bifrost ring.
  * ``DownSelectOp`` - This takes the full voltage beam bandwidth and downselects it
    to a frequency range provided by the observer.
- * ``WriterOp`` - This reads in time domain data and writes raw DRX files to disk.
+ * ``RawWriterOp`` - This reads in down selected data data and writes raw RBeam files
+   to disk.
 
  The pipeline is designed such that there is one pipeline per voltage beam.  For the
  expected number un-averaged beams created by the digital system this equates to 2
@@ -110,15 +111,15 @@ recorded.
 Data Format
 -----------
 
-The IBeam format is a packetized format for storing complex frequency domain
-timeseries data.  The 15 B header for these packets is defined as:
+The RBeam format is a packetized format for storing complex frequency domain
+timeseries data.  The 16 B header for these packets is defined as:
 
 .. csv-table:: Header Fields
   :header: Name, Data Type, Notes
   
   server,  uint8_t,  1-based
   gbe,     uint8_t,  not used
-  nchan,   uint8_t,  
+  nchan,   uint16_t, big endian
   nbeam,   uint8_t,  always 1
   nserver, uint8_t,  always 1
   chan0,   uint16_t, big endian; first channel in packet
