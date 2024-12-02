@@ -25,6 +25,22 @@ __all__ = ['FileWriterBase', 'DRXWriter', 'VoltageBeamWriter', 'HDF5Writer', 'Me
 _TEMP_BASEDIR = "/fast/pipeline/temp/"
 
 
+class DummyFileHandle(object):
+    """
+    Wrapper around a Python file descriptor as returned by os.open() to make
+    it work with Bifrost's DiskWriter.
+    """
+    
+    def __init__(self, fileno):
+        self._fileno = fileno
+        
+    def fileno(self):
+        return self._fileno
+        
+    def close(self):
+        return os.close(self._fileno)
+
+
 class FileWriterBase(object):
     """
     Class to represent a file to write data to for the specified time period.
@@ -204,7 +220,8 @@ class VoltageBeamWriter(FileWriterBase):
         Start the file writer and return the open file handle.
         """
         
-        self._interface = open(self.filename, 'wb')
+        fd = os.open(self.filename, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_DIRECT | os.O_SYNC)
+        self._interface = DummyFileHandle(fd)
         self._started = True
         
         return self._interface
