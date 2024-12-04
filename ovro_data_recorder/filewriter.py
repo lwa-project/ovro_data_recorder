@@ -222,7 +222,7 @@ class VoltageBeamWriter(FileWriterBase):
         
         fd = os.open(self.filename,
                      os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_DIRECT | os.O_SYNC,
-                     mode=664)
+                     mode=0o664)
         self._interface = DummyFileHandle(fd)
         self._started = True
         
