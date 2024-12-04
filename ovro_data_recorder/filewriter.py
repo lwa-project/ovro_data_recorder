@@ -220,7 +220,9 @@ class VoltageBeamWriter(FileWriterBase):
         Start the file writer and return the open file handle.
         """
         
-        fd = os.open(self.filename, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_DIRECT | os.O_SYNC)
+        fd = os.open(self.filename,
+                     os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_DIRECT | os.O_SYNC,
+                     mode=664)
         self._interface = DummyFileHandle(fd)
         self._started = True
         
