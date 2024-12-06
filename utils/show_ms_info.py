@@ -88,9 +88,9 @@ def main(args):
                     
         print("Data Sizes:")
         print("  Antenna count:", nant)
-        print("    Antenna Name Contiguous Ranges:")
-        print(wrap_range_list(', '.join(["%s to %s" % tuple(ant_range) for ant_range in ant_ranges]),
-                              initial_indent='      ', subsequent_indent='      '))
+        # print("    Antenna Name Contiguous Ranges:")
+        # print(wrap_range_list(', '.join(["%s to %s" % tuple(ant_range) for ant_range in ant_ranges]),
+        #                       initial_indent='      ', subsequent_indent='      '))
         print("  Visibility count:", nvis)
         print("Scans:")
         for i,s in enumerate(scans):
