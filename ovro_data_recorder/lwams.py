@@ -12,7 +12,8 @@ from mnc.common import LWATime
 from observing import obsstate
 
 __all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'get_zenith_uvw',
-           'create_ms', 'update_time', 'update_pointing', 'update_data']
+           'create_ms', 'update_fill_level', 'update_time', 'update_pointing',
+           'update_data']
 
 
 # Measurement set stokes name -> number
@@ -186,7 +187,7 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False, flus
     # Fixup the info and keywords for the main table
     tb = table(filename, readonly=False, ack=False)
     tb.putinfo({'type':'Measurement Set', 
-               'readme':'This is a MeasurementSet Table holding measurements from a Telescope'})
+                'readme':'This is a MeasurementSet Table holding measurements from a Telescope'})
     tb.putkeyword('MS_VERSION', numpy.float32(2.0))
     for tablename in sorted(glob.glob('%s/*' % filename)):
         if os.path.isdir(tablename):
@@ -194,6 +195,18 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False, flus
             stb = table("%s/%s" % (filename, tname), ack=False)
             tb.putkeyword(tname, stb)
             stb.close()
+    if flush:
+        tb.flush()
+    tb.close()
+
+
+def update_fill_level(filename, scan, fill_level, flush=False):
+    """
+    Update the FILL_LEVEL_# keyword inside a measurement set.
+    """
+    
+    tb = table(filename, readonly=False, ack=False)
+    tb.putkeyword('FILL_LEVEL_%d' % scan, numpy.float32(fill_level))
     if flush:
         tb.flush()
     tb.close()

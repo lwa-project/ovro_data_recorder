@@ -393,7 +393,7 @@ class MeasurementSetWriter(FileWriterBase):
         
         self._last_tagpath = ''
         
-    def write(self, time_tag, data):
+    def write(self, time_tag, data, fill_level=-1.0):
         tstart = LWATime(time_tag, format='timetag', scale='utc')
         tcent  = LWATime(time_tag + self._time_step // 2, format='timetag', scale='utc')
         tstop  = LWATime(time_tag + self._time_step, format='timetag', scale='utc')
@@ -423,6 +423,9 @@ class MeasurementSetWriter(FileWriterBase):
         
         # Fill in the main table
         update_data(self.tempname, self._counter, data[0,...])
+        
+        # Update the fill level
+        update_fill_level(self.tempname, self._counter, fill_level)
         
         # Save it to its final location
         self._counter += 1
