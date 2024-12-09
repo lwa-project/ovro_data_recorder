@@ -14,7 +14,8 @@ from ovro_data_recorder.reductions import *
 from ovro_data_recorder.filewriter import DRXWriter, VoltageBeamWriter, HDF5Writer, MeasurementSetWriter
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
-           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor']
+           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor',
+           'CombinedVoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -347,9 +348,9 @@ class RawRecord(CommandBase):
                 start = start.datetime
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
-                                                                      start.strftime('%H%M%S%f'),
-                                                                      sequence_id[:7]))
+            filename = os.path.join(self.directory, '%06i_%12s%7s.raw' % (start_mjd,
+                                                                          start.strftime('%H%M%S%f'),
+                                                                          sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -546,7 +547,7 @@ class BND(CommandBase):
     _required = ('sequence_id', 'beam', 'central_freq', 'bw')
     
     _min_bandwidth = 3 * CHAN_BW
-    _max_bandwidth = 200 * CHAN_BW
+    _max_bandwidth = 1171 * CHAN_BW
     
     def action(self, sequence_id, beam, central_freq, bw):
         try:
@@ -565,8 +566,8 @@ class BND(CommandBase):
         self.queue.append(beam, central_freq, bw)
         
         self.log_info("Raw Voltage Beam %i, to %.3f MHz with bandwidth %.3f MHz", beam,
-                                                                              central_freq/1e6,
-                                                                              bw/1e6)
+                                                                                  central_freq/1e6,
+                                                                                  bw/1e6)
         return True, "success"
 
 
@@ -671,3 +672,28 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
         CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
                                       shutdown_event=shutdown_event)
         self.bnd.queue = bnd_queue
+
+
+class CombinedVoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for combined pre and post T-engine voltage beam data.  Supports:
+     * ping
+     * sync
+     * record
+     * raw_record
+     * cancel (post T-engine only)
+     * delete (post T-engine only)
+     * bnd
+    """
+    
+    _commands = (RestartService, Ping, Sync, DRXRecord, RawRecord, Cancel, Delete, DRX, BND)
+    
+    def __init__(self, log, id, directory, queue, raw_queue, drx_queue, bnd_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
+                                      shutdown_event=shutdown_event)
+        self.raw_record.queue = raw_queue
+        self.raw_record.filewriter_base = VoltageBeamWriter
+        self.raw_record.filewriter_kwds = {}
+        self.drx.queue = drx_queue
+        self.bnd.queue = bnd_queue
+    
