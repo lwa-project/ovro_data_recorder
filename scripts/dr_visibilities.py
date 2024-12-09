@@ -1083,6 +1083,8 @@ class WriterOp(object):
                 if fill_level < 1.0:
                     flag_row = (cdata[0,:,:nchan//2,0].real == 0.0).all(axis=1) \
                                 | (cdata[0,:,nchan//2:,0].real == 0.0).all(axis=1)
+                    flag_row &= (cdata[0,:,:nchan//2,-1].real == 0.0).all(axis=1) \
+                                 | (cdata[0,:,nchan//2:,-1].real == 0.0).all(axis=1)
                     
                 ## Determine what to do
                 active_op = QUEUE.active
