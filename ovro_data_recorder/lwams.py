@@ -283,7 +283,7 @@ def update_pointing(filename, scan, ra, dec, flush=False):
     tb.close()
 
 
-def update_data(filename, scan, visibilities, flush=False):
+def update_data(filename, scan, visibilities, flag_row=None, flush=False):
     """
     Update the visibilities in the main table.
     """
@@ -292,6 +292,8 @@ def update_data(filename, scan, visibilities, flush=False):
     tb = table(filename, readonly=False, ack=False)
     nbl = visibilities.shape[0]
     tb.putcol('DATA', visibilities, scan*nbl, nbl)
+    if flag_row is not None:
+        tb.putcol('FLAG_ROW', flag_row, scan*nbl, nbl)
     if flush:
         tb.flush()
     tb.close()

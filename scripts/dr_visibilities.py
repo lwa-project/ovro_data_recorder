@@ -1078,6 +1078,12 @@ class WriterOp(object):
                     self.log.warn("Failed to get integration fill level")
                     fill_level = -1.0
                     
+                ## Figure out what is missing (if anything)
+                flag_row = None
+                if fill_level < 1.0:
+                    flag_row = (cdata[0,:,:nchan//2,0].real == 0.0).all(axis=1) \
+                                | (cdata[0,:,nchan//2:,0].real == 0.0).all(axis=1)
+                    
                 ## Determine what to do
                 active_op = QUEUE.active
                 if active_op is not None:
@@ -1087,7 +1093,7 @@ class WriterOp(object):
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     try:
-                        active_op.write(time_tag, cdata, fill_level=fill_level)
+                        active_op.write(time_tag, cdata, fill_level=fill_level, flag_row=flag_row)
                         if not self.fast:
                             self.client.write_monitor_point('latest_time_tag', time_tag)
                             
