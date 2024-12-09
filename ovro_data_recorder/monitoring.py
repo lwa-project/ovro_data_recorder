@@ -58,10 +58,11 @@ class PerformanceLogger(object):
     as the RX rate and missing packet fraction.
     """
     
-    def __init__(self, log, id, queue=None, shutdown_event=None, update_interval=10):
+    def __init__(self, log, id, queue=None, ignore_capture=True, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
+        self.ignore_capture = ignore_capture
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
@@ -121,6 +122,9 @@ class PerformanceLogger(object):
             acquire, process, reserve = 0.0, 0.0, 0.0
             error_count = 0
             for block,contents in self._state[1][1].items():
+                if self.ignore_capture and block.find('_capture') != -1:
+                    continue
+                    
                 try:
                     perf = contents['perf']
                     acquire = max([acquire, perf['acquire_time']])
