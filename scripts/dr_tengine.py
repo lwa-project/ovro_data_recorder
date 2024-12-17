@@ -19,9 +19,9 @@ from scipy.signal import get_window as scipy_window, firwin as scipy_firwin
 from mnc.common import *
 from mnc.mcs import MultiMonitorPoint, Client
 
-from ovro_data_recorder.operations import FileOperationsQueue, DrxOperationsQueue
+from ovro_data_recorder.operations import FileOperationsQueue, DrxOperationsQueue, BndOperationsQueue
 from ovro_data_recorder.monitoring import GlobalLogger
-from ovro_data_recorder.control import VoltageBeamCommandProcessor
+from ovro_data_recorder.control import CombinedVoltageBeamCommandProcessor
 from ovro_data_recorder.version import version as odr_version
 
 from bifrost.address import Address
@@ -67,6 +67,9 @@ DRX_NSAMPLE_PER_PKT = 4096
 FILE_QUEUE = FileOperationsQueue()
 DRX_QUEUE = DrxOperationsQueue()
 
+RAW_FILE_QUEUE = FileOperationsQueue()
+BND_QUEUE = BndOperationsQueue()
+
 
 def pfb_window(P):
     win_coeffs = scipy_window("hamming", 4*P)
@@ -96,6 +99,7 @@ class CaptureOp(object):
         
     def seq_callback(self, seq0, chan0, nchan, nbeam, time_tag_ptr, hdr_ptr, hdr_size_ptr):
         time_tag = seq0*2*NCHAN     # Seems to be needed now
+        time_tag_ptr[0] = time_tag
         #print("++++++++++++++++ seq0     =", seq0)
         #print("                 time_tag =", time_tag)
         hdr = {'time_tag': time_tag,
@@ -219,6 +223,350 @@ class DummyOp(object):
                     self.perf_proclog.update({'acquire_time': -1, 
                                               'reserve_time': reserve_time, 
                                               'process_time': process_time,})
+
+
+class DownSelectOp(object):
+    def __init__(self, log, iring, oring, beam0=1, ntime_gulp=250, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.oring      = oring
+        self.beam0      = beam0
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        
+        self._pending = deque()
+        self.rFreq = 60e6
+        self.rBW = 11*CHAN_BW
+        self.chan0_in = 0
+        self.nchan_in = 10
+        self.chan0_out = 0
+        self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
+        
+    def updateConfig(self, hdr, time_tag, forceUpdate=False):
+        global BND_QUEUE
+        
+        # Get the current pipeline time to figure out if we need to shelve a command or not
+        pipeline_time = time_tag / FS
+        
+        # Get the current BND command - but only if we aren't in a forced update
+        config = BND_QUEUE.active
+        if forceUpdate:
+            config = None
+            
+        # Can we act on this configuration change now?
+        if config:
+            ## Pull out the beam
+            beam = config[0]
+            if beam != self.beam0:
+                return False
+            BND_QUEUE.set_active_accepted()
+            
+            ## Set the configuration time - BND commands are for the first slot in the next second
+            slot = 0 / 100.0
+            config_time = int(time.time()) + 1 + slot
+            
+            ## Is this command from the future?
+            if pipeline_time < config_time:
+                ### Looks like it, save it for later
+                self._pending.append( (config_time, config) )
+                config = None
+                
+                ### Is there something pending?
+                try:
+                    stored_time, stored_config = self._pending[0]
+                    if pipeline_time >= stored_time:
+                        config_time, config = self._pending.popleft()
+                except IndexError:
+                    pass
+            else:
+                ### Nope, this is something we can use now
+                pass
+                
+        else:
+            ## Is there something pending?
+            try:
+                stored_time, stored_config = self._pending[0]
+                if pipeline_time >= stored_time:
+                    config_time, config = self._pending.popleft()
+            except IndexError:
+                #print("No pending configuration at %.1f" % pipeline_time)
+                pass
+                
+        if config:
+            self.log.info("DownSelect: New configuration received for tuning %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
+            beam, freq, bw = config
+            if beam != self.beam0:
+                self.log.info("DownSelect: Not for this beam, skipping")
+                return False
+                
+            self.rFreq = freq
+            self.rBW = bw
+            
+            self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
+            self.nchan_out = ((self.nchan_out - 3 + 3)//4) * 4 + 3  # Need 3+i*4 channels to match a set of 512 B blocks
+            self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
+            if self.chan0_out < self.chan0_in:
+                self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in
+            elif self.chan0_out + self.nchan_out > self.chan0_in + self.nchan_in:
+                self.log.warn("DownSelect: Requested last channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in + self.nchan_in - self.nchan_out
+                
+            return True
+            
+        elif forceUpdate:
+            self.log.info("DownSelect: New sequence configuration received")
+            
+            self.nchan_out = int(numpy.ceil(self.rBW / CHAN_BW))
+            self.chan0_out = int(round(self.rFreq / CHAN_BW)) - self.nchan_out//2
+            if self.chan0_out < self.chan0_in:
+                self.log.warn("DownSelect: Requested first channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in
+            elif self.chan0_out + self.nchan_out > self.chan0_in + self.nchan_in:
+                self.log.warn("DownSelect: Requested last channel is outside of the valid range, adjusting")
+                self.chan0_out = self.chan0_in + self.nchan_in - self.nchan_out
+                
+            return False
+            
+        else:
+            return False
+            
+    def main(self):
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("DownSelect: Start of new sequence: %s", str(ihdr))
+                
+                nbeam = ihdr['nbeam']
+                chan0 = ihdr['chan0']
+                nchan = ihdr['nchan']
+                npol  = ihdr['npol']
+                
+                self.chan0_in = chan0
+                self.nchan_in = nchan
+                
+                assert(nbeam == 1)
+                assert(npol  == 2)
+                
+                self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
+                
+                igulp_size = self.ntime_gulp*nbeam*nchan*npol*8                # complex64
+                ishape = (self.ntime_gulp,nbeam,nchan,npol)
+                self.iring.resize(igulp_size, 10*igulp_size)
+                
+                ogulp_size = self.ntime_gulp*nbeam*self.nchan_out*npol*8       # complex64
+                oshape = (self.ntime_gulp,nbeam,self.nchan_out,npol)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
+                
+                ticksPerTime = 2*NCHAN
+                base_time_tag = iseq.time_tag
+                
+                ohdr = {}
+                ohdr['nbeam']   = nbeam
+                ohdr['npol']    = npol
+                ohdr['complex'] = True
+                ohdr['nbit']    = 32
+                
+                prev_time = time.time()
+                iseq_spans = iseq.read(igulp_size)
+                while not self.iring.writing_ended():
+                    reset_sequence = False
+                    
+                    nchan_select = numpy.s_[self.chan0_out-self.chan0_in:self.chan0_out-self.chan0_in+self.nchan_out]
+                    
+                    ohdr['time_tag'] = base_time_tag
+                    ohdr['chan0']    = self.chan0_out
+                    ohdr['nchan']    = self.nchan_out
+                    ohdr['bw']       = self.nchan_out*CHAN_BW
+                    ohdr['cfreq0']   = self.rFreq
+                    ohdr['npkts']    = self.ntime_gulp
+                    ohdr_str = json.dumps(ohdr)
+                    
+                    with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
+                        for ispan in iseq_spans:
+                            if ispan.size < igulp_size:
+                                continue # Ignore final gulp
+                            curr_time = time.time()
+                            acquire_time = curr_time - prev_time
+                            prev_time = curr_time
+                            
+                            with oseq.reserve(ogulp_size) as ospan:
+                                curr_time = time.time()
+                                reserve_time = curr_time - prev_time
+                                prev_time = curr_time
+                                
+                                ## Setup and load
+                                idata = ispan.data_view(numpy.complex64).reshape(ishape)
+                                odata = ospan.data_view(numpy.complex64).reshape(oshape)
+                                
+                                ## Prune
+                                ddata = idata[:,:,nchan_select,:]
+                                
+                                ## Save a contiguous copy
+                                odata[...] = ddata.copy()
+                                
+                            ## Update the base time tag
+                            base_time_tag += self.ntime_gulp*ticksPerTime
+                            
+                            ## Check for an update to the configuration
+                            if self.updateConfig( ihdr, base_time_tag, forceUpdate=False ):
+                                reset_sequence = True
+                                
+                                ### New output size/shape
+                                ngulp_size = self.ntime_gulp*nbeam*self.nchan_out*npol*8               # complex64
+                                nshape = (self.ntime_gulp,nbeam,self.nchan_out,npol)
+                                if ngulp_size != ogulp_size:
+                                    ogulp_size = ngulp_size
+                                    oshape = nshape
+                                    
+                                    self.oring.resize(ogulp_size, 10*ogulp_size)
+                                    
+                                break
+                                
+                            curr_time = time.time()
+                            process_time = curr_time - prev_time
+                            prev_time = curr_time
+                            self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                      'reserve_time': reserve_time, 
+                                                      'process_time': process_time,})
+                                                 
+                    # Reset to move on to the next input sequence?
+                    if not reset_sequence:
+                        break
+
+
+class RawWriterOp(object):
+    def __init__(self, log, iring, beam0=1, nbeam_max=1, guarantee=True, core=None):
+        self.log        = log
+        self.iring      = iring
+        self.beam0      = beam0
+        self.nbeam_max  = nbeam_max
+        self.guarantee  = guarantee
+        self.core       = core
+        
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        
+    def main(self):
+        global RAW_FILE_QUEUE
+        
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
+        
+        desc = HeaderInfo()
+        
+        was_active = False
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("RawWriter: Start of new sequence: %s", str(ihdr))
+            
+            time_tag = ihdr['time_tag']
+            chan0    = ihdr['chan0']
+            bw       = ihdr['bw']
+            npkts    = ihdr['npkts']
+            nbeam    = ihdr['nbeam']
+            nchan    = ihdr['nchan']
+            npol     = ihdr['npol']
+            time_tag0 = iseq.time_tag
+            time_tag  = time_tag0
+            igulp_size = npkts * nbeam*nchan*npol * 8   # complex64
+            
+            write_width = 16*npkts + igulp_size
+            if write_width % 512 != 0:
+                raise RuntimeError("Invalid packet output write width: %i B %% 512 B != 0" % write_width)
+                
+            ticksPerSample = 2*NCHAN
+            seq0 = time_tag0 // (2*NCHAN)
+            seq = seq0
+            
+            prev_time = time.time()
+            desc.set_tuning(1)
+            desc.set_chan0(chan0)
+            desc.set_nchan(nchan)
+            desc.set_nsrc(1)
+                
+            first_gulp = True
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                if first_gulp:
+                    RAW_FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
+                    self.log.info("Current pipeline lag (pre T-engine) is %s", RAW_FILE_QUEUE.lag)
+                    first_gulp = False
+                    
+                shape = (npkts,nbeam,nchan*npol)
+                data = ispan.data_view(numpy.complex64).reshape(shape)
+                
+                active_op = RAW_FILE_QUEUE.active
+                if active_op is not None:
+                    # Write the data
+                    if not active_op.is_started:
+                        self.log.info("Started raw operation - %s", active_op)
+                        fh = active_op.start()
+                        udt = DiskWriter(f"rbeam1_{nchan}", fh, core=self.core)
+                        was_active = True
+                        
+                    seq_cur = seq
+                    try:
+                        udt.send(desc, seq_cur, 1, 0, 1, data)
+                    except Exception as e:
+                        print(type(self).__name__, 'Raw Sending Error', str(e))
+                        
+                elif was_active:
+                    # Clean the queue
+                    was_active = False
+                    RAW_FILE_QUEUE.clean()
+                    
+                    # Close it out
+                    self.log.info("Ended raw operation - %s", RAW_FILE_QUEUE.previous)
+                    del udt
+                    RAW_FILE_QUEUE.previous.stop()
+                    
+                time_tag += npkts*ticksPerSample
+                seq += npkts
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+
 
 class GPUCopyOp(object):
     def __init__(self, log, iring, oring, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
@@ -1096,7 +1444,7 @@ class WriterOp(object):
                 
                 if first_gulp:
                     FILE_QUEUE.update_lag(LWATime(time_tag, format='timetag').datetime)
-                    self.log.info("Current pipeline lag is %s", FILE_QUEUE.lag)
+                    self.log.info("Current pipeline lag (post T-engine) is %s", FILE_QUEUE.lag)
                     first_gulp = False
                     
                 shape = (ntune,npkts,nbeam*npol,DRX_NSAMPLE_PER_PKT)
@@ -1219,10 +1567,11 @@ def main(argv):
         isock.timeout = 1
         
     # Setup the rings
-    capture_ring = Ring(name="capture", space='cuda_host', core=cores[0])
-    gpu_ring     = Ring(name="gpu", space='cuda', core=cores[0])
-    tengine_ring = Ring(name="tengine", space='cuda', core=cores[0])
-    write_ring   = Ring(name="write", space='cuda_host', core=cores[0])
+    capture_ring   = Ring(name="capture", space='cuda_host', core=cores[0])
+    raw_write_ring = Ring(name="rawwrite", space='cuda_host', core=cores[0])
+    gpu_ring       = Ring(name="gpu", space='cuda', core=cores[0])
+    tengine_ring   = Ring(name="tengine", space='cuda', core=cores[0])
+    write_ring     = Ring(name="write", space='cuda_host', core=cores[0])
     
     # Setup the recording directory, if needed
     if not os.path.exists(args.record_directory):
@@ -1241,6 +1590,12 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=19600, core=cores.pop(0)))
+    ## Pre T-engine voltage beam recording
+    ops.append(DownSelectOp(log, capture_ring, raw_write_ring, beam0=args.beam,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    ops.append(RawWriterOp(log, raw_write_ring, beam0=args.beam,
+                           core=cores.pop(0)))
+    ## T-engine voltage beam recording
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=args.gulp_size,
                          core=cores[0], gpu=gpus[0]))
     ops.append(ReChannelizerOp(log, gpu_ring, tengine_ring,
@@ -1252,9 +1607,10 @@ def main(argv):
     #                     core=cores.pop(0)))
     ops.append(WriterOp(log, write_ring, beam0=args.beam,
                         core=cores.pop(0)))
-    ops.append(GlobalLogger(log, mcs_id, args, FILE_QUEUE, quota=args.record_directory_quota,
+    ops.append(GlobalLogger(log, mcs_id, args, [FILE_QUEUE, RAW_FILE_QUEUE],
+                            quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*(2*NCHAN/CLOCK)))  # Ugh, hard coded
-    ops.append(VoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, DRX_QUEUE))
+    ops.append(CombinedVoltageBeamCommandProcessor(log, mcs_id, args.record_directory, FILE_QUEUE, RAW_FILE_QUEUE, DRX_QUEUE, BND_QUEUE))
     
     # Setup the threads
     threads = [threading.Thread(target=op.main, name=type(op).__name__) for op in ops]
