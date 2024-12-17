@@ -378,20 +378,38 @@ class Cancel(CommandBase):
     _required = ('sequence_id',)
     _optional = ('queue_number', 'filename',)
     
+    def append_queue(self, new_queue):
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+        self.queue.append(new_queue)
+        
     def action(self, sequence_id, queue_number=None, filename=None):
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+            
         if queue_number is None and filename is None:
             self.log_error("Must specify a queue number or filename")
             return False, "Must specify a queue number or filename"
             
+        found, found_queue = False, None
         if filename is not None:
-            op = self.queue.find_entry_by_filename(filename)
-            if op is None:
+            for q in self.queue:
+                op = q.find_entry_by_filename(filename)
+                if op is not None:
+                    found, found_queue = True, q
+                    break
+            if not found:
                 self.log_error("Filename not found in queue")
                 return False, "Filename not found in queue"
         else:
-            try:
-                op = self.queue[queue_number]
-            except IndexError as e:
+            for q in self.queue:
+                try:
+                    op = q[queue_number]
+                    found, found_queue = True, q
+                    break
+                except IndexError as e:
+                    pass
+            if not found:
                 self.log_error("Invalid queue entry number")
                 return False, "Invalid queue entry number"
                 
@@ -400,7 +418,7 @@ class Cancel(CommandBase):
             start = op.start_time
             stop = op.stop_time
             op.cancel()
-            self.queue.clean()
+            found_queue.clean()
         except Exception as e:
             self.log_error("Failed to cancel recording: %s", str(e))
             return False, "Failed to cancel recording: %s" % str(e)
@@ -463,8 +481,21 @@ class Delete(CommandBase):
     
     _required = ('sequence_id', 'file_number')
     
+    def append_queue(self, new_queue):
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+        self.queue.append(new_queue)
+        
     def action(self, sequence_id, file_number):
-        if self.queue.active is not None:
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+            
+        active = False
+        for q in self.queue:
+            if q.active is not None:
+                active = True
+                break
+        if active:
             self.log_error("Cannot delete while recording is active")
             return False, "Cannot delete while recording is active"
             
@@ -699,4 +730,6 @@ class CombinedVoltageBeamCommandProcessor(CommandProcessorBase):
         self.raw_record.filewriter_kwds = {}
         self.drx.queue = drx_queue
         self.bnd.queue = bnd_queue
+        self.cancel.append_queue(raw_queue)
+        self.delete.append_queue(raw_queue)
     
