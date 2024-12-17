@@ -385,6 +385,9 @@ class Cancel(CommandBase):
             
         if filename is not None:
             op = self.queue.find_entry_by_filename(filename)
+            if op is None:
+                self.log_error("Filename not found in queue")
+                return False, "Filename not found in queue"
         else:
             try:
                 op = self.queue[queue_number]
