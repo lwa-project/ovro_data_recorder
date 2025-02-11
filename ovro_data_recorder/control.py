@@ -240,7 +240,7 @@ class HDF5Record(CommandBase):
         try:
             op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
             self.log_error("Failed to schedule recording: %s", str(e))
             return False, "Failed to schedule recording: %s" % str(e)
             
@@ -277,7 +277,7 @@ class MSStart(CommandBase):
         try:
             op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
             self.log_error("Failed to schedule recording start: %s", str(e))
             return False, "Failed to schedule recording start: %s" % str(e)
             
@@ -318,7 +318,7 @@ class DRXRecord(CommandBase):
         try:
             op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
             self.log_error("Failed to schedule recording: %s", str(e))
             return False, "Failed to schedule recording start: %s" % str(e)
             
@@ -359,7 +359,7 @@ class RawRecord(CommandBase):
         try:
             op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
             self.log_error("Failed to schedule recording: %s", str(e))
             return False, "Failed to schedule recording start: %s" % str(e)
             
