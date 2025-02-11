@@ -12,7 +12,8 @@ from mnc.mcs import MonitorPoint, Client
 
 from ovro_data_recorder.version import version as odr_version
 
-__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
+__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger',
+           'StatusLogger', 'WatchdogLogger', 'GlobalLogger']
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
 

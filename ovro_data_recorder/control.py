@@ -238,8 +238,8 @@ class HDF5Record(CommandBase):
             self.log_error("Unknown Stokes mode: %s", stokes_mode)
             return False, "Unknown Stokes mode: %s" % stokes_mode
             
-        op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
@@ -275,8 +275,8 @@ class MSStart(CommandBase):
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
-        op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording start: %s", str(e))
@@ -316,8 +316,8 @@ class DRXRecord(CommandBase):
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
-        op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
@@ -357,8 +357,8 @@ class RawRecord(CommandBase):
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
-        op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
         except (TypeError, RuntimeError) as e:
             self.log_error("Failed to schedule recording: %s", str(e))
