@@ -14,7 +14,8 @@ from ovro_data_recorder.reductions import *
 from ovro_data_recorder.filewriter import DRXWriter, VoltageBeamWriter, HDF5Writer, MeasurementSetWriter
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
-           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor']
+           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor',
+           'CombinedVoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -347,9 +348,9 @@ class RawRecord(CommandBase):
                 start = start.datetime
             else:
                 start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
-            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
-                                                                      start.strftime('%H%M%S%f'),
-                                                                      sequence_id[:7]))
+            filename = os.path.join(self.directory, '%06i_%12s%7s.raw' % (start_mjd,
+                                                                          start.strftime('%H%M%S%f'),
+                                                                          sequence_id[:7]))
             duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
             stop = start + duration
         except (TypeError, ValueError) as e:
@@ -377,17 +378,38 @@ class Cancel(CommandBase):
     _required = ('sequence_id',)
     _optional = ('queue_number', 'filename',)
     
+    def append_queue(self, new_queue):
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+        self.queue.append(new_queue)
+        
     def action(self, sequence_id, queue_number=None, filename=None):
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+            
         if queue_number is None and filename is None:
             self.log_error("Must specify a queue number or filename")
             return False, "Must specify a queue number or filename"
             
+        found, found_queue = False, None
         if filename is not None:
-            op = self.queue.find_entry_by_filename(filename)
+            for q in self.queue:
+                op = q.find_entry_by_filename(filename)
+                if op is not None:
+                    found, found_queue = True, q
+                    break
+            if not found:
+                self.log_error("Filename not found in queue")
+                return False, "Filename not found in queue"
         else:
-            try:
-                op = self.queue[queue_number]
-            except IndexError as e:
+            for q in self.queue:
+                try:
+                    op = q[queue_number]
+                    found, found_queue = True, q
+                    break
+                except IndexError as e:
+                    pass
+            if not found:
                 self.log_error("Invalid queue entry number")
                 return False, "Invalid queue entry number"
                 
@@ -396,7 +418,7 @@ class Cancel(CommandBase):
             start = op.start_time
             stop = op.stop_time
             op.cancel()
-            self.queue.clean()
+            found_queue.clean()
         except Exception as e:
             self.log_error("Failed to cancel recording: %s", str(e))
             return False, "Failed to cancel recording: %s" % str(e)
@@ -459,8 +481,21 @@ class Delete(CommandBase):
     
     _required = ('sequence_id', 'file_number')
     
+    def append_queue(self, new_queue):
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+        self.queue.append(new_queue)
+        
     def action(self, sequence_id, file_number):
-        if self.queue.active is not None:
+        if not isinstance(self.queue, list):
+            self.queue = [self.queue,]
+            
+        active = False
+        for q in self.queue:
+            if q.active is not None:
+                active = True
+                break
+        if active:
             self.log_error("Cannot delete while recording is active")
             return False, "Cannot delete while recording is active"
             
@@ -546,7 +581,7 @@ class BND(CommandBase):
     _required = ('sequence_id', 'beam', 'central_freq', 'bw')
     
     _min_bandwidth = 3 * CHAN_BW
-    _max_bandwidth = 200 * CHAN_BW
+    _max_bandwidth = 1171 * CHAN_BW
     
     def action(self, sequence_id, beam, central_freq, bw):
         try:
@@ -565,8 +600,8 @@ class BND(CommandBase):
         self.queue.append(beam, central_freq, bw)
         
         self.log_info("Raw Voltage Beam %i, to %.3f MHz with bandwidth %.3f MHz", beam,
-                                                                              central_freq/1e6,
-                                                                              bw/1e6)
+                                                                                  central_freq/1e6,
+                                                                                  bw/1e6)
         return True, "success"
 
 
@@ -671,3 +706,30 @@ class RawVoltageBeamCommandProcessor(CommandProcessorBase):
         CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
                                       shutdown_event=shutdown_event)
         self.bnd.queue = bnd_queue
+
+
+class CombinedVoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for combined pre and post T-engine voltage beam data.  Supports:
+     * ping
+     * sync
+     * record
+     * raw_record
+     * cancel (post T-engine only)
+     * delete (post T-engine only)
+     * bnd
+    """
+    
+    _commands = (RestartService, Ping, Sync, DRXRecord, RawRecord, Cancel, Delete, DRX, BND)
+    
+    def __init__(self, log, id, directory, queue, raw_queue, drx_queue, bnd_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
+                                      shutdown_event=shutdown_event)
+        self.raw_record.queue = raw_queue
+        self.raw_record.filewriter_base = VoltageBeamWriter
+        self.raw_record.filewriter_kwds = {}
+        self.drx.queue = drx_queue
+        self.bnd.queue = bnd_queue
+        self.cancel.append_queue(raw_queue)
+        self.delete.append_queue(raw_queue)
+    
