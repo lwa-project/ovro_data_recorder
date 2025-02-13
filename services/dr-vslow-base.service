@@ -35,6 +35,12 @@ python3 {{ path }}/dr_visibilities.py \
          --cal-dir                /home/pipeline/caltables/latest/ \
          --logfile                {{ logdir }}/dr-vslow-{{ band }}.%H.log'
 
+ExecStopPost=/bin/bash -c '\
+if [ $(ps aux | grep dr_visibilities | grep python | wc -l) -eq 0 ]; then \
+    echo "Running cleanup tasks"; \
+    rm -rf /fast/pipeline/temp/MeasurementSetWriter*; \
+fi'
+
 [Install]
 WantedBy=default.target
 
