@@ -520,6 +520,111 @@ class WriterOp(object):
         self.log.info("WriterOp - Done")
 
 
+
+class RealTimeStreamingOp(object):
+    def __init__(self, log, iring, beam, ntime_gulp=250, guarantee=True, core=None, zmq_port=5555):
+        """
+        Initialize the RealTimeStreamingOp for a single beam.
+        
+        Parameters:
+        - log: Logger instance for logging messages.
+        - iring: Input ring buffer to read data from.
+        - beam: Integer specifying the beam number to stream (e.g., 2 for beam02).
+        - ntime_gulp: Number of time samples per gulp (default: 250).
+        - guarantee: Boolean to ensure data integrity (default: True).
+        - core: CPU core to bind to (default: None).
+        - zmq_port: Port for ZeroMQ streaming (default: 5555).
+        """
+        self.log = log
+        self.iring = iring
+        self.beam = beam  # Specific beam to stream
+        self.ntime_gulp = ntime_gulp
+        self.guarantee = guarantee
+        self.core = core
+        self.zmq_port = zmq_port
+        
+        # Set up ZeroMQ PUSH socket
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUSH)
+        self.socket.bind(f"tcp://*:{self.zmq_port}")
+        
+        # Initialize logging for process monitoring
+        self.bind_proclog = ProcLog(type(self).__name__ + "/bind")
+        self.in_proclog = ProcLog(type(self).__name__ + "/in")
+        self.size_proclog = ProcLog(type(self).__name__ + "/size")
+        self.sequence_proclog = ProcLog(type(self).__name__ + "/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__ + "/perf")
+        
+        self.in_proclog.update({'nring': 1, 'ring0': self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+    
+    def main(self):
+        """Main loop to read and stream data for the specified beam."""
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
+        
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            # Parse the sequence header
+            ihdr = json.loads(iseq.header.tostring())
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("RealTimeStreaming: Start of new sequence: %s", str(ihdr))
+            
+            # Update header to reflect only the selected beam
+            ihdr['nbeam'] = 1
+            ihdr['beam'] = self.beam
+            header_msg = b'H' + json.dumps(ihdr).encode()
+            self.socket.send(header_msg)
+            
+            # Extract metadata from header
+            time_tag = ihdr['time_tag']
+            navg = ihdr['navg']
+            chan0 = ihdr['chan0']
+            nchan = ihdr['nchan']
+            chan_bw = ihdr['bw'] / nchan
+            npol = ihdr['npol']
+            
+            # Assuming beam numbering starts at 1, adjust to 0-based index
+            beam_index = self.beam - 1
+            
+            # Define gulp size and shape for one beam
+            igulp_size = self.ntime_gulp * 1 * nchan * npol * 4  # float32 data
+            ishape = (self.ntime_gulp, 1, nchan, npol)
+            
+            # Read data from the ring buffer
+            prev_time = time.time()
+            iseq_spans = iseq.read(igulp_size * ihdr['nbeam'])  # Full gulp size for all beams
+            for ispan in iseq_spans:
+                if ispan.size < igulp_size * ihdr['nbeam']:
+                    continue  # Skip partial gulps
+                
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+                
+                # Reshape data and select the specified beam
+                idata = ispan.data_view(numpy.float32).reshape((self.ntime_gulp, ihdr['nbeam'], nchan, npol))
+                beam_data = idata[:, beam_index, :, :].reshape(ishape)
+                
+                # Send data with time_tag
+                data_msg = b'D' + time_tag.to_bytes(8, 'little') + beam_data.tobytes()
+                self.socket.send(data_msg)
+                
+                # Increment time_tag
+                time_tag += navg * self.ntime_gulp * int(round(FS / chan_bw))
+                
+                # Log performance metrics
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time})
+        
+        self.log.info("RealTimeStreamingOp - Done")
+
+
 def main(argv):
     parser = argparse.ArgumentParser(
                  description="Data recorder for power beams"
