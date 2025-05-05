@@ -6,6 +6,7 @@ import h5py
 import json
 import time
 import numpy
+import numpy as np
 import ctypes
 import signal
 import logging
@@ -26,6 +27,7 @@ from ovro_data_recorder.version import version as odr_version
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
 from bifrost.packet_capture import PacketCaptureCallback, UDPCapture, DiskReader
+from bifrost.packet_writer import HeaderInfo, UDPTransmit
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
@@ -34,6 +36,7 @@ from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
+from bifrost import asarray
 
 
 QUEUE = FileOperationsQueue()
@@ -519,110 +522,160 @@ class WriterOp(object):
                 
         self.log.info("WriterOp - Done")
 
-
-
 class RealTimeStreamingOp(object):
-    def __init__(self, log, iring, beam, ntime_gulp=250, guarantee=True, core=None, zmq_port=5555):
-        """
-        Initialize the RealTimeStreamingOp for a single beam.
-        
-        Parameters:
-        - log: Logger instance for logging messages.
-        - iring: Input ring buffer to read data from.
-        - beam: Integer specifying the beam number to stream (e.g., 2 for beam02).
-        - ntime_gulp: Number of time samples per gulp (default: 250).
-        - guarantee: Boolean to ensure data integrity (default: True).
-        - core: CPU core to bind to (default: None).
-        - zmq_port: Port for ZeroMQ streaming (default: 5555).
-        """
+    def __init__(self, log, iring, beam, ntime_gulp=1024, guarantee=True, core=None, 
+                 remote_addr='127.0.0.1', remote_port=5555):
         self.log = log
         self.iring = iring
-        self.beam = beam  # Specific beam to stream
+        self.beam = beam
         self.ntime_gulp = ntime_gulp
         self.guarantee = guarantee
         self.core = core
-        self.zmq_port = zmq_port
-        
-        # Set up ZeroMQ PUSH socket
-        self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.PUSH)
-        self.socket.bind(f"tcp://*:{self.zmq_port}")
-        
-        # Initialize logging for process monitoring
+        self.remote_addr = remote_addr
+        self.remote_port = remote_port
+        self.shutdown_event = None
+        self.transmitter = None
+        self.header_socket = None
+
         self.bind_proclog = ProcLog(type(self).__name__ + "/bind")
         self.in_proclog = ProcLog(type(self).__name__ + "/in")
         self.size_proclog = ProcLog(type(self).__name__ + "/size")
         self.sequence_proclog = ProcLog(type(self).__name__ + "/sequence0")
         self.perf_proclog = ProcLog(type(self).__name__ + "/perf")
-        
+
         self.in_proclog.update({'nring': 1, 'ring0': self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
-    
+
+    def shutdown(self):
+        self.log.info("RealTimeStreamingOp: Initiating shutdown")
+        if self.shutdown_event:
+            self.shutdown_event.set()
+        if self.transmitter:
+            self.transmitter = None
+        if self.header_socket:
+            self.header_socket.close()
+            self.header_socket = None
+
     def main(self):
-        """Main loop to read and stream data for the specified beam."""
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
-        
-        for iseq in self.iring.read(guarantee=self.guarantee):
-            # Parse the sequence header
-            ihdr = json.loads(iseq.header.tostring())
-            self.sequence_proclog.update(ihdr)
-            
-            self.log.info("RealTimeStreaming: Start of new sequence: %s", str(ihdr))
-            
-            # Update header to reflect only the selected beam
-            ihdr['nbeam'] = 1
-            ihdr['beam'] = self.beam
-            header_msg = b'H' + json.dumps(ihdr).encode()
-            self.socket.send(header_msg)
-            
-            # Extract metadata from header
-            time_tag = ihdr['time_tag']
-            navg = ihdr['navg']
-            chan0 = ihdr['chan0']
-            nchan = ihdr['nchan']
-            chan_bw = ihdr['bw'] / nchan
-            npol = ihdr['npol']
-            
-            # Assuming beam numbering starts at 1, adjust to 0-based index
-            beam_index = self.beam - 1
-            
-            # Define gulp size and shape for one beam
-            igulp_size = self.ntime_gulp * 1 * nchan * npol * 4  # float32 data
-            ishape = (self.ntime_gulp, 1, nchan, npol)
-            
-            # Read data from the ring buffer
-            prev_time = time.time()
-            iseq_spans = iseq.read(igulp_size * ihdr['nbeam'])  # Full gulp size for all beams
-            for ispan in iseq_spans:
-                if ispan.size < igulp_size * ihdr['nbeam']:
-                    continue  # Skip partial gulps
-                
-                curr_time = time.time()
-                acquire_time = curr_time - prev_time
-                prev_time = curr_time
-                
-                # Reshape data and select the specified beam
-                idata = ispan.data_view(numpy.float32).reshape((self.ntime_gulp, ihdr['nbeam'], nchan, npol))
-                beam_data = idata[:, beam_index, :, :].reshape(ishape)
-                
-                # Send data with time_tag
-                data_msg = b'D' + time_tag.to_bytes(8, 'little') + beam_data.tobytes()
-                self.socket.send(data_msg)
-                
-                # Increment time_tag
-                time_tag += navg * self.ntime_gulp * int(round(FS / chan_bw))
-                
-                # Log performance metrics
-                curr_time = time.time()
-                process_time = curr_time - prev_time
-                prev_time = curr_time
-                self.perf_proclog.update({'acquire_time': acquire_time, 
-                                          'reserve_time': -1, 
-                                          'process_time': process_time})
-        
-        self.log.info("RealTimeStreamingOp - Done")
+
+        self.log.info("RealTimeStreamingOp: Starting")
+        try:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                if self.shutdown_event and self.shutdown_event.is_set():
+                    self.log.info("RealTimeStreamingOp: Shutdown event detected")
+                    break
+                ihdr = json.loads(iseq.header.tostring())
+                self.sequence_proclog.update(ihdr)
+
+                self.log.info("RealTimeStreaming: Start of new sequence: %s", str(ihdr))
+
+                # Update header for single beam
+                ihdr['nbeam'] = 1
+                ihdr['beam'] = self.beam
+
+                time_tag = ihdr['time_tag']
+                navg = ihdr['navg']
+                chan0 = ihdr['chan0']
+                nchan = ihdr['nchan']
+                chan_bw = ihdr['bw'] / nchan
+                npol = ihdr['npol']
+                pols = ihdr['pols']
+
+                self.log.info("RealTimeStreamingOp: parameters: %s", str(ihdr))
+
+                igulp_size = self.ntime_gulp * 1 * nchan * npol * 4  # float32
+                ishape = (self.ntime_gulp, 1, nchan, npol)
+                packet_nbyte = 1 + 8 + igulp_size  # 'D' + time_tag + data
+
+                # Initialize UDPTransmit with format similar to test example
+                self.header_socket = UDPSocket()
+                self.header_socket.connect(Address(self.remote_addr, self.remote_port))
+
+                self.log.info("RealTimeStreamingOp: Sending data to %s:%d", self.remote_addr, self.remote_port)
+
+                self.transmitter = UDPTransmit(
+                    fmt='pbeam1_128',  # Format: pbeam<beam>_<nchan>
+                    sock=self.header_socket
+                )
+                header_info = HeaderInfo()
+                header_info.set_nsrc(1)
+                header_info.set_nchan(nchan)
+                header_info.set_chan0(chan0)
+                header_info.set_tuning(0)
+
+                seq = time_tag
+                src = self.beam
+
+                prev_time = time.time()
+                iseq_spans = iseq.read(igulp_size * ihdr['nbeam'])
+                for ispan in iseq_spans:
+                    if self.shutdown_event and self.shutdown_event.is_set():
+                        self.log.info("RealTimeStreamingOp: Shutdown event detected in span loop")
+                        break
+                    if ispan.size < igulp_size * ihdr['nbeam']:
+                        continue
+
+                    curr_time = time.time()
+                    acquire_time = curr_time - prev_time
+                    prev_time = curr_time
+
+                    idata = ispan.data_view(np.float32).ravel()
+                    
+                    idata = idata.reshape(nchan*npol,1,-1)
+                    idata = idata.transpose(2,1,0)
+                    idata = idata.copy()
+                    self.log.debug("RealTimeStreamingOp: spanshape %s", str(idata.shape))
+                    
+                    #beam_data = idata[:, 0, :, :].reshape(ishape)
+
+                    self.log.debug("RealTimeStreamingOp: Processing span with size %d", ispan.size)
+                    self.log.debug("RealTimeStreamingOp: idata shape: %s, packet_nbyte: %d, time_tag: %d, seq: %d",
+                                   str(idata.shape), packet_nbyte, time_tag, seq)
+                                   
+                    self.log.debug("RealTimeStreamingOp: Sending packet with size %d", packet_nbyte)
+
+                    # Send via UDPTransmit
+                    try:
+                        self.log.debug("RealTimeStreamingOp: Sending data length: %d", navg * self.ntime_gulp * int(round(FS / chan_bw)))
+                        self.log.debug("RealTimeStreamingOp: Parms: FS=%d, chan_bw=%d, CHAN_BW=%d", FS, chan_bw, CHAN_BW)
+                        self.transmitter.send(
+                            header_info,
+                            seq,
+                            1,
+                            src,
+                            1,
+                            idata,
+                        )
+                        self.log.debug("Sent data packet: time_tag=%d, size=%d bytes to %s:%d", 
+                                       time_tag, packet_nbyte, self.remote_addr, self.remote_port)
+                    except Exception as e:
+                        self.log.error("Failed to send data packet: %s", str(e))
+                        break
+
+                    time_tag += navg * self.ntime_gulp * int(round(FS / chan_bw))
+                    seq = time_tag
+
+                    curr_time = time.time()
+                    process_time = curr_time - prev_time
+                    prev_time = curr_time
+                    self.perf_proclog.update({
+                        'acquire_time': acquire_time,
+                        'reserve_time': -1,
+                        'process_time': process_time
+                    })
+
+                self.transmitter = None
+                self.header_socket.close()
+                self.header_socket = None
+        except Exception as e:
+            self.log.error("RealTimeStreamingOp: Exception in main loop: %s", str(e))
+        finally:
+            self.log.info("RealTimeStreamingOp: Exiting")
+            self.shutdown()
+        self.log.info("RealTimeStreamingOp: Done")
 
 
 def main(argv):
@@ -653,6 +706,10 @@ def main(argv):
                         help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
+    parser.add_argument('--remote-addr', type=str, default='127.0.0.1',
+                        help='IP address of the remote machine for streaming')
+    parser.add_argument('--remote-port', type=int, default=5555,
+                        help='UDP port of the remote machine for streaming')
     args = parser.parse_args()
     assert(args.gulp_size == 1024)  # Only one option
     
@@ -716,15 +773,18 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
-    ops.append(SpectraOp(log, mcs_id, capture_ring,
-                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(StatisticsOp(log, mcs_id, capture_ring,
-                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    ops.append(WriterOp(log, capture_ring,
-                        beam=args.beam, ntime_gulp=args.gulp_size,
-                        swmr=args.swmr, core=cores.pop(0)))
+    #ops.append(SpectraOp(log, mcs_id, capture_ring,
+    #                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    #ops.append(StatisticsOp(log, mcs_id, capture_ring,
+    #                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    #ops.append(WriterOp(log, capture_ring,
+    #                    beam=args.beam, ntime_gulp=args.gulp_size,
+    #                    swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
+    ops.append(RealTimeStreamingOp(log, capture_ring, beam=args.beam,
+                               ntime_gulp=args.gulp_size, core=cores.pop(0),
+                               remote_addr=args.remote_addr, remote_port=args.remote_port))
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     # Setup the threads
