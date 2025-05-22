@@ -17,6 +17,7 @@ array.  The software consists of two main parts: ``dr_visibilities.py`` and ``dr
    manager
    pbeam
    vbeam
+   rbeam
    using
    modules
 

@@ -88,12 +88,12 @@ def main(args):
                     
         print("Data Sizes:")
         print("  Antenna count:", nant)
-        print("    Antenna Name Contiguous Ranges:")
-        print(wrap_range_list(', '.join(["%s to %s" % tuple(ant_range) for ant_range in ant_ranges]),
-                              initial_indent='      ', subsequent_indent='      '))
+        # print("    Antenna Name Contiguous Ranges:")
+        # print(wrap_range_list(', '.join(["%s to %s" % tuple(ant_range) for ant_range in ant_ranges]),
+        #                       initial_indent='      ', subsequent_indent='      '))
         print("  Visibility count:", nvis)
         print("Scans:")
-        for s in scans:
+        for i,s in enumerate(scans):
             sdata = data.query(f"SCAN_NUMBER=={s}")
             
             stime = sdata.getcol('TIME') / 86400.0
@@ -125,6 +125,12 @@ def main(args):
             print("       (u,v) distance min:", min(nz_dist))
             print("       (u,v) distance max:", max(nz_dist))
             
+            try:
+                fill = data.getkeyword("FILL_LEVEL_%d" % i)
+                print("     Packet Fill Level: %.3f%%" % (fill*100))
+            except:
+                pass
+                
         data.close()
         ants.close()
         srcs.close()

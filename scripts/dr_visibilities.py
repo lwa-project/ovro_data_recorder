@@ -7,6 +7,7 @@ import h5py
 import json
 import time
 import numpy
+import queue
 import ctypes
 import signal
 import logging
@@ -96,6 +97,25 @@ def quota_size(value):
     return int(value*3600)
 
 
+FILL_QUEUE = queue.Queue(maxsize=1000)
+
+
+def get_good_and_missing_rx():
+    pid = os.getpid()
+    statsname = os.path.join('/dev/shm/bifrost', str(pid), 'udp_capture', 'stats')
+    
+    good = 'ngood_bytes    : 0'
+    missing = 'nmissing_bytes : 0'
+    if os.path.exists(statsname):
+        with open(os.path.join('/dev/shm/bifrost', str(pid), 'udp_capture', 'stats'), 'r'
+) as fh:        
+            good = fh.readline()
+            missing = fh.readline()
+    good = int(good.split(':', 1)[1], 10)
+    missing = int(missing.split(':', 1)[1], 10)
+    return good, missing
+
+
 class CaptureOp(object):
     def __init__(self, log, sock, oring, nbl, ntime_gulp=1,
                  slot_ntime=6, fast=False, shutdown_event=None, core=None):
@@ -143,11 +163,26 @@ class CaptureOp(object):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_cor(self.seq_callback)
         
+        good, missing = get_good_and_missing_rx()
         with UDPCapture("cor", self.sock, self.oring, self.nbl, 1, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
             while not self.shutdown_event.is_set():
                 status = capture.recv()
+                
+                # Determine the fill level of the last gulp
+                new_good, new_missing = get_good_and_missing_rx()
+                try:
+                    fill_level = float(new_good-good) / (new_good-good + new_missing-missing)
+                except ZeroDivisionError:
+                    fill_level = 0.0
+                good, missing = new_good, new_missing
+                
+                try:
+                    FILL_QUEUE.put_nowait(fill_level)
+                except queue.Full:
+                    pass
+                    
         del capture
 
 
@@ -965,12 +1000,15 @@ class WriterOp(object):
         self.size_proclog = ProcLog(type(self).__name__+"/size")
         self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        self.err_proclog = ProcLog(type(self).__name__+"/error")
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        self.err_proclog.update( {'nerror':0, 'last': ''})
         
     def main(self):
         global QUEUE
+        global FILL_QUEUE
         
         if self.core is not None:
             cpu_affinity.set_core(self.core)
@@ -1032,6 +1070,14 @@ class WriterOp(object):
                     cdata = cdata.astype(numpy.complex64)
                 cdata /= norm_factor
                 
+                ## Poll the fill level
+                try:
+                    fill_level = FILL_QUEUE.get_nowait()
+                    FILL_QUEUE.task_done()
+                except queue.Empty:
+                    self.log.warn("Failed to get integration fill level")
+                    fill_level = -1.0
+                    
                 ## Determine what to do
                 active_op = QUEUE.active
                 if active_op is not None:
@@ -1041,23 +1087,26 @@ class WriterOp(object):
                         active_op.start(self.station, chan0, navg, nchan, chan_bw, npol, pols)
                         was_active = True
                     try:
-                        active_op.write(time_tag, cdata)
+                        active_op.write(time_tag, cdata, fill_level=fill_level)
                         if not self.fast:
                             self.client.write_monitor_point('latest_time_tag', time_tag)
                             
                         if write_error_asserted:
                             write_error_asserted = False
                             self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            self.err_proclog.update({'nerror':0, 'last': ''})
                             write_error_counter = 0
                             
                     except Exception as e:
                         if not write_error_asserted:
                             write_error_asserted = True
                             self.log.error("Write error asserted - initial error: %s", str(e))
+                            self.err_proclog.update({'nerror':1, 'last': str(e).replace(':','--')})
                         write_error_counter += 1
                         
-                        if write_error_counter % 500 == 0:
+                        if write_error_counter % 50 == 0:
                             self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            self.err_proclog.update( {'nerror':write_error_counter, 'last': str(e).replace(':','--')})
                             
                 elif was_active:
                     ### Recording just finished
@@ -1197,11 +1246,11 @@ def main(argv):
     ops = []
     if args.offline:
         ops.append(DummyOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,
-                           ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                           ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                            fast=args.quick, core=cores.pop(0)))
     else:
         ops.append(CaptureOp(log, isock, capture_ring, (NPIPELINE//16)*nbl,   # two pipelines/recorder
-                             ntime_gulp=args.gulp_size, slot_ntime=(10 if args.quick else 6),
+                             ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
     if not args.quick:
         ops.append(SpectraOp(log, mcs_id, capture_ring,
@@ -1244,6 +1293,8 @@ def main(argv):
     for thread in threads:
         thread.join()
     log.info("All done")
+    
+    os.system(f"kill -9 {os.getpid()}")
     return 0
 
 

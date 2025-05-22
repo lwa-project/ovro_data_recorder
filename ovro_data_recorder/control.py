@@ -1,19 +1,20 @@
 import os
 import json
+import time
 import shutil
 import threading
 from datetime import datetime, timedelta
 
 from astropy.time import TimeDelta
 
-from mnc.common import CLOCK, LWATime, synchronize_time
+from mnc.common import CHAN_BW, CLOCK, LWATime, synchronize_time
 from mnc.mcs import MonitorPoint, CommandCallbackBase, Client
 
 from ovro_data_recorder.reductions import *
-from ovro_data_recorder.filewriter import DRXWriter, HDF5Writer, MeasurementSetWriter
+from ovro_data_recorder.filewriter import DRXWriter, VoltageBeamWriter, HDF5Writer, MeasurementSetWriter
 
 __all__ = ['PowerBeamCommandProcessor', 'VisibilityCommandProcessor',
-           'VoltageBeamCommandProcessor']
+           'VoltageBeamCommandProcessor', 'RawVoltageBeamCommandProcessor']
 
 
 class CommandBase(object):
@@ -25,7 +26,7 @@ class CommandBase(object):
     _required = ('sequence_id',)
     _optional = ()
     
-    def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None):
+    def __init__(self, log, queue, directory, filewriter_base, filewriter_kwds=None, pid=None):
         self.log = log
         self.queue = queue
         self.directory = directory
@@ -33,12 +34,14 @@ class CommandBase(object):
         if filewriter_kwds is None:
             filewriter_kwds = {}
         self.filewriter_kwds = filewriter_kwds
+        self.pid = pid
         
     @classmethod
     def attach_to_processor(cls, processor):
         kls = cls(processor.log, processor.queue, processor.directory,
-                  processor.filewriter_base, processor.filewriter_kwds)
-        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('Raw', '')
+                  processor.filewriter_base, processor.filewriter_kwds,
+                  processor.pid)
+        name = kls.command_name.replace('HDF5', '').replace('MS', '').replace('DRXRe', 'Re').replace('RawRe', 'raw_re')
         setattr(processor, name.lower(), kls)
         callback = CommandCallbackBase(processor.client.client)
         def wrapper(**kwargs):
@@ -133,6 +136,29 @@ class CommandBase(object):
         return self.action(*args, **kwds)
 
 
+class RestartService(CommandBase):
+    """
+    Command to use systemd's "Restart=on-failure" to restart a data recorder
+    service.  No reply should be expected from this command.  The input data
+    should have:
+     * id - a MCS command id
+    """
+    
+    _required = ('sequence_id',)
+    
+    def action(self, sequence_id):
+        if self.pid is not None:
+            self.log_info("Triggering a restart by killing off pid %d", self.pid)
+            os.system(f"kill {self.pid}")
+            time.sleep(30)
+            self.log_info("Trying harder to trigger a restart by killing off pid %d", self.pid)
+            os.system(f"kill -9 {self.pid}")
+            return True, 'restarting'
+        else:
+            self.log_error("Failed to trigger a restart: pid is None")
+            return False, 'cannot restart - cannot find service process ID'
+
+
 class Ping(CommandBase):
     """
     Command to simply reply to.  The input data should have:
@@ -211,10 +237,10 @@ class HDF5Record(CommandBase):
             self.log_error("Unknown Stokes mode: %s", stokes_mode)
             return False, "Unknown Stokes mode: %s" % stokes_mode
             
-        op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, start, stop, reduction=reduction_op, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
             self.log_error("Failed to schedule recording: %s", str(e))
             return False, "Failed to schedule recording: %s" % str(e)
             
@@ -248,10 +274,10 @@ class MSStart(CommandBase):
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
-        op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
             self.log_error("Failed to schedule recording start: %s", str(e))
             return False, "Failed to schedule recording start: %s" % str(e)
             
@@ -259,9 +285,9 @@ class MSStart(CommandBase):
         return True, {'filename': filename}
 
 
-class RawRecord(CommandBase):
+class DRXRecord(CommandBase):
     """
-    Command to schedule a recording of a voltage beam to a raw DRX file.  The
+    Command to schedule a recording of a voltage beam to a DRX file.  The
     input data should have:
      * id - a MCS command id
      * start_mjd - the MJD for the start of the recording or "now" to start the
@@ -289,10 +315,51 @@ class RawRecord(CommandBase):
             self.log_error("Failed to unpack command data: %s", str(e))
             return False, "Failed to unpack command data: %s" % str(e)
             
-        op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
         try:
+            op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
             self.queue.append(op)
-        except (TypeError, RuntimeError) as e:
+        except Exception as e:
+            self.log_error("Failed to schedule recording: %s", str(e))
+            return False, "Failed to schedule recording start: %s" % str(e)
+            
+        self.log_info("Scheduled recording for %s to %s to %s", start, stop, filename)
+        return True, {'filename': filename}
+
+
+class RawRecord(CommandBase):
+    """
+    Command to schedule a recording of a voltage beam to a raw voltage beam file.  The
+    input data should have:
+     * id - a MCS command id
+     * start_mjd - the MJD for the start of the recording or "now" to start the
+       recording 15 s from when the command is received
+     * start_mpm - the MPM for the start of the recording
+     * duration_ms - the duration of the recording in ms
+    """
+    
+    _required = ('sequence_id', 'beam', 'start_mjd', 'start_mpm', 'duration_ms')
+    
+    def action(self, sequence_id, beam, start_mjd, start_mpm, duration_ms):
+        try:
+            if start_mjd == "now":
+                start = LWATime.now() + TimeDelta(15, format='sec')
+                start_mjd = int(start.mjd)
+                start = start.datetime
+            else:
+                start = LWATime(start_mjd, start_mpm/1000.0/86400.0, format='mjd', scale='utc').datetime
+            filename = os.path.join(self.directory, '%06i_%12s%7s' % (start_mjd,
+                                                                      start.strftime('%H%M%S%f'),
+                                                                      sequence_id[:7]))
+            duration = timedelta(seconds=duration_ms//1000, microseconds=duration_ms*1000 % 1000000)
+            stop = start + duration
+        except (TypeError, ValueError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        try:
+            op = self.filewriter_base(filename, beam, start, stop, **self.filewriter_kwds)
+            self.queue.append(op)
+        except Exception as e:
             self.log_error("Failed to schedule recording: %s", str(e))
             return False, "Failed to schedule recording start: %s" % str(e)
             
@@ -466,6 +533,43 @@ class DRX(CommandBase):
         return True, "success"
 
 
+class BND(CommandBase):
+    """
+    Command to the frequency downselection of a raw voltage beam.  The input data should
+    have:
+     * id - a MCS command id
+     * beam - beam number (1 or 2)
+     * central_freq - central frequency in Hz
+     * bw - bandwidth in Hz
+    """
+    
+    _required = ('sequence_id', 'beam', 'central_freq', 'bw')
+    
+    _min_bandwidth = 3 * CHAN_BW
+    _max_bandwidth = 200 * CHAN_BW
+    
+    def action(self, sequence_id, beam, central_freq, bw):
+        try:
+            if beam not in (1,2):
+                raise AssertionError(f"invalid value for 'beam': {beam}")
+            if (central_freq <= bw/2) \
+                   or (central_freq >= (CLOCK/2 - bw/2)):
+                raise AssertionError(f"invalid value for 'central_freq': {central_freq}")
+            if bw < self._min_bandwidth or bw > self._max_bandwidth:
+                raise AssertionError(f"invalid value for 'bw': {bw}")
+        except (TypeError, AssertionError) as e:
+            self.log_error("Failed to unpack command data: %s", str(e))
+            return False, "Failed to unpack command data: %s" % str(e)
+            
+        # Put it in the queue
+        self.queue.append(beam, central_freq, bw)
+        
+        self.log_info("Raw Voltage Beam %i, to %.3f MHz with bandwidth %.3f MHz", beam,
+                                                                              central_freq/1e6,
+                                                                              bw/1e6)
+        return True, "success"
+
+
 class CommandProcessorBase(object):
     """
     Base class for a command processor.
@@ -484,6 +588,8 @@ class CommandProcessorBase(object):
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
+        
+        self.pid = os.getpid()
         
         self.client = Client(id)
         
@@ -504,7 +610,7 @@ class PowerBeamCommandProcessor(CommandProcessorBase):
      * delete
     """
     
-    _commands = (Ping, Sync, HDF5Record, Cancel, Delete)
+    _commands = (RestartService, Ping, Sync, HDF5Record, Cancel, Delete)
     
     def __init__(self, log, id, directory, queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, HDF5Writer,
@@ -520,7 +626,7 @@ class VisibilityCommandProcessor(CommandProcessorBase):
      * stop
     """
     
-    _commands = (Ping, Sync, MSStart, MSStop)
+    _commands = (RestartService, Ping, Sync, MSStart, MSStop)
     
     def __init__(self, log, id, directory, queue, nint_per_file=1, is_tarred=False, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, MeasurementSetWriter,
@@ -531,7 +637,7 @@ class VisibilityCommandProcessor(CommandProcessorBase):
 
 class VoltageBeamCommandProcessor(CommandProcessorBase):
     """
-    Command processor for voltage beam data.  Supports:
+    Command processor for T-engine'd voltage beam data.  Supports:
      * ping
      * sync
      * record
@@ -540,9 +646,28 @@ class VoltageBeamCommandProcessor(CommandProcessorBase):
      * drx
     """
     
-    _commands = (Ping, Sync, RawRecord, Cancel, Delete, DRX)
+    _commands = (RestartService, Ping, Sync, DRXRecord, Cancel, Delete, DRX)
     
     def __init__(self, log, id, directory, queue, drx_queue, shutdown_event=None):
         CommandProcessorBase.__init__(self, log, id, directory, queue, DRXWriter,
                                       shutdown_event=shutdown_event)
         self.drx.queue = drx_queue
+
+
+class RawVoltageBeamCommandProcessor(CommandProcessorBase):
+    """
+    Command processor for raw voltage beam data.  Supports:
+     * ping
+     * sync
+     * record
+     * cancel
+     * delete
+     * bnd
+    """
+    
+    _commands = (RestartService, Ping, Sync, RawRecord, Cancel, Delete, BND)
+    
+    def __init__(self, log, id, directory, queue, bnd_queue, shutdown_event=None):
+        CommandProcessorBase.__init__(self, log, id, directory, queue, VoltageBeamWriter,
+                                      shutdown_event=shutdown_event)
+        self.bnd.queue = bnd_queue

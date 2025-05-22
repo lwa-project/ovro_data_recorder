@@ -12,7 +12,8 @@ from mnc.common import LWATime
 from observing import obsstate
 
 __all__ = ['STOKES_CODES', 'NUMERIC_STOKES', 'get_zenith', 'get_zenith_uvw',
-           'create_ms', 'update_time', 'update_pointing', 'update_data']
+           'create_ms', 'update_fill_level', 'update_time', 'update_pointing',
+           'update_data']
 
 
 # Measurement set stokes name -> number
@@ -25,10 +26,6 @@ STOKES_CODES = {'I': 1,  'Q': 2,  'U': 3,  'V': 4,
 NUMERIC_STOKES = { 1:'I',   2:'Q',   3:'U',   4:'V', 
                    5:'RR',  6:'RL',  7:'LR',  8:'LL',
                    9:'XX', 10:'XY', 11:'YX', 12:'YY'}
-
-
-# Whether or not to flush the tables to disk before closing
-FORCE_TABLE_FLUSH = False
 
 
 # Logging instance
@@ -164,7 +161,7 @@ class _MSConfig(object):
             return None
 
 
-def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
+def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False, flush=True):
     """
     Create an empty measurement set with the right structure and tables.
     """
@@ -180,17 +177,17 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
     config = _MSConfig(station, tint, freq, pols, nint=nint)
     
     # Write some tables
-    _write_main_table(filename, config)
-    _write_antenna_table(filename, config)
-    _write_polarization_table(filename, config)
-    _write_observation_table(filename, config)
-    _write_spectralwindow_table(filename, config)
-    _write_misc_required_tables(filename, config)
+    _write_main_table(filename, config, flush=flush)
+    _write_antenna_table(filename, config, flush=flush)
+    _write_polarization_table(filename, config, flush=flush)
+    _write_observation_table(filename, config, flush=flush)
+    _write_spectralwindow_table(filename, config, flush=flush)
+    _write_misc_required_tables(filename, config, flush=flush)
     
     # Fixup the info and keywords for the main table
     tb = table(filename, readonly=False, ack=False)
     tb.putinfo({'type':'Measurement Set', 
-               'readme':'This is a MeasurementSet Table holding measurements from a Telescope'})
+                'readme':'This is a MeasurementSet Table holding measurements from a Telescope'})
     tb.putkeyword('MS_VERSION', numpy.float32(2.0))
     for tablename in sorted(glob.glob('%s/*' % filename)):
         if os.path.isdir(tablename):
@@ -198,12 +195,24 @@ def create_ms(filename, station, tint, freq, pols, nint=1, overwrite=False):
             stb = table("%s/%s" % (filename, tname), ack=False)
             tb.putkeyword(tname, stb)
             stb.close()
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
 
 
-def update_time(filename, scan, start_time, centroid_time, stop_time):
+def update_fill_level(filename, scan, fill_level, flush=False):
+    """
+    Update the FILL_LEVEL_# keyword inside a measurement set.
+    """
+    
+    tb = table(filename, readonly=False, ack=False)
+    tb.putkeyword('FILL_LEVEL_%d' % scan, numpy.float32(fill_level))
+    if flush:
+        tb.flush()
+    tb.close()
+
+
+def update_time(filename, scan, start_time, centroid_time, stop_time, flush=False):
     """
     Update the times inside a measurement set.
     """
@@ -216,7 +225,7 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
     nbl = nrow // (last_scan - first_scan + 1)
     tb.putcol('TIME', [start_time.measurementset,]*nbl, scan*nbl, nbl)
     tb.putcol('TIME_CENTROID', [centroid_time.measurementset,]*nbl, scan*nbl, nbl)
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -225,7 +234,7 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
         tb = table(os.path.join(filename, "FEED"), readonly=False, ack=False)
         nant = tb.nrows()
         tb.putcol('TIME', [start_time.measurementset,]*nant, 0, nant)
-        if FORCE_TABLE_FLUSH:
+        if flush:
             tb.flush()
         tb.close()
         
@@ -233,26 +242,26 @@ def update_time(filename, scan, start_time, centroid_time, stop_time):
     tb = table(os.path.join(filename, "OBSERVATION"), readonly=False, ack=False)
     tb.putcell('TIME_RANGE', scan, [start_time.measurementset, stop_time.measurementset])
     tb.putcell('RELEASE_DATE', scan, start_time.measurementset)
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
     # Source table
     tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
     tb.putcell('TIME', scan, start_time.measurementset)
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
     # Field table
     tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
     tb.putcell('TIME', scan, start_time.measurementset)
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
 
 
-def update_pointing(filename, scan, ra, dec):
+def update_pointing(filename, scan, ra, dec, flush=False):
     """
     Update the pointing for the first source in the measurement set to the
     provided RA and dec (in radians).
@@ -261,7 +270,7 @@ def update_pointing(filename, scan, ra, dec):
     # Source table
     tb = table(os.path.join(filename, "SOURCE"), readonly=False, ack=False)
     tb.putcell('DIRECTION', scan, numpy.array([ra,dec]))
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -269,12 +278,12 @@ def update_pointing(filename, scan, ra, dec):
     tb = table(os.path.join(filename, "FIELD"), readonly=False, ack=False)
     for col in ('DELAY_DIR', 'PHASE_DIR', 'REFERENCE_DIR'):
         tb.putcell(col, scan, numpy.array([[ra,dec],]))
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
 
 
-def update_data(filename, scan, visibilities):
+def update_data(filename, scan, visibilities, flush=False):
     """
     Update the visibilities in the main table.
     """
@@ -283,12 +292,12 @@ def update_data(filename, scan, visibilities):
     tb = table(filename, readonly=False, ack=False)
     nbl = visibilities.shape[0]
     tb.putcol('DATA', visibilities, scan*nbl, nbl)
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
 
 
-def _write_main_table(filename, config):
+def _write_main_table(filename, config, flush=False):
     """
     Write the main data table.
     """
@@ -411,7 +420,7 @@ def _write_main_table(filename, config):
     tb.putcol('TIME_CENTROID', [0.0,]*nint*nbl, 0, nint*nbl)
     tb.putcol('DATA', vs.transpose(0,2,1), 0, nint*nbl)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -431,11 +440,11 @@ def _write_main_table(filename, config):
     tb.putcol('POLARIZATION_ID', [0,]*1, 0, 1)
     tb.putcol('SPECTRAL_WINDOW_ID', [0,]*1, 0, 1)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
-def _write_antenna_table(filename, config):
+def _write_antenna_table(filename, config, flush=False):
     """
     Write the antenna table.
     """
@@ -495,11 +504,11 @@ def _write_antenna_table(filename, config):
         #tb.putcell('NAME', i, ant.get_name())
         #tb.putcell('STATION', i, station.name)
         
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
-def _write_polarization_table(filename, config):
+def _write_polarization_table(filename, config, flush=False):
     """
     Write the polarization table.
     """
@@ -544,7 +553,7 @@ def _write_polarization_table(filename, config):
     tb.putcell('FLAG_ROW', 0, False)
     tb.putcell('NUM_CORR', 0, npol)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -624,11 +633,11 @@ def _write_polarization_table(filename, config):
     tb.putcol('SPECTRAL_WINDOW_ID', [-1,]*nant, 0, nant)
     tb.putcol('TIME', [0.0,]*nant, 0, nant)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
-def _write_observation_table(filename, config):
+def _write_observation_table(filename, config, flush=False):
     """
     Write the observation table.
     """
@@ -683,7 +692,7 @@ def _write_observation_table(filename, config):
     tb.putcol('SCHEDULE_TYPE', ['all-sky',]*nint, 0, nint)
     tb.putcol('TELESCOPE_NAME', [station.name,]*nint, 0, nint)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -750,7 +759,7 @@ def _write_observation_table(filename, config):
     #tb.putcol('REST_FREQUENCY', []*nint, 0, nint)
     #tb.putcol('SYSVEL', []*nint, 0, nint)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -800,11 +809,11 @@ def _write_observation_table(filename, config):
     tb.putcol('SOURCE_ID', list(range(nint)), 0, nint)
     tb.putcol('TIME', [0.0,]*nint, 0, nint)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
-def _write_spectralwindow_table(filename, config):
+def _write_spectralwindow_table(filename, config, flush=False):
     """
     Write the spectral window table.
     """
@@ -886,12 +895,12 @@ def _write_spectralwindow_table(filename, config):
     tb.putcell('NUM_CHAN', 0, nchan)
     tb.putcell('TOTAL_BANDWIDTH', 0, nchan*chan_bw)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
    
 
-def _write_misc_required_tables(filename, config): 
+def _write_misc_required_tables(filename, config, flush=False): 
     station = config.station
     nant = config.nant
     nbl = config.nbl
@@ -929,7 +938,7 @@ def _write_misc_required_tables(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8])
     tb = table("%s/FLAG_CMD" % filename, desc, nrow=0, ack=False)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -960,7 +969,7 @@ def _write_misc_required_tables(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
     tb = table("%s/HISTORY" % filename, desc, nrow=0, ack=False)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -1001,7 +1010,7 @@ def _write_misc_required_tables(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7, col8, col9])
     tb = table("%s/POINTING" % filename, desc, nrow=0, ack=False)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -1030,7 +1039,7 @@ def _write_misc_required_tables(filename, config):
     tb.putcell('FLAG_ROW', 0, False)
     tb.putcell('SETTINGS', 0, settings)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
     
@@ -1056,7 +1065,6 @@ def _write_misc_required_tables(filename, config):
     desc = tableutil.maketabdesc([col1, col2, col3, col4, col5, col6, col7])
     tb = table("%s/STATE" % filename, desc, nrow=0, ack=False)
     
-    if FORCE_TABLE_FLUSH:
+    if flush:
         tb.flush()
     tb.close()
-    

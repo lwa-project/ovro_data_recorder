@@ -384,11 +384,12 @@ class StatisticsOp(object):
 
 
 class WriterOp(object):
-    def __init__(self, log, iring, beam=1, ntime_gulp=250, guarantee=True, core=None):
+    def __init__(self, log, iring, beam=1, ntime_gulp=250, swmr=False, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
         self.beam       = beam
         self.ntime_gulp = ntime_gulp
+        self.swmr       = swmr
         self.guarantee  = guarantee
         self.core       = core
         
@@ -397,9 +398,11 @@ class WriterOp(object):
         self.size_proclog = ProcLog(type(self).__name__+"/size")
         self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        self.err_proclog = ProcLog(type(self).__name__+"/error")
         
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        self.err_proclog.update( {'nerror':0, 'last': ''})
         
     def main(self):
         global QUEUE
@@ -468,23 +471,27 @@ class WriterOp(object):
                     ### Recording active - write
                     if not active_op.is_started:
                         self.log.info("Started operation - %s", active_op)
-                        active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols)
+                        active_op.start(self.beam, chan0, navg, nchan, chan_bw, npol, pols,
+                                        swmr=self.swmr)
                         was_active = True
                     try:
                         active_op.write(time_tag, ndata)
                         if write_error_asserted:
                             write_error_asserted = False
                             self.log.info("Write error de-asserted - count was %i", write_error_counter)
+                            self.err_proclog.update({'nerror':0, 'last': ''})
                             write_error_counter = 0
                             
                     except Exception as e:
                         if not write_error_asserted:
                             write_error_asserted = True
                             self.log.error("Write error asserted - initial error: %s", str(e))
+                            self.err_proclog.update({'nerror':1, 'last': str(e).replace(':','--')})
                         write_error_counter += 1
                         
                         if write_error_counter % 500 == 0:
                             self.log.error("Write error re-asserted - count is %i - latest error: %s", write_error_counter, str(e))
+                            self.err_proclog.update( {'nerror':write_error_counter, 'last': str(e).replace(':','--')})
                             
                 elif was_active:
                     ### Recording just finished - clean
@@ -529,6 +536,8 @@ def main(argv):
                         help='comma separated list of cores to bind to')
     parser.add_argument('-g', '--gulp-size', type=int, default=1024,
                         help='gulp size for ring buffers')
+    parser.add_argument('--swmr', action='store_true',
+                        help='enable single writer/multiple reader HDF5 files')
     parser.add_argument('-l', '--logfile', type=str,
                         help='file to write logging to')
     parser.add_argument('--debug', action='store_true',
@@ -607,7 +616,8 @@ def main(argv):
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
-                        beam=args.beam, ntime_gulp=args.gulp_size, core=cores.pop(0)))
+                        beam=args.beam, ntime_gulp=args.gulp_size,
+                        swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
@@ -633,6 +643,8 @@ def main(argv):
     for thread in threads:
         thread.join()
     log.info("All done")
+    
+    os.system(f"kill -9 {os.getpid()}")
     return 0
 
 

@@ -7,6 +7,7 @@ import numpy
 import atexit
 import shutil
 import subprocess
+import concurrent.futures
 from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from textwrap import fill as tw_fill
@@ -17,7 +18,7 @@ from ovro_data_recorder.lwahdf import *
 from ovro_data_recorder.lwams import *
 
 
-__all__ = ['FileWriterBase', 'DRXWriter', 'HDF5Writer', 'MeasurementSetWriter']
+__all__ = ['FileWriterBase', 'DRXWriter', 'VoltageBeamWriter', 'HDF5Writer', 'MeasurementSetWriter']
 
 
 # Temporary file directory
@@ -189,12 +190,32 @@ class DRXWriter(FileWriterBase):
         return self._interface
 
 
+class VoltageBeamWriter(FileWriterBase):
+    """
+    Sub-class of :py:class:`FileWriterBase` that writes data to a raw voltage beam data to a file.
+    """
+    
+    def __init__(self, filename, beam, start_time, stop_time):
+        FileWriterBase.__init__(self, filename, start_time, stop_time)
+        self.beam = beam
+        
+    def start(self):
+        """
+        Start the file writer and return the open file handle.
+        """
+        
+        self._interface = open(self.filename, 'wb')
+        self._started = True
+        
+        return self._interface
+
+
 class HDF5Writer(FileWriterBase):
     """
     Sub-class of :py:class:`FileWriterBase` that writes data to a HDF5 file.
     """
     
-    def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, **kwds):
+    def start(self, beam, chan0, navg, nchan, chan_bw, npol, pols, swmr=False, **kwds):
         """
         Set the metadata in the HDF5 file and prepare it for writing.
         """
@@ -226,8 +247,10 @@ class HDF5Writer(FileWriterBase):
         self._started = True
 
         # Enable concurrent access to the file
-        self._interface.swmr_mode = True
-        self._freq.flush()
+        self._swmr = swmr
+        if self._swmr:
+            self._interface.swmr_mode = True
+            self._freq.flush()
         self._last_flush = time.time()
         
     def write(self, time_tag, data):
@@ -272,13 +295,14 @@ class HDF5Writer(FileWriterBase):
                 self._pols[i][self._counter:self._counter+size,:] = data[range_start:range_start+size,0,:,i]
             # Update the counter
             self._counter += size
-            # Flush every 10 s
-            if time.time() - self._last_flush > 10:
-                self._time.flush()
-                for i in range(data.shape[-1]):
-                    self._pols[i].flush()
-                self._last_flush = time.time()
-                
+            if self._swmr:
+                # Flush every 60 s
+                if time.time() - self._last_flush > 60:
+                    self._time.flush()
+                    for i in range(data.shape[-1]):
+                        self._pols[i].flush()
+                    self._last_flush = time.time()
+                    
         except ValueError:
             # If we are here that probably means the file has been closed
             pass
@@ -296,7 +320,7 @@ class MeasurementSetWriter(FileWriterBase):
         # Setup
         self._tempdir = os.path.join(_TEMP_BASEDIR, '%s-%i' % (type(self).__name__, os.getpid()))
         if not os.path.exists(self._tempdir):
-            os.mkdir(self._tempdir)
+            os.makedirs(self._tempdir, exist_ok=True)
         self.nint_per_file = nint_per_file
         self.is_tarred = is_tarred
         
@@ -321,6 +345,10 @@ class MeasurementSetWriter(FileWriterBase):
         except AttributeError:
             pass
             
+        # Create the background move executor and its state variable
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+        self._threads = {}
+        
         # Create the template
         self._template = os.path.join(self._tempdir, 'template')
         create_ms(self._template, station, tint, freq, pols, nint=self.nint_per_file)
@@ -346,7 +374,7 @@ class MeasurementSetWriter(FileWriterBase):
         
         self._last_tagpath = ''
         
-    def write(self, time_tag, data):
+    def write(self, time_tag, data, fill_level=-1.0):
         tstart = LWATime(time_tag, format='timetag', scale='utc')
         tcent  = LWATime(time_tag + self._time_step // 2, format='timetag', scale='utc')
         tstop  = LWATime(time_tag + self._time_step, format='timetag', scale='utc')
@@ -362,10 +390,9 @@ class MeasurementSetWriter(FileWriterBase):
                 self._last_tagpath = self.tagpath
             self.tagname = "%s_%.0fMHz.ms" % (tstart.datetime.strftime('%Y%m%d_%H%M%S'), self._freq[0]/1e6)
             self.tempname = os.path.join(self._tempdir, self.tagname)
-            with open('/dev/null', 'wb') as dn:
-                subprocess.check_call(['cp', '-r', self._template, self.tempname],
-                                      stderr=dn)
-                
+            subprocess.check_call(['cp', '-r', self._template, self.tempname],
+                                  stderr=subprocess.DEVNULL)
+            
         # Find the point overhead
         zen = get_zenith(self._station, tcent)
         
@@ -378,37 +405,63 @@ class MeasurementSetWriter(FileWriterBase):
         # Fill in the main table
         update_data(self.tempname, self._counter, data[0,...])
         
+        # Update the fill level
+        update_fill_level(self.tempname, self._counter, fill_level)
+        
         # Save it to its final location
         self._counter += 1
         if self._counter == self._nint:
-            self.tagname = os.path.join(self.tagpath, self.tagname)
-            if self.is_tarred:
-                filename = os.path.join(self.filename, "%s.tar" % self.tagname)
-                save_cmd = ['tar', 'cf', filename, os.path.basename(self.tempname)]
-            else:
-                filename = os.path.join(self.filename, self.tagname)
-                save_cmd = ['cp', '-rf', self.tempname, filename]
-            with open('/dev/null', 'wb') as dn:
-                try:
-                    subprocess.check_call(save_cmd, stderr=dn, cwd=self._tempdir)
-                    shutil.rmtree(self.tempname, ignore_errors=True)
-                    self._counter = 0
-                except subprocess.CalledProcessError as e:
-                    shutil.rmtree(self.tempname, ignore_errors=True)
-                    self._counter = 0
-                    raise e
-                    
+            tagname = os.path.join(self.tagpath, self.tagname)
+            finalname = os.path.join(self.filename, tagname)
+            self._threads[self.tagname] = self._executor.submit(_background_move,
+                                                                self.tempname, finalname,
+                                                                is_tarred=self.is_tarred,
+                                                                cwd=self._tempdir)
+            self._counter = 0
+            
+            npending = len(self._threads)
+            nfailed = 0
+            to_remove = []
+            for tn in self._threads.keys():
+                if self._threads[tn].done():
+                    try:
+                        res = self._threads[tn].result()
+                    except Exception as e:
+                        nfailed += 1
+                    to_remove.append(tn)
+            for tn in to_remove:
+                del self._threads[tn]
+                npending -= 1
+                
+            if nfailed > 0:
+                raise RuntimeError(f"Background MS move thread encountered {nfailed} failures")
+            if npending > 50:
+                raise RuntimeError(f"Background MS move thread queue has {len(self._threads)} entries")
+            elif npending > 10:
+                print(f"WARNING: Background MS move thread queue has {len(self._threads)} entries")
+                
     def stop(self):
         """
         Close out the file and then call the 'post_stop_task' method.
         """
         
+        self._executor.shutdown(wait=True)
+        npending = len(self._threads)
+        nfailed = 0
+        to_remove = []
+        for tn in self._threads.keys():
+            if self._threads[tn].done():
+                try:
+                    res = self._threads[tn].result()
+                except Exception as e:
+                    nfailed += 1
+                to_remove.append(tn)
+        for tn in to_remove:
+            del self._threads[tn]
+            npending -= 1
+            
         try:
-            shutil.rmtree(self._template, ignore_errors=True)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self._tempdir)
+            shutil.rmtree(self._tempdir)
         except OSError:
             pass
             
@@ -416,3 +469,25 @@ class MeasurementSetWriter(FileWriterBase):
             self.post_stop_task()
         except NotImplementedError:
             pass
+
+
+def _background_move(tempname, finalname, is_tarred=False, cwd=None):
+    """
+    Simple function to move a temporary measurement set into its final
+    location.
+    """
+    
+    status = False
+    if is_tarred:
+        finalname += '.tar'
+        save_cmd = ['tar', 'cf', finalname, os.path.basename(tempname)]
+    else:
+        save_cmd = ['cp', '-rf', tempname, finalname]
+    try:
+        subprocess.check_call(save_cmd, stderr=subprocess.DEVNULL, cwd=cwd)
+        shutil.rmtree(tempname, ignore_errors=True)
+        status = True
+    except subprocess.CalledProcessError as e:
+        shutil.rmtree(tempname, ignore_errors=True)
+        
+    return status

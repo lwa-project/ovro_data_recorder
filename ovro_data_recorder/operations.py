@@ -7,7 +7,7 @@ from collections import deque
 
 from ovro_data_recorder.filewriter import FileWriterBase
 
-__all__ = ['OperationsQueueBase', 'FileOperationsQueue', 'DrxOperationsQueue']
+__all__ = ['OperationsQueueBase', 'FileOperationsQueue', 'DrxOperationsQueue', 'BndOperationsQueue']
 
 
 class OperationsQueueBase(object):
@@ -182,6 +182,40 @@ class DrxOperationsQueue(OperationsQueueBase):
     
     def append(self, beam, tuning, central_freq, filter, gain):
         op = (beam, tuning, central_freq, filter, gain)
+        self._queue.append(op)
+        
+    @property
+    def active(self):
+        """
+        The active DRX command or None if there is not one.
+        """
+        
+        activeop = None
+        try:
+            activeop = self._queue[0]
+        except IndexError:
+            pass
+        return activeop
+        
+    def set_active_accepted(self):
+        """
+        Set the active command as accepted.
+        """
+        
+        try:
+            self._queue.popleft()
+        except IndexError:
+            return False
+        return True
+
+
+class BndOperationsQueue(OperationsQueueBase):
+    """
+    Class to queue changes to the raw voltage beam downselection.
+    """
+    
+    def append(self, beam, central_freq, bw):
+        op = (beam, central_freq, bw)
         self._queue.append(op)
         
     @property

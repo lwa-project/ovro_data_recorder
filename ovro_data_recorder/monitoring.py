@@ -12,9 +12,11 @@ from mnc.mcs import MonitorPoint, Client
 
 from ovro_data_recorder.version import version as odr_version
 
-__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger', 'StatusLogger', 'GlobalLogger']
+__all__ = ['PerformanceLogger', 'DiskStorageLogger', 'TimeStorageLogger',
+           'StatusLogger', 'WatchdogLogger', 'GlobalLogger']
 
 MINIMUM_TO_DELETE_PATH_LENGTH = len("/data$$/slow")
+
 
 def interruptable_sleep(seconds, sub_interval=0.1, shutdown_event=None):
     """
@@ -57,10 +59,11 @@ class PerformanceLogger(object):
     as the RX rate and missing packet fraction.
     """
     
-    def __init__(self, log, id, queue=None, shutdown_event=None, update_interval=10):
+    def __init__(self, log, id, queue=None, ignore_capture=True, shutdown_event=None, update_interval=10):
         self.log = log
         self.id = id
         self.queue = queue
+        self.ignore_capture = ignore_capture
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self.shutdown_event = shutdown_event
@@ -82,6 +85,7 @@ class PerformanceLogger(object):
                                         0.0, timestamp=ts, unit='B/s')
         self.client.write_monitor_point('bifrost/rx_missing',
                                         0.0, timestamp=ts)
+        self.client.write_monitor_point('bifrost/error_count', 0)
         for entry in ('one_minute', 'five_minute', 'fifteen_minute'):
             self.client.write_monitor_point(f"system/load_average/{entry}",
                                             0.0, timestamp=ts)
@@ -117,20 +121,33 @@ class PerformanceLogger(object):
             # Find the maximum acquire/process/reserve times
             ts = time.time()
             acquire, process, reserve = 0.0, 0.0, 0.0
+            error_count = 0
             for block,contents in self._state[1][1].items():
+                if self.ignore_capture and block.find('_capture') != -1:
+                    continue
+                    
                 try:
                     perf = contents['perf']
                     acquire = max([acquire, perf['acquire_time']])
                     process = max([process, perf['process_time']])
                     reserve = max([reserve, perf['reserve_time']])
                 except KeyError:
-                    continue
+                    pass
+                    
+                try:
+                    err = contents['error']
+                    error_count += err['nerror']
+                except KeyError:
+                    pass
+                    
             self.client.write_monitor_point('bifrost/max_acquire',
                                             acquire, timestamp=ts, unit='s')
             self.client.write_monitor_point('bifrost/max_process',
                                             process, timestamp=ts, unit='s')
             self.client.write_monitor_point('bifrost/max_reserve',
                                             reserve, timestamp=ts, unit='s')
+            self.client.write_monitor_point('bifrost/error_count',
+                                            error_count, timestamp=ts)
             
             # Estimate the data rate and current missing data fracation
             ts = time.time()
@@ -710,6 +727,11 @@ class StatusLogger(object):
                 nfound += 1
             else:
                 processing = MonitorPoint(0.0)
+            err_count = self.client.read_monitor_point('bifrost/error_count')
+            if err_count is not None:
+                nfound += 1
+            else:
+                err_count = MonitorPoint(0)
             total = self.client.read_monitor_point('storage/active_disk_size')
             if total is not None:
                 nfound += 1
@@ -769,6 +791,12 @@ class StatusLogger(object):
                 ## Nonsensical packet loss check
                 new_summary = 'error'
                 new_info = "Packet loss during receive is invalid (%.1f%% missing)" % (missing.value*100.0,)
+                summary, info = self._combine_status(summary, info,
+                                                     new_summary, new_info)
+            elif err_count.value > 0:
+                ## Non-zero block error count
+                new_summary = 'error'
+                new_info = "Non-zero block error count (%i errors)" % (err_count.value,)
                 summary, info = self._combine_status(summary, info,
                                                      new_summary, new_info)
                 
@@ -837,6 +865,53 @@ class StatusLogger(object):
             self.log.info("StatusLogger - Done")
 
 
+class WatchdogLogger(object):
+    def __init__(self, log, id, pid, timeout=3600, shutdown_event=None, update_interval=600):
+        self.log = log
+        self.id = id
+        self.pid = pid
+        self.timeout = timeout
+        if shutdown_event is None:
+            shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
+        self.update_interval = update_interval
+        
+    def main(self, once=False):
+        while not self.shutdown_event.is_set():
+            t0 = time.time()
+            
+            try:
+                client = Client()
+                
+                status = client.read_monitor_point('summary', self.id)
+                if status is not None:
+                    age = t0 - status.timestamp
+                    if age > self.timeout:
+                        self.log.error("Watchdog report: FAILED - summary last updated %.1f hr ago", (age/3600))
+                        self.log.info("Watchdog: Triggering a restart by killing off pid %d", self.pid)
+                        #os.system(f"kill {self.pid}")
+                    else:
+                        self.log.info("Watchdog report: OK - summary last updated %.1f min ago", (age/60))
+                else:
+                    self.log.error("Watchdog report: FAILED - summary poll returned None")
+                    
+                del client
+                
+            except Exception as e:
+                self.log.error("Watchdog report: FAILED - %s", str(e))
+                
+            # Sleep
+            if once:
+                break
+                
+            t1 = time.time()
+            t_sleep = max([1.0, self.update_interval - (t1 - t0)])
+            interruptable_sleep(t_sleep, shutdown_event=self.shutdown_event)
+            
+        if not once:
+            self.log.info("WatchdogLogger - Done")
+
+
 class GlobalLogger(object):
     """
     Monitoring class that wraps :py:class:`PerformanceLogger`, :py:class:`DiskStorageLogger`/
@@ -852,6 +927,8 @@ class GlobalLogger(object):
         if shutdown_event is None:
             shutdown_event = threading.Event()
         self._shutdown_event = shutdown_event
+        
+        self.pid = os.getpid()
         
         SLC = {'disk': DiskStorageLogger,
                'time': TimeStorageLogger}
@@ -872,7 +949,7 @@ class GlobalLogger(object):
                     thread_names.append(type(t).__name__)
                 
         # Threads associated with this logger...
-        for new_thread in (type(self).__name__, 'PerformanceLogger', SLC_thread_name, 'StatusLogger'):
+        for new_thread in (type(self).__name__, 'PerformanceLogger', SLC_thread_name, 'StatusLogger', 'WatchdogLogger'):
             # ... with a catch to deal with potentially other instances
             name = new_thread
             name_count = 0
@@ -895,6 +972,9 @@ class GlobalLogger(object):
                                    gulp_time=gulp_time,
                                    shutdown_event=shutdown_event,
                                    update_interval=update_interval_status)
+        self.watchdog = WatchdogLogger(log, id, self.pid, timeout=3600,
+                                       shutdown_event=shutdown_event,
+                                       update_interval=600)
         
     @property
     def shutdown_event(self):
@@ -919,6 +999,7 @@ class GlobalLogger(object):
         threads.append(threading.Thread(target=self.perf.main, name=self._thread_names[1]))
         threads.append(threading.Thread(target=self.storage.main, name=self._thread_names[2]))
         threads.append(threading.Thread(target=self.status.main, name=self._thread_names[3]))
+        threads.append(threading.Thread(target=self.watchdog.main, name=self._thread_names[4]))
         
         # Start the threads
         for thread in threads:

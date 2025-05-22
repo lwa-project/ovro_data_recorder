@@ -67,7 +67,8 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 48
+                    if cores[c] > 47:
+                        cores[c] -= 24
                 with open('dr-beam-%s.service' % beam, 'w') as fh:
                     fh.write(service)
 
@@ -101,7 +102,8 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 48
+                    if cores[c] > 47:
+                        cores[c] -= 24
                 with open('dr-vslow-%s.service' % band, 'w') as fh:
                     fh.write(service)
 
@@ -153,7 +155,8 @@ def main(args):
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
                     cores[c] += len(cores)
-                    cores[c] %= 48
+                    if cores[c] > 47:
+                        cores[c] -= 24
                 with open('dr-vfast-%s.service' % band, 'w') as fh:
                     fh.write(service)
                     
@@ -179,6 +182,7 @@ def main(args):
     if args.t_engines:
         if args.clean:
             filenames = glob.glob('./dr-tengine.service')
+            filenames.extend(glob.glob('./dr-vbeam.service'))
             for filename in filenames:
                 os.unlink(filename)
         else:
@@ -197,6 +201,23 @@ def main(args):
                                           directory=directory, quota=quota, logdir=logdir,
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 with open('dr-tengine.service', 'w') as fh:
+                    fh.write(service)
+                    
+            template = env.get_template('dr-vbeam-base.service')
+            for beam in config['voltage_beams'].keys():
+                address   = config['voltage_beams'][beam]['ip']
+                port      = config['voltage_beams'][beam]['port']
+                directory = config['voltage_beams'][beam]['directory'].replace('beam', 'vbeam')
+                quota     = config['voltage_beams'][beam]['quota']
+                try:
+                    logdir = config['voltage_beams'][beam]['logdir']
+                except KeyError:
+                    logdir    = os.path.join(os.path.dirname(directory), 'log')
+                service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
+                                          address=address, port=port,
+                                          directory=directory, quota=quota, logdir=logdir,
+                                          generated=generated, input_file=input_file, input_file_md5=input_file_md5)
+                with open('dr-vbeam.service', 'w') as fh:
                     fh.write(service)
                     
     if not args.clean:
