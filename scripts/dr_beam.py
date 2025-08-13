@@ -15,6 +15,8 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
+import zmq
+
 from mnc.common import *
 from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
@@ -522,160 +524,222 @@ class WriterOp(object):
                 
         self.log.info("WriterOp - Done")
 
-class RealTimeStreamingOp(object):
-    def __init__(self, log, iring, beam, ntime_gulp=1024, guarantee=True, core=None, 
-                 remote_addr='127.0.0.1', remote_port=5555):
-        self.log = log
-        self.iring = iring
-        self.beam = beam
-        self.ntime_gulp = ntime_gulp
-        self.guarantee = guarantee
-        self.core = core
-        self.remote_addr = remote_addr
-        self.remote_port = remote_port
-        self.shutdown_event = None
-        self.transmitter = None
-        self.header_socket = None
 
-        self.bind_proclog = ProcLog(type(self).__name__ + "/bind")
-        self.in_proclog = ProcLog(type(self).__name__ + "/in")
-        self.size_proclog = ProcLog(type(self).__name__ + "/size")
-        self.sequence_proclog = ProcLog(type(self).__name__ + "/sequence0")
-        self.perf_proclog = ProcLog(type(self).__name__ + "/perf")
+
+class AvgDummyOp(object):
+    """
+    Read float32 power spectra from `iring`, average over time (axis=0),
+    and print the resulting array shape every `print_period` seconds.
+    Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
+    """
+    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, print_period=3.0):
+        self.log         = log
+        self.iring       = iring
+        self.ntime_gulp  = ntime_gulp
+        self.guarantee   = guarantee
+        self.core        = core
+        self.print_period= float(print_period)
+
+        # ProcLogs (for consistency with SpectraOp)
+        self.bind_proclog      = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog        = ProcLog(type(self).__name__+"/in")
+        self.size_proclog      = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog  = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog      = ProcLog(type(self).__name__+"/perf")
+
+        self.in_proclog.update({'nring': 1, 'ring0': self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+
+    def main(self):
+        # Optional CPU pinning
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
+
+        last_print = 0.0
+
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+            self.sequence_proclog.update(ihdr)
+            self.log.info("AvgDummyOp: Start of new sequence: %s", str(ihdr))
+
+            nbeam = ihdr['nbeam']
+            nchan = ihdr['nchan']
+            npol  = ihdr['npol']
+
+            # Bytes per gulp for float32 powers
+            igulp_size = self.ntime_gulp * nbeam * nchan * npol * 4
+            ishape     = (self.ntime_gulp, nbeam, nchan, npol)
+
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue  # Ignore short final gulp for consistent reshape
+
+                t0 = time.time()
+                acquire_time = t0 - prev_time
+                prev_time = t0
+
+                # Load gulp as float32 and average over time axis
+                idata = ispan.data_view(np.float32).reshape(ishape)
+                sdata = idata.mean(axis=0)   # -> (nbeam, nchan, npol)
+
+                # Print shape every print_period seconds
+                now = time.time()
+                if (now - last_print) >= self.print_period:
+                    print("AvgDummyOp: averaged shape =", sdata.shape)
+                    self.log.info("AvgDummyOp: averaged shape = %s", str(sdata.shape))
+                    last_print = now
+
+                t1 = time.time()
+                process_time = t1 - prev_time
+                prev_time = t1
+                self.perf_proclog.update({
+                    'acquire_time': acquire_time,
+                    'reserve_time': -1,
+                    'process_time': process_time,
+                })
+
+        self.log.info("AvgDummyOp - Done")
+
+
+class AvgStreamingOp(object):
+    """
+    Read float32 power spectra from `iring`, average over time (axis=0),
+    and stream the averaged data via ZMQ every 0.5 seconds to localhost:9798.
+    Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
+    """
+    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, 
+                 stream_addr='127.0.0.1', stream_port=9798, stream_interval=0.5):
+        self.log         = log
+        self.iring       = iring
+        self.ntime_gulp  = ntime_gulp
+        self.guarantee   = guarantee
+        self.core        = core
+        self.stream_addr = stream_addr
+        self.stream_port = stream_port
+        self.stream_interval = float(stream_interval)
+        self.shutdown_event = None
+
+        # ZMQ setup
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.bind(f"tcp://{self.stream_addr}:{self.stream_port}")
+        self.log.info(f"AvgStreamingOp: ZMQ socket bound to tcp://{self.stream_addr}:{self.stream_port}")
+
+        # ProcLogs (for consistency with other operations)
+        self.bind_proclog      = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog        = ProcLog(type(self).__name__+"/in")
+        self.size_proclog      = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog  = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog      = ProcLog(type(self).__name__+"/perf")
 
         self.in_proclog.update({'nring': 1, 'ring0': self.iring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
 
     def shutdown(self):
-        self.log.info("RealTimeStreamingOp: Initiating shutdown")
         if self.shutdown_event:
             self.shutdown_event.set()
-        if self.transmitter:
-            self.transmitter = None
-        if self.header_socket:
-            self.header_socket.close()
-            self.header_socket = None
+        if hasattr(self, 'socket'):
+            self.socket.close()
+        if hasattr(self, 'context'):
+            self.context.term()
+        self.log.info("AvgStreamingOp: Shutdown complete")
 
     def main(self):
+        # Optional CPU pinning
         if self.core is not None:
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
 
-        self.log.info("RealTimeStreamingOp: Starting")
-        try:
-            for iseq in self.iring.read(guarantee=self.guarantee):
+        last_stream_time = 0.0
+        accumulated_data = []
+        accumulated_count = 0
+
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            if self.shutdown_event and self.shutdown_event.is_set():
+                break
+                
+            ihdr = json.loads(iseq.header.tostring())
+            self.sequence_proclog.update(ihdr)
+            self.log.info("AvgStreamingOp: Start of new sequence: %s", str(ihdr))
+
+            nbeam = ihdr['nbeam']
+            nchan = ihdr['nchan']
+            npol  = ihdr['npol']
+
+            # Bytes per gulp for float32 powers
+            igulp_size = self.ntime_gulp * nbeam * nchan * npol * 4
+            ishape     = (self.ntime_gulp, nbeam, nchan, npol)
+
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
                 if self.shutdown_event and self.shutdown_event.is_set():
-                    self.log.info("RealTimeStreamingOp: Shutdown event detected")
                     break
-                ihdr = json.loads(iseq.header.tostring())
-                self.sequence_proclog.update(ihdr)
-
-                self.log.info("RealTimeStreaming: Start of new sequence: %s", str(ihdr))
-
-                # Update header for single beam
-                ihdr['nbeam'] = 1
-                ihdr['beam'] = self.beam
-
-                time_tag = ihdr['time_tag']
-                navg = ihdr['navg']
-                chan0 = ihdr['chan0']
-                nchan = ihdr['nchan']
-                chan_bw = ihdr['bw'] / nchan
-                npol = ihdr['npol']
-                pols = ihdr['pols']
-
-                self.log.info("RealTimeStreamingOp: parameters: %s", str(ihdr))
-
-                igulp_size = self.ntime_gulp * 1 * nchan * npol * 4  # float32
-                ishape = (self.ntime_gulp, 1, nchan, npol)
-                packet_nbyte = 1 + 8 + igulp_size  # 'D' + time_tag + data
-
-                # Initialize UDPTransmit with format similar to test example
-                self.header_socket = UDPSocket()
-                self.header_socket.connect(Address(self.remote_addr, self.remote_port))
-
-                self.log.info("RealTimeStreamingOp: Sending data to %s:%d", self.remote_addr, self.remote_port)
-
-                self.transmitter = UDPTransmit(
-                    fmt='pbeam1_128',  # Format: pbeam<beam>_<nchan>
-                    sock=self.header_socket
-                )
-                header_info = HeaderInfo()
-                header_info.set_nsrc(1)
-                header_info.set_nchan(nchan)
-                header_info.set_chan0(chan0)
-                header_info.set_tuning(0)
-
-                seq = time_tag
-                src = self.beam
-
-                prev_time = time.time()
-                iseq_spans = iseq.read(igulp_size * ihdr['nbeam'])
-                for ispan in iseq_spans:
-                    if self.shutdown_event and self.shutdown_event.is_set():
-                        self.log.info("RealTimeStreamingOp: Shutdown event detected in span loop")
-                        break
-                    if ispan.size < igulp_size * ihdr['nbeam']:
-                        continue
-
-                    curr_time = time.time()
-                    acquire_time = curr_time - prev_time
-                    prev_time = curr_time
-
-                    idata = ispan.data_view(np.float32).ravel()
                     
-                    idata = idata.reshape(nchan*npol,1,-1)
-                    idata = idata.transpose(2,1,0)
-                    idata = idata.copy()
-                    self.log.debug("RealTimeStreamingOp: spanshape %s", str(idata.shape))
+                if ispan.size < igulp_size:
+                    continue  # Ignore short final gulp for consistent reshape
+
+                t0 = time.time()
+                acquire_time = t0 - prev_time
+                prev_time = t0
+
+                # Load gulp as float32 and average over time axis
+                idata = ispan.data_view(np.float32).reshape(ishape)
+                sdata = idata.mean(axis=0)   # -> (nbeam, nchan, npol)
+                
+                # Accumulate data for streaming
+                accumulated_data.append(sdata)
+                accumulated_count += 1
+
+                # Check if it's time to stream
+                now = time.time()
+                if (now - last_stream_time) >= self.stream_interval and accumulated_count > 0:
+                    # Average all accumulated data
+                    if accumulated_count > 1:
+                        avg_data = np.mean(accumulated_data, axis=0)
+                    else:
+                        avg_data = accumulated_data[0]
                     
-                    #beam_data = idata[:, 0, :, :].reshape(ishape)
-
-                    self.log.debug("RealTimeStreamingOp: Processing span with size %d", ispan.size)
-                    self.log.debug("RealTimeStreamingOp: idata shape: %s, packet_nbyte: %d, time_tag: %d, seq: %d",
-                                   str(idata.shape), packet_nbyte, time_tag, seq)
-                                   
-                    self.log.debug("RealTimeStreamingOp: Sending packet with size %d", packet_nbyte)
-
-                    # Send via UDPTransmit
+                    # Prepare header with time_tag
+                    stream_header = {
+                        'time_tag': ihdr['time_tag'],
+                        'nbeam': nbeam,
+                        'nchan': nchan,
+                        'npol': npol,
+                        'timestamp': now,
+                        'data_shape': avg_data.shape
+                    }
+                    
+                    # Send data via ZMQ
                     try:
-                        self.log.debug("RealTimeStreamingOp: Sending data length: %d", navg * self.ntime_gulp * int(round(FS / chan_bw)))
-                        self.log.debug("RealTimeStreamingOp: Parms: FS=%d, chan_bw=%d, CHAN_BW=%d", FS, chan_bw, CHAN_BW)
-                        self.transmitter.send(
-                            header_info,
-                            seq,
-                            1,
-                            src,
-                            1,
-                            idata,
-                        )
-                        self.log.debug("Sent data packet: time_tag=%d, size=%d bytes to %s:%d", 
-                                       time_tag, packet_nbyte, self.remote_addr, self.remote_port)
+                        # Send header and data together
+                        header_msg = json.dumps(stream_header).encode()
+                        data_msg = avg_data.tobytes()
+                        self.socket.send_multipart([b"data", header_msg, data_msg])
+                        
+                        self.log.info("AvgStreamingOp: Streamed data with shape %s, time_tag %s", 
+                                    str(avg_data.shape), str(ihdr['time_tag']))
                     except Exception as e:
-                        self.log.error("Failed to send data packet: %s", str(e))
-                        break
+                        self.log.error("AvgStreamingOp: Failed to stream data: %s", str(e))
+                    
+                    # Reset accumulation
+                    accumulated_data = []
+                    accumulated_count = 0
+                    last_stream_time = now
 
-                    time_tag += navg * self.ntime_gulp * int(round(FS / chan_bw))
-                    seq = time_tag
+                t1 = time.time()
+                process_time = t1 - prev_time
+                prev_time = t1
+                self.perf_proclog.update({
+                    'acquire_time': acquire_time,
+                    'reserve_time': -1,
+                    'process_time': process_time,
+                })
 
-                    curr_time = time.time()
-                    process_time = curr_time - prev_time
-                    prev_time = curr_time
-                    self.perf_proclog.update({
-                        'acquire_time': acquire_time,
-                        'reserve_time': -1,
-                        'process_time': process_time
-                    })
+        self.log.info("AvgStreamingOp - Done")
 
-                self.transmitter = None
-                self.header_socket.close()
-                self.header_socket = None
-        except Exception as e:
-            self.log.error("RealTimeStreamingOp: Exception in main loop: %s", str(e))
-        finally:
-            self.log.info("RealTimeStreamingOp: Exiting")
-            self.shutdown()
-        self.log.info("RealTimeStreamingOp: Done")
+
 
 
 def main(argv):
@@ -692,7 +756,7 @@ def main(argv):
                         help='beam to receive data for')
     parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
                         help='comma separated list of cores to bind to')
-    parser.add_argument('-g', '--gulp-size', type=int, default=1024,
+    parser.add_argument('-g', '--gulp-size', type=int, default=512,
                         help='gulp size for ring buffers')
     parser.add_argument('--swmr', action='store_true',
                         help='enable single writer/multiple reader HDF5 files')
@@ -711,7 +775,7 @@ def main(argv):
     parser.add_argument('--remote-port', type=int, default=5555,
                         help='UDP port of the remote machine for streaming')
     args = parser.parse_args()
-    assert(args.gulp_size == 1024)  # Only one option
+    assert(args.gulp_size == 512)  # Only one option
     
     # Fork, if requested
     if args.fork:
@@ -782,9 +846,13 @@ def main(argv):
     #                    swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
-    ops.append(RealTimeStreamingOp(log, capture_ring, beam=args.beam,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0),
-                               remote_addr=args.remote_addr, remote_port=args.remote_port))
+    #ops.append(RealTimeStreamingOp(log, capture_ring, beam=args.beam,
+    #                           ntime_gulp=args.gulp_size, core=cores.pop(0),
+    #                            remote_addr=args.remote_addr, remote_port=args.remote_port))
+
+    ops.append(AvgStreamingOp(log, capture_ring,
+                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     # Setup the threads
@@ -795,6 +863,9 @@ def main(argv):
     ops[0].shutdown_event = shutdown_event
     ops[-2].shutdown_event = shutdown_event
     ops[-1].shutdown_event = shutdown_event
+    # Set shutdown event for AvgStreamingOp (index -3)
+    if len(ops) >= 3:
+        ops[-3].shutdown_event = shutdown_event
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))
