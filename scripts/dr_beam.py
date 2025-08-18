@@ -91,7 +91,6 @@ class CaptureOp(object):
     def main(self):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_pbeam(self.seq_callback)
-        
         with UDPCapture("pbeam", self.sock, self.oring, self.nserver, self.beam0, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
@@ -770,10 +769,6 @@ def main(argv):
                         help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
-    parser.add_argument('--remote-addr', type=str, default='127.0.0.1',
-                        help='IP address of the remote machine for streaming')
-    parser.add_argument('--remote-port', type=int, default=5555,
-                        help='UDP port of the remote machine for streaming')
     args = parser.parse_args()
     assert(args.gulp_size == 512)  # Only one option
     
@@ -847,9 +842,6 @@ def main(argv):
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     #ops.append(RealTimeStreamingOp(log, capture_ring, beam=args.beam,
-    #                           ntime_gulp=args.gulp_size, core=cores.pop(0),
-    #                            remote_addr=args.remote_addr, remote_port=args.remote_port))
-
     ops.append(AvgStreamingOp(log, capture_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0)))
     
