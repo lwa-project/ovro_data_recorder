@@ -755,7 +755,7 @@ def main(argv):
                         help='beam to receive data for')
     parser.add_argument('-c', '--cores', type=str, default='0,1,2,3',
                         help='comma separated list of cores to bind to')
-    parser.add_argument('-g', '--gulp-size', type=int, default=512,
+    parser.add_argument('-g', '--gulp-size', type=int, default=1024,
                         help='gulp size for ring buffers')
     parser.add_argument('--swmr', action='store_true',
                         help='enable single writer/multiple reader HDF5 files')
@@ -770,7 +770,7 @@ def main(argv):
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
     args = parser.parse_args()
-    assert(args.gulp_size == 512)  # Only one option
+    assert(args.gulp_size == 1024)  # Only one option
     
     # Fork, if requested
     if args.fork:
