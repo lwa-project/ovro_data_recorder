@@ -663,9 +663,15 @@ class AvgStreamingOp(object):
             self.sequence_proclog.update(ihdr)
             self.log.info("AvgStreamingOp: Start of new sequence: %s", str(ihdr))
 
-            nbeam = ihdr['nbeam']
-            nchan = ihdr['nchan']
-            npol  = ihdr['npol']
+            time_tag    = ihdr['time_tag']
+            nbeam       = ihdr['nbeam']
+            nchan       = ihdr['nchan']
+            npol        = ihdr['npol']
+            navg        = ihdr['navg']
+            chan_bw     = ihdr['bw'] / nchan
+            pols        = ihdr['pols']
+            pols        = pols.replace('CR', 'XY_real')
+            pols        = pols.replace('CI', 'XY_imag')
 
             # Bytes per gulp for float32 powers
             igulp_size = self.ntime_gulp * nbeam * nchan * npol * 4
@@ -707,6 +713,7 @@ class AvgStreamingOp(object):
                         'nchan': nchan,
                         'npol': npol,
                         'timestamp': now,
+                        'lwa_time': LWATime(time_tag, format='timetag').datetime,
                         'data_shape': avg_data.shape
                     }
                     
@@ -727,6 +734,8 @@ class AvgStreamingOp(object):
                     accumulated_count = 0
                     last_stream_time = now
 
+
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                 t1 = time.time()
                 process_time = t1 - prev_time
                 prev_time = t1
