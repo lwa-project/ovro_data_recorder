@@ -841,13 +841,13 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
-    #ops.append(SpectraOp(log, mcs_id, capture_ring,
-    #                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    #ops.append(StatisticsOp(log, mcs_id, capture_ring,
-    #                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
-    #ops.append(WriterOp(log, capture_ring,
-    #                    beam=args.beam, ntime_gulp=args.gulp_size,
-    #                    swmr=args.swmr, core=cores.pop(0)))
+    ops.append(SpectraOp(log, mcs_id, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    ops.append(StatisticsOp(log, mcs_id, capture_ring,
+                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
+    ops.append(WriterOp(log, capture_ring,
+                        beam=args.beam, ntime_gulp=args.gulp_size,
+                        swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
     #ops.append(RealTimeStreamingOp(log, capture_ring, beam=args.beam,
