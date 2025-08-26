@@ -713,7 +713,7 @@ class AvgStreamingOp(object):
                         'nchan': nchan,
                         'npol': npol,
                         'timestamp': now,
-                        'lwa_time': LWATime(time_tag, format='timetag').datetime,
+                        'lwa_time': str(LWATime(time_tag, format='timetag').datetime),
                         'data_shape': avg_data.shape
                     }
                     
@@ -850,7 +850,7 @@ def main(argv):
                         swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
-    #ops.append(RealTimeStreamingOp(log, capture_ring, beam=args.beam,
+    
     ops.append(AvgStreamingOp(log, capture_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0)))
     
