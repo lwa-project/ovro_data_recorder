@@ -6,7 +6,6 @@ import h5py
 import json
 import time
 import numpy
-import numpy as np
 import ctypes
 import signal
 import logging
@@ -29,7 +28,6 @@ from ovro_data_recorder.version import version as odr_version
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
 from bifrost.packet_capture import PacketCaptureCallback, UDPCapture, DiskReader
-from bifrost.packet_writer import HeaderInfo, UDPTransmit
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
@@ -38,7 +36,6 @@ from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import asarray as BFAsArray
-from bifrost import asarray
 
 
 QUEUE = FileOperationsQueue()
@@ -525,83 +522,6 @@ class WriterOp(object):
 
 
 
-class AvgDummyOp(object):
-    """
-    Read float32 power spectra from `iring`, average over time (axis=0),
-    and print the resulting array shape every `print_period` seconds.
-    Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
-    """
-    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, print_period=3.0):
-        self.log         = log
-        self.iring       = iring
-        self.ntime_gulp  = ntime_gulp
-        self.guarantee   = guarantee
-        self.core        = core
-        self.print_period= float(print_period)
-
-        # ProcLogs (for consistency with SpectraOp)
-        self.bind_proclog      = ProcLog(type(self).__name__+"/bind")
-        self.in_proclog        = ProcLog(type(self).__name__+"/in")
-        self.size_proclog      = ProcLog(type(self).__name__+"/size")
-        self.sequence_proclog  = ProcLog(type(self).__name__+"/sequence0")
-        self.perf_proclog      = ProcLog(type(self).__name__+"/perf")
-
-        self.in_proclog.update({'nring': 1, 'ring0': self.iring.name})
-        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
-
-    def main(self):
-        # Optional CPU pinning
-        if self.core is not None:
-            cpu_affinity.set_core(self.core)
-        self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
-
-        last_print = 0.0
-
-        for iseq in self.iring.read(guarantee=self.guarantee):
-            ihdr = json.loads(iseq.header.tostring())
-            self.sequence_proclog.update(ihdr)
-            self.log.info("AvgDummyOp: Start of new sequence: %s", str(ihdr))
-
-            nbeam = ihdr['nbeam']
-            nchan = ihdr['nchan']
-            npol  = ihdr['npol']
-
-            # Bytes per gulp for float32 powers
-            igulp_size = self.ntime_gulp * nbeam * nchan * npol * 4
-            ishape     = (self.ntime_gulp, nbeam, nchan, npol)
-
-            prev_time = time.time()
-            for ispan in iseq.read(igulp_size):
-                if ispan.size < igulp_size:
-                    continue  # Ignore short final gulp for consistent reshape
-
-                t0 = time.time()
-                acquire_time = t0 - prev_time
-                prev_time = t0
-
-                # Load gulp as float32 and average over time axis
-                idata = ispan.data_view(np.float32).reshape(ishape)
-                sdata = idata.mean(axis=0)   # -> (nbeam, nchan, npol)
-
-                # Print shape every print_period seconds
-                now = time.time()
-                if (now - last_print) >= self.print_period:
-                    print("AvgDummyOp: averaged shape =", sdata.shape)
-                    self.log.info("AvgDummyOp: averaged shape = %s", str(sdata.shape))
-                    last_print = now
-
-                t1 = time.time()
-                process_time = t1 - prev_time
-                prev_time = t1
-                self.perf_proclog.update({
-                    'acquire_time': acquire_time,
-                    'reserve_time': -1,
-                    'process_time': process_time,
-                })
-
-        self.log.info("AvgDummyOp - Done")
-
-
 class AvgStreamingOp(object):
     """
     Read float32 power spectra from `iring`, average over time (axis=0),
@@ -609,7 +529,7 @@ class AvgStreamingOp(object):
     Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
     """
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, 
-                 stream_addr='127.0.0.1', stream_port=9798, stream_interval=0.5):
+                 stream_addr='127.0.0.1', stream_port=9798, stream_interval=0.25):
         self.log         = log
         self.iring       = iring
         self.ntime_gulp  = ntime_gulp
@@ -690,7 +610,7 @@ class AvgStreamingOp(object):
                 prev_time = t0
 
                 # Load gulp as float32 and average over time axis
-                idata = ispan.data_view(np.float32).reshape(ishape)
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
                 sdata = idata.mean(axis=0)   # -> (nbeam, nchan, npol)
                 
                 # Accumulate data for streaming
@@ -702,19 +622,21 @@ class AvgStreamingOp(object):
                 if (now - last_stream_time) >= self.stream_interval and accumulated_count > 0:
                     # Average all accumulated data
                     if accumulated_count > 1:
-                        avg_data = np.mean(accumulated_data, axis=0)
+                        avg_data = numpy.mean(accumulated_data, axis=0)
                     else:
                         avg_data = accumulated_data[0]
                     
+                    t_last_block = time_tag + navg * self.ntime_gulp * int(round(FS/CHAN_BW))
                     # Prepare header with time_tag
                     stream_header = {
                         'time_tag': ihdr['time_tag'],
-                        'nbeam': nbeam,
-                        'nchan': nchan,
-                        'npol': npol,
-                        'timestamp': now,
-                        'lwa_time': str(LWATime(time_tag, format='timetag').datetime),
-                        'data_shape': avg_data.shape
+                        'nbeam': nbeam, # number of beams 
+                        'nchan': nchan, # number of channels
+                        'npol': npol, # number of polarizations
+                        'timestamp': now, # time of msg creation
+                        'last_block_time': str(LWATime(t_last_block, format='timetag').datetime),
+                        'data_shape': avg_data.shape,
+                        'data_type': '<f4',
                     }
                     
                     # Send data via ZMQ
@@ -724,7 +646,7 @@ class AvgStreamingOp(object):
                         data_msg = avg_data.tobytes()
                         self.socket.send_multipart([b"data", header_msg, data_msg])
                         
-                        self.log.info("AvgStreamingOp: Streamed data with shape %s, time_tag %s", 
+                        self.log.debug("AvgStreamingOp: Streamed data with shape %s, time_tag %s", 
                                     str(avg_data.shape), str(ihdr['time_tag']))
                     except Exception as e:
                         self.log.error("AvgStreamingOp: Failed to stream data: %s", str(e))
@@ -778,6 +700,8 @@ def main(argv):
                         help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
+
+
     args = parser.parse_args()
     assert(args.gulp_size == 1024)  # Only one option
     
@@ -850,7 +774,7 @@ def main(argv):
                         swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
-    
+                                
     ops.append(AvgStreamingOp(log, capture_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0)))
     
