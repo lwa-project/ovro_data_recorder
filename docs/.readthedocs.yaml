@@ -18,6 +18,7 @@ build:
       - git submodule init
       - git submodule update
     post_create_environment:
+      - bash ./docs/.rtd_ovro_helper.sh
       - bash ./docs/.rtd_bifrost_helper.sh
   
 conda:
