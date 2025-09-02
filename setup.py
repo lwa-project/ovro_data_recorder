@@ -3,12 +3,6 @@ import glob
 from subprocess import check_call, check_output, CalledProcessError
 from setuptools import setup, Extension, find_namespace_packages
 
-try:
-    import numpy as np
-except Exception as e:
-    raise RuntimeError(f"numpy is required to run setup.py: {str(e)}")
-
-
 def get_version():
     """Determine a version based on the git repo info."""
     
@@ -71,10 +65,13 @@ local_version = '{odrLocalVersion}'
 """)
 
 
-ExtensionModules = [Extension('gridder', ['ovro_data_recorder/gridder.cpp',],
-                              include_dirs=[np.get_include()],
-                              libraries=['m', 'fftw3f'],
-                              extra_compile_args=['-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION',]),]
+
+def get_extensions():
+    import numpy as np
+    return [Extension('gridder', ['ovro_data_recorder/gridder.cpp',],
+                      include_dirs=[np.get_include()],
+                      libraries=['m', 'fftw3f'],
+                      extra_compile_args=['-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION',]),]
 
 
 # Update the version information
@@ -94,6 +91,6 @@ setup(
                         'lwa352_pipeline_control', 'lwa_observing'],
     include_package_data = True,  
     ext_package = 'ovro_data_recorder', 
-    ext_modules = ExtensionModules,
+    ext_modules = get_extensions(),
     zip_safe = False
 )
