@@ -1,7 +1,7 @@
 #!/bin/bash
 
-pip install setuptools_scm
-pip install etcd3 \
+pip install --no-build-isolation \
+   etcd3 \
   "git+https://github.com/dsa110/dsa110-pyutils@v3.8.2" \
   "git+https://github.com/ovro-lwa/mnc_python@0.8.12" \
   "git+https://github.com/ovro-lwa/lwa-antpos@0.6.10" \
