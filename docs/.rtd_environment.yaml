@@ -15,7 +15,7 @@ dependencies:
   - matplotlib
   - ctypesgen
   - setuptools-scm
-  - zmq
+  - pyzmq
   - pip:
     - etcd3
     - "git+https://github.com/dsa110/dsa110-pyutils@v3.8.2"
