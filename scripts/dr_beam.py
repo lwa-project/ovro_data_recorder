@@ -765,8 +765,11 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
-    ops.append(SpectraOp(log, mcs_id, capture_ring,
-                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
+
+    # spectraOp is making plots, similar task can be done by AvgStreamingOp
+    # ops.append(SpectraOp(log, mcs_id, capture_ring,
+    #                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
