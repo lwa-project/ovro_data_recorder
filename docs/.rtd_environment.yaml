@@ -15,9 +15,9 @@ dependencies:
   - matplotlib
   - ctypesgen
   - setuptools-scm
+  - zmq
   - pip:
     - etcd3
-    - setuptools-scm
     - "git+https://github.com/dsa110/dsa110-pyutils@v3.8.2"
     - "git+https://github.com/ovro-lwa/mnc_python@0.8.12"
     - "git+https://github.com/ovro-lwa/lwa-antpos@0.6.10"
