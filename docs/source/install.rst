@@ -13,6 +13,7 @@ pipeline frame.  The following Python packages are needed to full the pipelines:
  * casacore >= 3.0.0
  * h5py >= 2.7.1
  * etcd3 >= 0.12.0
+ * pyzmq
 
 Older versions of the packages listed above may work but have not been tested.
 
@@ -20,4 +21,4 @@ Installing
 ==========
 
 Once the requirements are met no additional installation steps are required.  Simply
-run the pipelines with the :doc:`desired command line arguments</using>`.
+run the pipelines with the :doc:`desired command line arguments`.
