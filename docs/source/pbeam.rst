@@ -203,7 +203,7 @@ The ``AvgStreamingOp`` provides real-time data streaming capabilities for extern
 
 **Streaming Configuration:**
  * **Default Address:** 127.0.0.1 (localhost) (defined by the ``--streaming-address`` command line argument)
- * **Default Port:** 30000 (defined by the ``--streaming-port`` command line argument), should follow a convention of dr[#] using port number 30000 + #, where # is the power beam number.
+ * **Default Port:** 30000 (defined by the ``--streaming-port`` command line argument)
  * **Default Interval:** 0.25 seconds (configurable)
  * **Protocol:** ZMQ PUB/SUB pattern for one-to-many communication
 

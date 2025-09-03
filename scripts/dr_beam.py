@@ -702,6 +702,8 @@ def main(argv):
                         help='fork and run in the background')
     parser.add_argument('-s', '--streaming-port', type=int, default=30000,
                         help='streaming port number')
+    parser.add_argument('--streaming-address', type=str, default='127.0.0.1',
+                        help='streaming address')
 
 
     args = parser.parse_args()
@@ -782,7 +784,8 @@ def main(argv):
                                 
     ops.append(AvgStreamingOp(log, capture_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0),
-                               stream_port=args.streaming_port))
+                               stream_port=args.streaming_port,
+                               stream_address=args.streaming_address))
     
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
