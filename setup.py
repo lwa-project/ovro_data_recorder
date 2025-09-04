@@ -21,24 +21,24 @@ def get_version():
     repo_version = 'unknown'
     try:
         git_branch = check_output(['git', 'branch', '--show-current'],
-                                  cwd=os.path.dirname(__file__))
+                                  cwd=os.path.dirname(os.path.abspath(__file__)))
         git_branch = git_branch.decode().strip().rstrip()
         if os.getenv('READTHEDOCS', None) is not None:
             git_branch = 'rtd'
             
         git_hash = check_output(['git', 'log', '-n', '1', '--pretty=format:%H'],
-                                cwd=os.path.dirname(__file__))
+                                cwd=os.path.dirname(os.path.abspath(__file__)))
         git_hash = git_hash.decode().strip().rstrip()
         
         git_dirty = 0
         try:
             check_call(['git', 'diff-index', '--quiet', '--cached', 'HEAD', '--'],
-                       cwd=os.path.dirname(__file__))
+                       cwd=os.path.dirname(os.path.abspath(__file__)))
         except CalledProcessError:
             git_dirty += 1
         try:
             check_call(['git', 'diff-files', '--quiet'],
-                       cwd=os.path.dirname(__file__))
+                       cwd=os.path.dirname(os.path.abspath(__file__)))
         except CalledProcessError:
             git_dirty += 1
             
