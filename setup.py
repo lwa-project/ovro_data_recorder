@@ -90,7 +90,7 @@ setup(
     scripts=glob.glob('scripts/*.py'),
     setup_requires = ['numpy>=1.7'],
     install_requires = ['astropy', 'python-casacore', 'numpy', 'scipy', 'h5py', 'pillow',
-                        'etcd3', 'jinja2', 'bifrost', 'mnc_python', 'lwa_antpos',
+                        'etcd3', 'jinja2', 'pyzmq', 'bifrost', 'mnc_python', 'lwa_antpos',
                         'lwa352_pipeline_control', 'lwa_observing'],
     include_package_data = True,  
     ext_package = 'ovro_data_recorder', 
