@@ -700,6 +700,10 @@ def main(argv):
                         help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
+    parser.add_argument('-s', '--streaming-port', type=int, default=30000,
+                        help='streaming port number')
+    parser.add_argument('--streaming-address', type=str, default='127.0.0.1',
+                        help='streaming address')
 
 
     args = parser.parse_args()
@@ -779,7 +783,9 @@ def main(argv):
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
                                 
     ops.append(AvgStreamingOp(log, capture_ring,
-                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
+                               ntime_gulp=args.gulp_size, core=cores.pop(0),
+                               stream_port=args.streaming_port,
+                               stream_address=args.streaming_address))
     
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
