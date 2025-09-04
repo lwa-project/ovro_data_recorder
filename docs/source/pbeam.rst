@@ -10,8 +10,8 @@ recorded.  In addition, the pipeline also generates diagnostic plots of the spec
 Structure
 ---------
 
-The pipeline is written in the Bifrost framework and has four blocks:  
-``CaptureOp``, ``SpectraOp``, ``StatisticsOp``, and ``WriterOp``.
+The pipeline is written in the Bifrost framework and has five blocks:  
+``CaptureOp``, ``SpectraOp``, ``StatisticsOp``, ``WriterOp``, and ``AvgStreamingOp``.
 
  * ``CaptureOp`` - This is the data capture block which is responsible for capturing
    the power beam packets from the digital system, ordering them in time and frequency,
@@ -21,6 +21,9 @@ The pipeline is written in the Bifrost framework and has four blocks:
  * ``StatisticsOp`` - This reads in the power beam data and computes the
    minimum/mean/maximum values across time and frequency on a 60 s cadence.
  * ``WriterOp`` - This reads in the visibility data and writes HDF5 files to disk.
+ * ``AvgStreamingOp`` - This reads power spectra data from the input ring, averages
+   the data over time, and streams the averaged data via ZMQ to external applications
+   for real-time monitoring and analysis.
 
 The pipeline is designed such that there is one pipeline per power beam.  For the
 expected number power beams created by the digital system this equates to 12 
@@ -186,3 +189,45 @@ The HDF5 files written by the pipeline have the following structure:
        * ...
        * <polarization_N> - data set - the time-frequency data for last polarization
          recorded, named by the name of the polarization product
+
+
+
+AvgStreamingOp Details
+----------------------
+
+The ``AvgStreamingOp`` provides real-time data streaming capabilities for external
+ monitoring and analysis applications. It operates as follows, itreads power spectra data from the input ring buffer, 
+ Then averages data over the time axis to reduce temporal resolution (to 0.25s by default)
+ Then accumulates multiple averaged frames for configurable streaming intervals, 
+ and then streams data via ZMQ (ZeroMQ) PUB socket for efficient real-time transmission
+
+**Streaming Configuration:**
+ * **Default Address:** 127.0.0.1 (localhost) (defined by the ``--streaming-address`` command line argument)
+ * **Default Port:** 30000 (defined by the ``--streaming-port`` command line argument)
+ * **Default Interval:** 0.25 seconds (configurable)
+ * **Protocol:** ZMQ PUB/SUB pattern for one-to-many communication
+
+**Data Format:**
+ * **Input Shape:** (ntime_gulp, nbeam, nchan, npol) - typically (250, 1, 3072, 4)
+ * **Averaged Shape:** (nbeam, nchan, npol) - typically (1, 3072, 4)
+ * **Streamed Data:** Binary float32 data with JSON header containing metadata
+
+**Header Information:**
+ * ``time_tag`` - LWA time tag from the original data
+ * ``nbeam``, ``nchan``, ``npol`` - Data dimensions
+ * ``timestamp`` - Current time when message is created (float, seconds since epoch)
+ * ``last_block_time`` - Last block processing time (LWA time format)
+ * ``data_shape`` - Shape of the averaged data
+ * ``data_type`` - Data type specification ('<f4' for float32)
+
+**Use Cases:**
+ * Real-time spectrum monitoring and visualization
+ * External data analysis applications
+ * Live system diagnostics and debugging
+ * Integration with web-based monitoring interfaces
+
+The streaming operation runs continuously while the pipeline is active and provides
+a low-latency data feed for external applications without interfering with the
+primary recording functionality.
+
+

@@ -14,6 +14,8 @@ import threading
 from functools import reduce
 from datetime import datetime, timedelta
 
+import zmq
+
 from mnc.common import *
 from mnc.mcs import ImageMonitorPoint, MultiMonitorPoint, Client
 
@@ -86,7 +88,6 @@ class CaptureOp(object):
     def main(self):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_pbeam(self.seq_callback)
-        
         with UDPCapture("pbeam", self.sock, self.oring, self.nserver, self.beam0, 9000, 
                         self.ntime_gulp, self.slot_ntime,
                         sequence_callback=seq_callback, core=self.core) as capture:
@@ -520,6 +521,157 @@ class WriterOp(object):
         self.log.info("WriterOp - Done")
 
 
+
+class AvgStreamingOp(object):
+    """
+    Read float32 power spectra from `iring`, average over time (axis=0),
+    and stream the averaged data via ZMQ every 0.5 seconds to localhost:9798.
+    Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
+    """
+    def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, 
+                 stream_addr='127.0.0.1', stream_port=9798, stream_interval=0.25):
+        self.log         = log
+        self.iring       = iring
+        self.ntime_gulp  = ntime_gulp
+        self.guarantee   = guarantee
+        self.core        = core
+        self.stream_addr = stream_addr
+        self.stream_port = stream_port
+        self.stream_interval = float(stream_interval)
+        self.shutdown_event = None
+
+        # ZMQ setup
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.bind(f"tcp://{self.stream_addr}:{self.stream_port}")
+        self.log.info(f"AvgStreamingOp: ZMQ socket bound to tcp://{self.stream_addr}:{self.stream_port}")
+
+        # ProcLogs (for consistency with other operations)
+        self.bind_proclog      = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog        = ProcLog(type(self).__name__+"/in")
+        self.size_proclog      = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog  = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog      = ProcLog(type(self).__name__+"/perf")
+
+        self.in_proclog.update({'nring': 1, 'ring0': self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+
+    def shutdown(self):
+        if self.shutdown_event:
+            self.shutdown_event.set()
+        if hasattr(self, 'socket'):
+            self.socket.close()
+        if hasattr(self, 'context'):
+            self.context.term()
+        self.log.info("AvgStreamingOp: Shutdown complete")
+
+    def main(self):
+        # Optional CPU pinning
+        if self.core is not None:
+            cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
+
+        last_stream_time = 0.0
+        accumulated_data = []
+        accumulated_count = 0
+
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            if self.shutdown_event and self.shutdown_event.is_set():
+                break
+                
+            ihdr = json.loads(iseq.header.tostring())
+            self.sequence_proclog.update(ihdr)
+            self.log.info("AvgStreamingOp: Start of new sequence: %s", str(ihdr))
+
+            time_tag    = ihdr['time_tag']
+            nbeam       = ihdr['nbeam']
+            nchan       = ihdr['nchan']
+            npol        = ihdr['npol']
+            navg        = ihdr['navg']
+            chan_bw     = ihdr['bw'] / nchan
+            pols        = ihdr['pols']
+            pols        = pols.replace('CR', 'XY_real')
+            pols        = pols.replace('CI', 'XY_imag')
+
+            # Bytes per gulp for float32 powers
+            igulp_size = self.ntime_gulp * nbeam * nchan * npol * 4
+            ishape     = (self.ntime_gulp, nbeam, nchan, npol)
+
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if self.shutdown_event and self.shutdown_event.is_set():
+                    break
+                    
+                if ispan.size < igulp_size:
+                    continue  # Ignore short final gulp for consistent reshape
+
+                t0 = time.time()
+                acquire_time = t0 - prev_time
+                prev_time = t0
+
+                # Load gulp as float32 and average over time axis
+                idata = ispan.data_view(numpy.float32).reshape(ishape)
+                sdata = idata.mean(axis=0)   # -> (nbeam, nchan, npol)
+                
+                # Accumulate data for streaming
+                accumulated_data.append(sdata)
+                accumulated_count += 1
+
+                # Check if it's time to stream
+                now = time.time()
+                if (now - last_stream_time) >= self.stream_interval and accumulated_count > 0:
+                    # Average all accumulated data
+                    if accumulated_count > 1:
+                        avg_data = numpy.mean(accumulated_data, axis=0)
+                    else:
+                        avg_data = accumulated_data[0]
+                    
+                    t_last_block = time_tag + navg * self.ntime_gulp * int(round(FS/CHAN_BW))
+                    # Prepare header with time_tag
+                    stream_header = {
+                        'time_tag': ihdr['time_tag'],
+                        'nbeam': nbeam, # number of beams 
+                        'nchan': nchan, # number of channels
+                        'npol': npol, # number of polarizations
+                        'timestamp': now, # time of msg creation
+                        'last_block_time': str(LWATime(t_last_block, format='timetag').datetime),
+                        'data_shape': avg_data.shape,
+                        'data_type': '<f4',
+                    }
+                    
+                    # Send data via ZMQ
+                    try:
+                        # Send header and data together
+                        header_msg = json.dumps(stream_header).encode()
+                        data_msg = avg_data.tobytes()
+                        self.socket.send_multipart([b"data", header_msg, data_msg])
+                        
+                        self.log.debug("AvgStreamingOp: Streamed data with shape %s, time_tag %s", 
+                                    str(avg_data.shape), str(ihdr['time_tag']))
+                    except Exception as e:
+                        self.log.error("AvgStreamingOp: Failed to stream data: %s", str(e))
+                    
+                    # Reset accumulation
+                    accumulated_data = []
+                    accumulated_count = 0
+                    last_stream_time = now
+
+
+                time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
+                t1 = time.time()
+                process_time = t1 - prev_time
+                prev_time = t1
+                self.perf_proclog.update({
+                    'acquire_time': acquire_time,
+                    'reserve_time': -1,
+                    'process_time': process_time,
+                })
+
+        self.log.info("AvgStreamingOp - Done")
+
+
+
+
 def main(argv):
     parser = argparse.ArgumentParser(
                  description="Data recorder for power beams"
@@ -548,6 +700,12 @@ def main(argv):
                         help='quota for the recording directory, 0 disables the quota')
     parser.add_argument('-f', '--fork', action='store_true',
                         help='fork and run in the background')
+    parser.add_argument('-s', '--streaming-port', type=int, default=30000,
+                        help='streaming port number')
+    parser.add_argument('--streaming-address', type=str, default='127.0.0.1',
+                        help='streaming address')
+
+
     args = parser.parse_args()
     assert(args.gulp_size == 1024)  # Only one option
     
@@ -611,8 +769,11 @@ def main(argv):
     else:
         ops.append(CaptureOp(log, isock, capture_ring, NPIPELINE,
                              ntime_gulp=args.gulp_size, slot_ntime=1024, core=cores.pop(0)))
-    ops.append(SpectraOp(log, mcs_id, capture_ring,
-                            ntime_gulp=args.gulp_size, core=cores.pop(0)))
+
+    # spectraOp is making plots, similar task can be done by AvgStreamingOp
+    # ops.append(SpectraOp(log, mcs_id, capture_ring,
+    #                        ntime_gulp=args.gulp_size, core=cores.pop(0)))
+
     ops.append(StatisticsOp(log, mcs_id, capture_ring,
                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
     ops.append(WriterOp(log, capture_ring,
@@ -620,6 +781,12 @@ def main(argv):
                         swmr=args.swmr, core=cores.pop(0)))
     ops.append(GlobalLogger(log, mcs_id, args, QUEUE, quota=args.record_directory_quota,
                             threads=ops, gulp_time=args.gulp_size*24*(2*NCHAN/CLOCK)))  # Ugh, hard coded
+                                
+    ops.append(AvgStreamingOp(log, capture_ring,
+                               ntime_gulp=args.gulp_size, core=cores.pop(0),
+                               stream_port=args.streaming_port,
+                               stream_address=args.streaming_address))
+    
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
     # Setup the threads
@@ -630,6 +797,9 @@ def main(argv):
     ops[0].shutdown_event = shutdown_event
     ops[-2].shutdown_event = shutdown_event
     ops[-1].shutdown_event = shutdown_event
+    # Set shutdown event for AvgStreamingOp (index -3)
+    if len(ops) >= 3:
+        ops[-3].shutdown_event = shutdown_event
     
     # Launch!
     log.info("Launching %i thread(s)", len(threads))
