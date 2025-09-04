@@ -529,22 +529,22 @@ class AvgStreamingOp(object):
     Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
     """
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, 
-                 stream_addr='127.0.0.1', stream_port=9798, stream_interval=0.25):
+                 streaming_addr='127.0.0.1', streaming_port=9798, stream_interval=0.25):
         self.log         = log
         self.iring       = iring
         self.ntime_gulp  = ntime_gulp
         self.guarantee   = guarantee
         self.core        = core
-        self.stream_addr = stream_addr
-        self.stream_port = stream_port
+        self.streaming_addr = streaming_addr
+        self.streaming_port = streaming_port
         self.stream_interval = float(stream_interval)
         self.shutdown_event = None
 
         # ZMQ setup
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
-        self.socket.bind(f"tcp://{self.stream_addr}:{self.stream_port}")
-        self.log.info(f"AvgStreamingOp: ZMQ socket bound to tcp://{self.stream_addr}:{self.stream_port}")
+        self.socket.bind(f"tcp://{self.streaming_addr}:{self.streaming_port}")
+        self.log.info(f"AvgStreamingOp: ZMQ socket bound to tcp://{self.streaming_addr}:{self.streaming_port}")
 
         # ProcLogs (for consistency with other operations)
         self.bind_proclog      = ProcLog(type(self).__name__+"/bind")
@@ -784,8 +784,8 @@ def main(argv):
                                 
     ops.append(AvgStreamingOp(log, capture_ring,
                                ntime_gulp=args.gulp_size, core=cores.pop(0),
-                               stream_port=args.streaming_port,
-                               stream_address=args.streaming_address))
+                               streaming_port=args.streaming_port,
+                               streaming_addr=args.streaming_addr))
     
     ops.append(PowerBeamCommandProcessor(log, mcs_id, args.record_directory, QUEUE))
     
