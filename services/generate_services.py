@@ -53,6 +53,7 @@ def main(args):
                 port      = config['power_beams'][beam]['port']
                 directory = config['power_beams'][beam]['directory']
                 quota     = config['power_beams'][beam]['quota']
+                streaming_port        = config['power_beams'][beam]['streaming_port']
                 try:
                     logdir = config['power_beams'][beam]['logdir']
                 except KeyError:
@@ -62,7 +63,7 @@ def main(args):
                     last_address = address
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           beam=beam, address=address, port=port,
-                                          directory=directory, quota=quota, logdir=logdir,
+                                          directory=directory, quota=quota, logdir=logdir, streaming_port=streaming_port,
                                           cores=','.join([str(v) for v in cores]),
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):

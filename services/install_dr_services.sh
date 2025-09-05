@@ -16,7 +16,7 @@ if (( ${SUB0} > 16 )); then
 fi
 
 cd ${BASEDIR}
-./generate_services.py
+./generate_services.py -a -e deployment
 
 mkdir -p /home/pipeline/.config/systemd/user/
 
