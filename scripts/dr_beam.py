@@ -527,9 +527,11 @@ class AvgStreamingOp(object):
     Read float32 power spectra from `iring`, average over time (axis=0),
     and stream the averaged data via ZMQ every 0.5 seconds to localhost:9798.
     Assumes gulp data reshape to (ntime_gulp, nbeam, nchan, npol).
+    stream_interval: minimal interval between two streaming packets in seconds
+    npack_per_gulp: number of streaming packets per gulp (1024 slots per gulp as a fixed number, for 1.024s worth of data)
     """
     def __init__(self, log, iring, ntime_gulp=250, guarantee=True, core=None, 
-                 streaming_addr='127.0.0.1', streaming_port=9798, stream_interval=0.25):
+                 streaming_addr='127.0.0.1', streaming_port=9798, stream_interval=0.15, npack_per_gulp=2):
         self.log         = log
         self.iring       = iring
         self.ntime_gulp  = ntime_gulp
@@ -539,6 +541,7 @@ class AvgStreamingOp(object):
         self.streaming_port = streaming_port
         self.stream_interval = float(stream_interval)
         self.shutdown_event = None
+        self.npack_per_gulp = npack_per_gulp
 
         # ZMQ setup
         self.context = zmq.Context()
@@ -571,9 +574,8 @@ class AvgStreamingOp(object):
             cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 'core0': cpu_affinity.get_core()})
 
-        last_stream_time = 0.0
-        accumulated_data = []
-        accumulated_count = 0
+        npack_per_gulp = self.npack_per_gulp
+        last_pack_time = time.time()
 
         for iseq in self.iring.read(guarantee=self.guarantee):
             if self.shutdown_event and self.shutdown_event.is_set():
@@ -610,51 +612,46 @@ class AvgStreamingOp(object):
                 prev_time = t0
 
                 # Load gulp as float32 and average over time axis
-                idata = ispan.data_view(numpy.float32).reshape(ishape)
-                sdata = idata.mean(axis=0)   # -> (nbeam, nchan, npol)
+                idata = ispan.data_view(numpy.float32).reshape(ishape)  # (ntime_gulp, nbeam, nchan, npol)
                 
-                # Accumulate data for streaming
-                accumulated_data.append(sdata)
-                accumulated_count += 1
-
                 # Check if it's time to stream
                 now = time.time()
-                if (now - last_stream_time) >= self.stream_interval and accumulated_count > 0:
-                    # Average all accumulated data
-                    if accumulated_count > 1:
-                        avg_data = numpy.mean(accumulated_data, axis=0)
-                    else:
-                        avg_data = accumulated_data[0]
+                if (now - last_pack_time) >= self.stream_interval:
+                    for i in range(npack_per_gulp):
+                        chunk_size = int(self.ntime_gulp // npack_per_gulp)
+                        avg_data = idata[i*chunk_size:(i+1)*chunk_size].mean(axis=0)
+
+
+                        t_last_block = time_tag + navg * chunk_size * (i+1) * int(round(FS/CHAN_BW))
+
+                        stream_header = {
+                            'time_tag': ihdr['time_tag'],
+                            'nbeam': nbeam, # number of beams 
+                            'nchan': nchan, # number of channels
+                            'npol': npol, # number of polarizations
+                            'timestamp': now, # time of msg creation
+                            'last_block_time': str(LWATime(t_last_block, format='timetag').datetime),
+                            'data_shape': avg_data.shape,
+                            'data_type': '<f4',
+                        }
                     
-                    t_last_block = time_tag + navg * self.ntime_gulp * int(round(FS/CHAN_BW))
-                    # Prepare header with time_tag
-                    stream_header = {
-                        'time_tag': ihdr['time_tag'],
-                        'nbeam': nbeam, # number of beams 
-                        'nchan': nchan, # number of channels
-                        'npol': npol, # number of polarizations
-                        'timestamp': now, # time of msg creation
-                        'last_block_time': str(LWATime(t_last_block, format='timetag').datetime),
-                        'data_shape': avg_data.shape,
-                        'data_type': '<f4',
-                    }
-                    
-                    # Send data via ZMQ
-                    try:
-                        # Send header and data together
-                        header_msg = json.dumps(stream_header).encode()
-                        data_msg = avg_data.tobytes()
-                        self.socket.send_multipart([b"data", header_msg, data_msg])
+                        # Send data via ZMQ
+                        try:
+                            # Send header and data together
+                            header_msg = json.dumps(stream_header).encode()
+                            data_msg = avg_data.tobytes()
+                            self.socket.send_multipart([b"data", header_msg, data_msg])
                         
-                        self.log.debug("AvgStreamingOp: Streamed data with shape %s, time_tag %s", 
+                            self.log.debug("AvgStreamingOp: Streamed data with shape %s, time_tag %s", 
                                     str(avg_data.shape), str(ihdr['time_tag']))
-                    except Exception as e:
-                        self.log.error("AvgStreamingOp: Failed to stream data: %s", str(e))
+                        except Exception as e:
+                            self.log.error("AvgStreamingOp: Failed to stream data: %s", str(e))
+
+                        # wait minimal interval
+                        if i < npack_per_gulp - 1:
+                            time.sleep(self.stream_interval)
                     
-                    # Reset accumulation
-                    accumulated_data = []
-                    accumulated_count = 0
-                    last_stream_time = now
+                    last_pack_time = now
 
 
                 time_tag += navg * self.ntime_gulp * int(round(FS/CHAN_BW))
@@ -702,7 +699,7 @@ def main(argv):
                         help='fork and run in the background')
     parser.add_argument('-s', '--streaming-port', type=int, default=30000,
                         help='streaming port number')
-    parser.add_argument('--streaming-address', type=str, default='127.0.0.1',
+    parser.add_argument('--streaming-addr', type=str, default='127.0.0.1',
                         help='streaming address')
 
 
