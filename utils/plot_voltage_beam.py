@@ -10,10 +10,10 @@ from matplotlib import pyplot as plt
 
 
 """
-IBeam Packet Headers:
+RBeam Packet Headers:
     uint8_t  server;   // Note: 1-based
     uint8_t  gbe;      // (AKA tuning)
-    uint8_t  nchan;    // 109
+    uint16_t nchan;    // Note: Big endian; 109
     uint8_t  nbeam;    // 2
     uint8_t  nserver;  // 6
     // Note: Big endian
@@ -33,11 +33,11 @@ def main(args):
         with open(filename, 'rb') as fh:
             spec = []
             while True:
-                hdr = fh.read(15)
-                if len(hdr) < 15:
+                hdr = fh.read(16)
+                if len(hdr) < 16:
                     break
                     
-                hdr = struct.unpack('>BBBBBHQ', hdr)
+                hdr = struct.unpack('>BBHBBHQ', hdr)
                 if prev_timetag == 0:
                     print("Setup:")
                     print(f"  nchan: {hdr[2]} = {hdr[2]*196e6/(2*4096)/1e6:.3f} MHz")
