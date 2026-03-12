@@ -28,6 +28,7 @@ python3 {{ path }}/dr_beam.py \
          --address                {{ address }} \
          --port                   {{ port }} \
          --beam                   {{ beam }} \
+         --streaming-beam         {{ streaming_port }} \
          --cores                  {{ cores }} \
          --swmr \
          --record-directory       {{ directory }} \
