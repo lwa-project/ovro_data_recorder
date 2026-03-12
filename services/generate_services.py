@@ -51,7 +51,7 @@ def main(args):
             for beam in config['power_beams'].keys():
                 address   = config['power_beams'][beam]['ip']
                 port      = config['power_beams'][beam]['port']
-                streaming_port = config['fast_vis'][band]['streaming_port']
+                streaming_port = config['power_beams'][beam]['streaming_port']
                 directory = config['power_beams'][beam]['directory']
                 quota     = config['power_beams'][beam]['quota']
                 try:

@@ -38,16 +38,16 @@
   "power_beams": {
     "1":  {"ip": "10.41.0.76", "port": 20001, "streaming_port": 30001, "directory": "/lustre/pipeline/beam01", "quota": "500GB", "logdir": "/data01/pipeline/log"},
     "2":  {"ip": "10.41.0.76", "port": 20002, "streaming_port": 30002, "directory": "/lustre/pipeline/beam02", "quota": "500GB", "logdir": "/data01/pipeline/log"},
-    "3":  {"ip": "10.41.0.77", "port": 20001, "streaming_port": 30001, "directory": "/lustre/pipeline/beam03", "quota": "500GB", "logdir": "/data02/pipeline/log"},
-    "4":  {"ip": "10.41.0.77", "port": 20002, "streaming_port": 30002, "directory": "/lustre/pipeline/beam04", "quota": "500GB", "logdir": "/data02/pipeline/log"},
-    "5":  {"ip": "10.41.0.78", "port": 20001, "streaming_port": 30001, "directory": "/lustre/pipeline/beam05", "quota": "500GB", "logdir": "/data03/pipeline/log"},
-    "6":  {"ip": "10.41.0.78", "port": 20002, "streaming_port": 30002, "directory": "/lustre/pipeline/beam06", "quota": "500GB", "logdir": "/data03/pipeline/log"},
-    "7":  {"ip": "10.41.0.79", "port": 20001, "streaming_port": 30001, "directory": "/lustre/pipeline/beam07", "quota": "500GB", "logdir": "/data04/pipeline/log"},
-    "8":  {"ip": "10.41.0.79", "port": 20002, "streaming_port": 30002, "directory": "/lustre/pipeline/beam08", "quota": "500GB", "logdir": "/data04/pipeline/log"},
-    "9":  {"ip": "10.41.0.80", "port": 20001, "streaming_port": 30001, "directory": "/lustre/pipeline/beam09", "quota": "500GB", "logdir": "/data05/pipeline/log"},
-    "10": {"ip": "10.41.0.80", "port": 20002, "streaming_port": 30002, "directory": "/lustre/pipeline/beam10", "quota": "500GB", "logdir": "/data05/pipeline/log"},
-    "11": {"ip": "10.41.0.81", "port": 20001, "streaming_port": 30001, "directory": "/lustre/pipeline/beam11", "quota": "500GB", "logdir": "/data06/pipeline/log"},
-    "12": {"ip": "10.41.0.81", "port": 20002, "streaming_port": 30002, "directory": "/lustre/pipeline/beam12", "quota": "500GB", "logdir": "/data06/pipeline/log"}
+    "3":  {"ip": "10.41.0.77", "port": 20001, "streaming_port": 30003, "directory": "/lustre/pipeline/beam03", "quota": "500GB", "logdir": "/data02/pipeline/log"},
+    "4":  {"ip": "10.41.0.77", "port": 20002, "streaming_port": 30004, "directory": "/lustre/pipeline/beam04", "quota": "500GB", "logdir": "/data02/pipeline/log"},
+    "5":  {"ip": "10.41.0.78", "port": 20001, "streaming_port": 30005, "directory": "/lustre/pipeline/beam05", "quota": "500GB", "logdir": "/data03/pipeline/log"},
+    "6":  {"ip": "10.41.0.78", "port": 20002, "streaming_port": 30006, "directory": "/lustre/pipeline/beam06", "quota": "500GB", "logdir": "/data03/pipeline/log"},
+    "7":  {"ip": "10.41.0.79", "port": 20001, "streaming_port": 30007, "directory": "/lustre/pipeline/beam07", "quota": "500GB", "logdir": "/data04/pipeline/log"},
+    "8":  {"ip": "10.41.0.79", "port": 20002, "streaming_port": 30008, "directory": "/lustre/pipeline/beam08", "quota": "500GB", "logdir": "/data04/pipeline/log"},
+    "9":  {"ip": "10.41.0.80", "port": 20001, "streaming_port": 30009, "directory": "/lustre/pipeline/beam09", "quota": "500GB", "logdir": "/data05/pipeline/log"},
+    "10": {"ip": "10.41.0.80", "port": 20002, "streaming_port": 30010, "directory": "/lustre/pipeline/beam10", "quota": "500GB", "logdir": "/data05/pipeline/log"},
+    "11": {"ip": "10.41.0.81", "port": 20001, "streaming_port": 30011, "directory": "/lustre/pipeline/beam11", "quota": "500GB", "logdir": "/data06/pipeline/log"},
+    "12": {"ip": "10.41.0.81", "port": 20002, "streaming_port": 30012, "directory": "/lustre/pipeline/beam12", "quota": "500GB", "logdir": "/data06/pipeline/log"}
   },
   "voltage_beams": {
      "1": {"ip": "10.41.0.97", "port": 21001, "directory": "/data/beam01", "quota": 0}
