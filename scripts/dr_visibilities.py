@@ -432,6 +432,95 @@ class SpectraOp(object):
         self.log.info("SpectraOp - Done")
 
 
+class SpectraSaveOp(object):
+    def __init__(self, log, iring, output_dir, ntime_gulp=1, guarantee=True, core=-1):
+        self.log        = log
+        self.iring      = iring
+        self.output_dir = output_dir
+        self.ntime_gulp = ntime_gulp
+        self.guarantee  = guarantee
+        self.core       = core
+
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+
+        self.in_proclog.update({'nring':1, 'ring0':self.iring.name})
+
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1,
+                                  'core0': cpu_affinity.get_core(),})
+
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
+
+            self.sequence_proclog.update(ihdr)
+
+            self.log.info("SpectraSave: Start of new sequence: %s", str(ihdr))
+
+            # Setup the ring metadata and gulp sizes
+            time_tag = ihdr['time_tag']
+            navg     = ihdr['navg']
+            nbl      = ihdr['nbl']
+            nstand   = ihdr['nstand']
+            chan0    = ihdr['chan0']
+            nchan    = ihdr['nchan']
+            chan_bw  = ihdr['bw'] / nchan
+            npol     = ihdr['npol']
+
+            igulp_size = self.ntime_gulp*nbl*nchan*npol*8   # ci32
+            ishape = (self.ntime_gulp,nbl,nchan,npol)
+
+            freq  = chan0*chan_bw + numpy.arange(nchan)*chan_bw
+            autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
+            pols  = numpy.array(['XX', 'XY', 'YX', 'YY'])
+
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue  # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
+
+                idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
+
+                # Extract autocorrelations as complex: (nstand, nchan, npol)
+                adata = idata[0, autos, :, :, 0].astype(numpy.float32) \
+                      + 1j*idata[0, autos, :, :, 1].astype(numpy.float32)
+
+                # Build output path and filename
+                tt = LWATime(time_tag, format='timetag')
+                dt = tt.datetime
+                tagpath = os.path.join(self.output_dir,
+                                       f"{freq[0]/1e6:.0f}MHz",
+                                       dt.strftime("%Y-%m-%d"),
+                                       dt.strftime("%H"))
+                os.makedirs(tagpath, exist_ok=True)
+                tagname = "%s_%.0fMHz_autocorr.npz" % (dt.strftime('%Y%m%d_%H%M%S'),
+                                                        freq[0]/1e6)
+
+                numpy.savez(os.path.join(tagpath, tagname),
+                            time_tag=numpy.int64(time_tag),
+                            freq=freq,
+                            autocorr=adata,
+                            pols=pols)
+
+                time_tag += navg * self.ntime_gulp
+
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time,
+                                          'reserve_time': 0.0,
+                                          'process_time': process_time,})
+
+        self.log.info("SpectraSaveOp - Done")
+
+
 class BaselineOp(object):
     def __init__(self, log, id, station, iring, ntime_gulp=1, guarantee=True, core=-1):
         self.log        = log
@@ -1172,6 +1261,10 @@ def main(argv):
                         help='generate images for the inner core and a subset of the bandwidth')
     parser.add_argument('--cal-dir', type=str,
                         help='directory to look for beamformer calibration data in (only for --image)')
+    parser.add_argument('--specsave', action='store_true',
+                        help='save per-integration autocorrelation spectra as NPZ files instead of monitor points')
+    parser.add_argument('--autocorr-save-dir', type=str, default=None,
+                        help='directory to write autocorrelation NPZ files (required with --specsave)')
     args = parser.parse_args()
     
     # Process the -q/--quick option
@@ -1253,8 +1346,15 @@ def main(argv):
                              ntime_gulp=args.gulp_size, slot_ntime=(600 if args.quick else 6),
                              fast=args.quick, core=cores.pop(0)))
     if not args.quick:
-        ops.append(SpectraOp(log, mcs_id, capture_ring,
-                             ntime_gulp=args.gulp_size, core=cores.pop(0)))
+        if args.specsave:
+            if args.autocorr_save_dir is None:
+                raise RuntimeError("--autocorr-save-dir is required when --specsave is set")
+            os.makedirs(args.autocorr_save_dir, exist_ok=True)
+            ops.append(SpectraSaveOp(log, capture_ring, args.autocorr_save_dir,
+                                     ntime_gulp=args.gulp_size, core=cores.pop(0)))
+        else:
+            ops.append(SpectraOp(log, mcs_id, capture_ring,
+                                 ntime_gulp=args.gulp_size, core=cores.pop(0)))
         ops.append(BaselineOp(log, mcs_id, station, capture_ring,
                               ntime_gulp=args.gulp_size, core=cores.pop(0)))
         if args.image:
