@@ -493,7 +493,7 @@ class SpectraSaveOp(object):
                       + 1j*idata[0, :, :, :, 1].astype(numpy.float32)
 
                 # Incoherent sum of all visibilities: (nchan, npol)
-                vsum = numpy.abs(vdata).sum(axis=0).astype(numpy.float32)
+                vsum = (numpy.abs(vdata).sum(axis=0) / navg).astype(numpy.float32)
 
                 # Extract autocorrelations as complex: (nstand, nchan, npol)
                 adata = idata[0, autos, :, :, 0].astype(numpy.float32) \
