@@ -488,6 +488,13 @@ class SpectraSaveOp(object):
 
                 idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
 
+                # Extract all visibilities as complex: (nbl, nchan, npol)
+                vdata = idata[0, :, :, :, 0].astype(numpy.float32) \
+                      + 1j*idata[0, :, :, :, 1].astype(numpy.float32)
+
+                # Incoherent sum of all visibilities: (nchan, npol)
+                vsum = (numpy.abs(vdata).sum(axis=0) / navg).astype(numpy.float32)
+
                 # Extract autocorrelations as complex: (nstand, nchan, npol)
                 adata = idata[0, autos, :, :, 0].astype(numpy.float32) \
                       + 1j*idata[0, autos, :, :, 1].astype(numpy.float32)
@@ -507,6 +514,7 @@ class SpectraSaveOp(object):
                             time_tag=numpy.int64(time_tag),
                             freq=freq,
                             autocorr=adata,
+                            vsum=vsum,
                             pols=pols)
 
                 time_tag += navg * self.ntime_gulp
