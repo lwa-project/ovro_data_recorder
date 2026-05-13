@@ -3,6 +3,7 @@
 import os
 import sys
 import glob
+import gc
 import h5py
 import json
 import time
@@ -478,6 +479,13 @@ class SpectraSaveOp(object):
             autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
             pols  = numpy.array(['XX', 'XY', 'YX', 'YY'])
 
+            # Reusable buffers for this sequence (reduces allocator churn / VmRSS creep)
+            # ~32 passes over baselines; each pass handles max(1, nbl//32) baselines
+            chunk_bl = max(1, nbl // 32)
+            mag_work = numpy.empty((chunk_bl, nchan, npol), dtype=numpy.float32)
+            vsum_buf = numpy.zeros((nchan, npol), dtype=numpy.float32)
+            adata_buf = numpy.empty((nstand, nchan, npol), dtype=numpy.complex64)
+
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -488,16 +496,21 @@ class SpectraSaveOp(object):
 
                 idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
 
-                # Extract all visibilities as complex: (nbl, nchan, npol)
-                vdata = idata[0, :, :, :, 0].astype(numpy.float32) \
-                      + 1j*idata[0, :, :, :, 1].astype(numpy.float32)
+                # Incoherent sum over baselines without a full (nbl,nchan,npol) complex array
+                vsum_buf.fill(0.0)
+                for b0 in range(0, nbl, chunk_bl):
+                    b1 = min(b0 + chunk_bl, nbl)
+                    cs = b1 - b0
+                    r = idata[0, b0:b1, :, :, 0].astype(numpy.float32)
+                    im = idata[0, b0:b1, :, :, 1].astype(numpy.float32)
+                    numpy.hypot(r, im, out=mag_work[:cs])
+                    vsum_buf += mag_work[:cs].sum(axis=0)
+                    del r, im
+                vsum_buf /= numpy.float32(navg)
 
-                # Incoherent sum of all visibilities: (nchan, npol)
-                vsum = (numpy.abs(vdata).sum(axis=0) / navg).astype(numpy.float32)
-
-                # Extract autocorrelations as complex: (nstand, nchan, npol)
-                adata = idata[0, autos, :, :, 0].astype(numpy.float32) \
-                      + 1j*idata[0, autos, :, :, 1].astype(numpy.float32)
+                # Autocorrelations into reused buffer (no new complex array per gulp)
+                adata_buf.real[...] = idata[0, autos, :, :, 0]
+                adata_buf.imag[...] = idata[0, autos, :, :, 1]
 
                 # Build output path and filename
                 tt = LWATime(time_tag, format='timetag')
@@ -513,9 +526,11 @@ class SpectraSaveOp(object):
                 numpy.savez(os.path.join(tagpath, tagname),
                             time_tag=numpy.int64(time_tag),
                             freq=freq,
-                            autocorr=adata,
-                            vsum=vsum,
+                            autocorr=adata_buf,
+                            vsum=vsum_buf,
                             pols=pols)
+
+                gc.collect()
 
                 time_tag += navg * self.ntime_gulp
 
