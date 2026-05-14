@@ -477,13 +477,15 @@ class SpectraSaveOp(object):
 
             freq  = chan0*chan_bw + numpy.arange(nchan)*chan_bw
             autos = [i*(2*(nstand-1)+1-i)//2 + i for i in range(nstand)]
-            pols  = numpy.array(['XX', 'XY', 'YX', 'YY'])
+            pols = numpy.array(['XX', 'XY', 'YX', 'YY'])
+            vsum_pols = numpy.array(['XY'])
 
             # Reusable buffers for this sequence (reduces allocator churn / VmRSS creep)
             # ~32 passes over baselines; each pass handles max(1, nbl//32) baselines
             chunk_bl = max(1, nbl // 32)
-            mag_work = numpy.empty((chunk_bl, nchan, npol), dtype=numpy.float32)
-            vsum_buf = numpy.zeros((nchan, npol), dtype=numpy.float32)
+            # vsum: incoherent sum over baselines, XY only (pol index 1)
+            mag_work = numpy.empty((chunk_bl, nchan), dtype=numpy.float32)
+            vsum_buf = numpy.zeros((nchan,), dtype=numpy.float32)
             adata_buf = numpy.empty((nstand, nchan, npol), dtype=numpy.complex64)
 
             prev_time = time.time()
@@ -496,13 +498,13 @@ class SpectraSaveOp(object):
 
                 idata = ispan.data_view(numpy.int32).reshape(ishape+(2,))
 
-                # Incoherent sum over baselines without a full (nbl,nchan,npol) complex array
+                # Incoherent sum over baselines, XY only (no full nbl x nchan x 4 volume)
                 vsum_buf.fill(0.0)
                 for b0 in range(0, nbl, chunk_bl):
                     b1 = min(b0 + chunk_bl, nbl)
                     cs = b1 - b0
-                    r = idata[0, b0:b1, :, :, 0].astype(numpy.float32)
-                    im = idata[0, b0:b1, :, :, 1].astype(numpy.float32)
+                    r = idata[0, b0:b1, :, 1, 0].astype(numpy.float32)
+                    im = idata[0, b0:b1, :, 1, 1].astype(numpy.float32)
                     numpy.hypot(r, im, out=mag_work[:cs])
                     vsum_buf += mag_work[:cs].sum(axis=0)
                     del r, im
@@ -528,6 +530,7 @@ class SpectraSaveOp(object):
                             freq=freq,
                             autocorr=adata_buf,
                             vsum=vsum_buf,
+                            vsum_pols=vsum_pols,
                             pols=pols)
 
                 gc.collect()
