@@ -62,7 +62,7 @@ def main(args):
                     cores = [32,33,34,35]
                     last_address = address
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
-                                          beam=beam, address=address, port=port,
+                                          beam=beam, address=address, port=port, streaming_port=streaming_port,
                                           directory=directory, quota=quota, logdir=logdir,
                                           cores=','.join([str(v) for v in cores]),
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
@@ -88,6 +88,7 @@ def main(args):
                 address   = config['slow_vis'][band]['ip']
                 port      = config['slow_vis'][band]['port']
                 directory = config['slow_vis'][band]['directory']
+                autocorr_directory = config['slow_vis'][band]['autocorr_directory']
                 quota     = config['slow_vis'][band]['quota']
                 try:
                     logdir = config['slow_vis'][band]['logdir']
@@ -98,7 +99,7 @@ def main(args):
                     last_address = address
                 service = template.render(path=path, anaconda=anaconda, condaenv=condaenv,
                                           band=band, address=address, port=port,
-                                          directory=directory, quota=quota, logdir=logdir,
+                                          directory=directory, quota=quota, logdir=logdir, autocorr_directory=autocorr_directory,
                                           cores=','.join([str(v) for v in cores]),
                                           generated=generated, input_file=input_file, input_file_md5=input_file_md5)
                 for c in range(len(cores)):
