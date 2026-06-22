@@ -4,32 +4,38 @@ dr_tengine.py
 ``dr_tengine.py`` is a combination T-engine and recording pipeline for the voltage
 beam mode.  This pipeline captures packetized beam data from the digital system,
 down selects the frequency coverage to match what is requested by the observer,
-converts the data back into the time domain, and writes raw DRX files.
+converts the data back into the time domain, and writes raw DRX files.  This pipeline
+can also save pre-T-engine data in the form of RBeam files.
 
 Structure
 ---------
 
-The pipeline is written in the Bifrost framework and has four blocks:  
-``CaptureOp``, ``ReChannelizerOp``, ``TEngineOp``, and ``WriterOp``.
+The pipeline is written in the Bifrost framework and has six blocks:  
+``CaptureOp``, ``DownSelectOp``, ``RawWriterOp``, ``ReChannelizerOp``, ``TEngineOp``,
+and ``WriterOp``.
 
  * ``CaptureOp`` - This is the data capture block which is responsible for capturing
    the beam packets from the digital system, ordering them in time and frequency,
    and writing the organized data to a Bifrost ring.
+ * ``DownSelectOp`` - This takes the full voltage beam bandwidth and downselects it
+   to a frequency range provided by the observer.
+ * ``RawWriterOp`` - This reads in down selected data data and writes raw RBeam files
+   to disk.  This block provides a way to capture pre-T-engine data.
  * ``ReChannelizerOp`` - This reads in the beam data and performs an inverse FFT
    followed by an FFT to change the channel width of the data to 50 kHz.
  * ``TEngineOp`` - This reads in the re-channelized data, down selects the frequency
    range, and performs an inverse FFT to create time domain voltage data.
  * ``WriterOp`` - This reads in time domain data and writes raw DRX files to disk.
 
- The pipeline is designed such that there is one pipeline per voltage beam.  For the
- expected number un-averaged beams created by the digital system this equates to 2
- pipeline instances.
+The pipeline is designed such that there is one pipeline per voltage beam.  For the
+expected number un-averaged beams created by the digital system this equates to 2
+pipeline instances.
 
 Control Commands
 ----------------
 
-The ``dr_tengine.py`` pipeline supports six commands: ``ping``, ``sync``, ``record``,
-``cancel``, ``delete``, and ``drx``.
+The ``dr_tengine.py`` pipeline supports eight commands: ``ping``, ``sync``, ``record``,
+``raw_record``, ``cancel``, ``delete``, ``drx``, and ``bnd``.
 
   * ``ping`` - This command simply replies which is helpful to see if the pipeline
     is responsive.  There are no required or optional arguments.  Returns a response
@@ -40,7 +46,7 @@ The ``dr_tengine.py`` pipeline supports six commands: ``ping``, ``sync``, ``reco
      * ``server`` - a NTP server name or IP address to sync against.
    
     There are no optional arguments.  The command returns the sync status.
-  * ``record`` - This schedules a recording to take place.  The required arguments to
+  * ``record`` - This schedules a DRX recording to take place.  The required arguments to
     this command are:
     
      * ``start_mjd`` - an integer MJD value for when the recording will start,
@@ -50,7 +56,17 @@ The ``dr_tengine.py`` pipeline supports six commands: ``ping``, ``sync``, ``reco
      
     There are no optional arguments.  The command returns the name of the file that
     will be written.  The name will be of the format "<mjd>_<MCS sequence id>".
-  * ``cancel`` - This cancels a previously scheduled or active recording.  The
+  * ``raw_record`` - This schedules a RBeam recording to take place.  The required arguments to
+    this command are:
+    
+     * ``start_mjd`` - an integer MJD value for when the recording will start,
+     * ``start_mpm`` - an integer number of milliseconds past midnight value on the
+       MJD specified in ``start_mjd`` for when the recording will start, and
+     * ``duration_ms`` - the number of milliseconds to record data for.
+     
+    There are no optional arguments.  The command returns the name of the file that
+    will be written.  The name will be of the format "<mjd>_<MCS sequence id>".
+  * ``cancel`` - This cancels a previously scheduled or active DRX recording.  The
      required arguments to this command are:
      
       * `queue_number` - an entry number in the recording queue to cancel.
@@ -80,6 +96,12 @@ The ``dr_tengine.py`` pipeline supports six commands: ``ping``, ``sync``, ``reco
     There is a single optional argument of ``subslot`` which controls when the
     command is implemented within the second.  If not specified the default of 0
     is used.
+  * ``bnd`` - This controls the down selection in frequency.  The required arguments to
+    this command are:
+    
+     * ``beam`` - an integer of the voltage beam number of control,
+     * ``central_freq`` - the central frequency of the down selection in Hz, and
+     * ``bw`` - the bandwidth in Hz.
     
 Monitoring Points
 -----------------
@@ -119,8 +141,11 @@ recorded.
      
 
 
-Data Format
------------
+Data Formats
+------------
+
+DRX
+^^^
 
 The DRX format is a
 `Mark 5C <http://www.haystack.mit.edu/tech/vlbi/mark5/mark5_memos/057.pdf>`_-based
@@ -198,3 +223,35 @@ DRX Numbering is as follows:  DRX_ID is an unsigned 8-bit integer.
  * bits 3-5 are used to represent DRX_TUNING,
  * bit 6 is reserved for future use, and
  * bit 7 is used to represent polarization.
+
+RBeam
+^^^^^
+
+The RBeam format is a packetized format for storing complex frequency domain
+timeseries data.  The 16 B header for these packets is defined as:
+
+.. csv-table:: Header Fields
+  :header: Name, Data Type, Notes
+  
+  server,  uint8_t,  1-based
+  gbe,     uint8_t,  not used
+  nchan,   uint16_t, big endian
+  nbeam,   uint8_t,  always 1
+  nserver, uint8_t,  always 1
+  chan0,   uint16_t, big endian; first channel in packet
+  seq,     uint64_t, big endian; 1-based
+
+Following this header is a data section composed of little endian packed
+single precision floating point values, one for each beam, channel, and
+both polarizations contained in the frame.  This is a 3D data structure with
+axes beam x channel x polarization (X and Y).
+
+Sequence numbers can be converted to UNIX time stamps, `t` via:
+
+.. math::
+  t = seq \times \frac{8192}{196e6}.
+
+Channel numbers (and counts) can be converted to Hz via:
+
+.. math::
+  f = chan0 \times \frac{196 MHz}{8192}
